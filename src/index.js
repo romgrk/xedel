@@ -5,6 +5,8 @@ const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
 const GtkSource = gi.require('GtkSource', '4')
 
+const EditorView = require('./editor-view')
+
 const readFile = fs.promises.readFile
 
 gi.startLoop()
@@ -20,14 +22,16 @@ const builder = Gtk.Builder.newFromFile(gladeFile)
 
 const schemeManager = GtkSource.StyleSchemeManager.getDefault()
 const langManager = GtkSource.LanguageManager.getDefault()
-const scheme = schemeManager.getScheme('oblivion')
-
-const cssProvider = new Gtk.CssProvider()
 
 const state = {
   mainWindow: null,
   header: null,
   mainGrid: null,
+  cssProvider: new Gtk.CssProvider(),
+  schemeManager: schemeManager,
+  langManager: langManager,
+  scheme: schemeManager.getScheme('oblivion'),
+
   currentView: null,
   buffers: [],
   cwd: process.cwd(),
@@ -54,18 +58,18 @@ function main() {
     }
   })
 
-  state.currentView = createView()
+  state.currentView = new EditorView(state)
 
   mainGrid.attach(state.currentView, 0, 0, 1, 1)
 
   mainWindow.setDefaultSize(800, 800)
 
-  mainWindow.on('key-press-event', onKeyPressEvent);
+  mainWindow.on('key-press-event', onKeyPressEvent)
 
   Promise.all([
     initializeStyle(),
     updateBufferList(),
-    loadFile('index.js'),
+    loadFile('src/index.js'),
   ])
   .then(() => {
     mainWindow.showAll()
@@ -73,17 +77,17 @@ function main() {
 }
 
 function onKeyPressEvent(event) {
-  const keyname = Gdk.keyvalName(event.keyval);
-  const label = Gtk.acceleratorGetLabel(event.keyval, event.state);
+  const keyname = Gdk.keyvalName(event.keyval)
+  const label = Gtk.acceleratorGetLabel(event.keyval, event.state)
 
   console.log(event, event.keyval, keyname, label)
 
   if (event.ctrlKey && event.keyval === Gdk.KEY_o) {
     setImmediate(openFileDialog)
-    return true;
+    return true
   }
 
-  return false;
+  return false
 }
 
 function loadFile(filepath) {
@@ -95,17 +99,14 @@ function loadFile(filepath) {
       path.join(state.cwd, filepath)
 
   return readFile(realpath)
-  .then(buffer => buffer.toString())
   .then(content => {
-    const buffer = state.currentView.sourceView.getBuffer()
-    const language = langManager.guessLanguage(realpath, null) || langManager.guessLanguage('file.js', null);
+    const language = langManager.guessLanguage(realpath, null) || langManager.guessLanguage('file.js', null)
 
-    buffer.text = content
-    buffer.language = language
-    buffer.filepath = realpath
-    buffer.name = path.basename(realpath)
-
-    updateBufferList()
+    state.currentView.openBuffer({
+      content,
+      language,
+      filepath:realpath
+    })
   })
 }
 
@@ -120,7 +121,7 @@ function initializeStyle() {
     if (eventType && eventType !== 'change')
       return
     return readFile(styleFile).then(buffer => {
-      cssProvider.loadFromData(buffer, buffer.length)
+      state.cssProvider.loadFromData(buffer, buffer.length)
       console.log('Styles loaded')
     })
   }
@@ -142,33 +143,6 @@ function openFileDialog() {
   }
 
   dialog.destroy()
-}
-
-let bufferId = 1
-function createView() {
-  const scrollView = new Gtk.ScrolledWindow()
-  const sourceView   = new GtkSource.View()
-  scrollView.add(sourceView)
-  scrollView.margin = 10
-  scrollView.sourceView = sourceView
-
-  sourceView.vexpand = true
-  sourceView.hexpand = true
-  sourceView.monospace = true
-  sourceView.showLineNumbers = true
-  sourceView.highlightCurrentLine = true
-  // sourceView.pixelsAboveLines = 10
-  // sourceView.pixelsBelowLines = 10
-  sourceView.getStyleContext().addProvider(cssProvider, 9999)
-
-  const buffer = sourceView.getBuffer()
-  buffer.highlightSyntax = true
-  buffer.styleScheme = scheme
-  buffer.name = `[Buffer ${bufferId++}]`
-
-  state.buffers.push(buffer)
-
-  return scrollView
 }
 
 function onExit() {
