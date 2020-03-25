@@ -117,47 +117,59 @@ class Key {
   shift = false
   alt = false
   super = false
-  value = undefined
+  name = undefined
+  string = undefined
 
   event = undefined
   description = undefined
 
-  static fromDescription = (description, event) => {
-    const key = new Key(description, event)
+  static fromEvent = (event) => {
+    const key = new Key()
+    key.event = event
+
+    key.ctrl = event.ctrlKey
+    key.shift = event.shiftKey
+    key.alt = event.altKey
+    key.super = event.superKey
+    key.name = Gdk.keyvalName(event.keyval)
+    key.string = event.string
+
+    return key
+  }
+
+  static fromDescription = (description) => {
+    const key = new Key()
+    key.description = description
 
     const parts = description.split('+')
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]
+      const lcPart = part.toLowerCase()
 
-      if (part === 'Ctrl') {
+      if (lcPart === 'ctrl') {
         key.ctrl = true
       }
-      else if (part === 'Shift') {
+      else if (lcPart === 'shift') {
         key.shift = true
       }
-      else if (part === 'Alt') {
+      else if (lcPart === 'alt') {
         key.alt = true
       }
-      else if (part === 'Super') {
+      else if (lcPart === 'super') {
         key.super = true
       }
-      else if (part === 'Mod4') {
-        // ignore
-      }
       else if (i === parts.length - 1) {
-        key.value = part
+        key.name = part
+      }
+      else {
+        console.warn('Unhandled part: ', part, parts)
       }
     }
+
+    // FIXME(set key.string)
 
     return key
-  }
-
-  constructor(description, event) {
-    this.description = description
-    if (event) {
-      this.event = event
-    }
   }
 
   equals(other) {
@@ -166,17 +178,17 @@ class Key {
     if (this.alt !== other.alt) return false
     if (this.super !== other.super) return false
 
-    if (this.value === other.value) return true
+    if (this.name === other.name) return true
 
     return false
   }
 
   isLetter() {
-    return /^[a-zA-Z]$/.test(this.value)
+    return /^[a-zA-Z]$/.test(this.string)
   }
 
   isDigit() {
-    return /^[0-9]$/.test(this.value)
+    return /^[0-9]$/.test(this.string)
   }
 }
 
