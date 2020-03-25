@@ -5,115 +5,111 @@ const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
 const GtkSource = gi.require('GtkSource', '4')
 
+const context = require('./context')
+
 const EditorView = require('./editor-view')
+const CommandsManager = require('./commands-manager')
+const KeymapManager = require('./keymap-manager')
+
+const getAbsolutePath = require('./utils/get-absolute-path')
 
 const readFile = fs.promises.readFile
 
-gi.startLoop()
-Gtk.init([])
-Gdk.init([])
+// Paths
 
 const gladeFile = path.join(__dirname, './ui.glade')
 const styleFile = path.join(__dirname, './style.css')
 
-let styleFileWatcher
+gi.startLoop()
+Gtk.init([])
+Gdk.init([])
 
 const builder = Gtk.Builder.newFromFile(gladeFile)
 
 const schemeManager = GtkSource.StyleSchemeManager.getDefault()
 const langManager = GtkSource.LanguageManager.getDefault()
 
-const state = {
+let styleFileWatcher
+
+const windowKeymap = {
+  name: 'window',
+  keybindings: {
+    'Ctrl+O': openFileDialog,
+    'Ctrl+W Q': ['destroy'],
+  }
+}
+
+context.set({
   mainWindow: null,
-  header: null,
+  statusLabel: null,
   mainGrid: null,
   cssProvider: new Gtk.CssProvider(),
   schemeManager: schemeManager,
   langManager: langManager,
+  keymapManager: null,
   scheme: schemeManager.getScheme('oblivion'),
 
   currentView: null,
   buffers: [],
   cwd: process.cwd(),
-}
+})
+
+context.loaded.then(() => {
+  console.log('Loaded')
+})
 
 function main() {
 
-  const mainWindow = state.mainWindow = builder.getObject('mainWindow')
-  const mainGrid = state.mainGrid = builder.getObject('mainGrid')
-  const header = state.header = builder.getObject('helloLabel')
+  const mainWindow = context.mainWindow = builder.getObject('mainWindow')
+  const mainGrid = context.mainGrid = builder.getObject('mainGrid')
+  const statusLabel = context.statusLabel = builder.getObject('statusLabel')
 
   builder.connectSignals({
     onWindowShow: Gtk.main,
-    onWindowDestroy: () => {
-      Gtk.mainQuit()
-      process.exit(0)
-    },
-    onCloseBtnClicked: function () {
+    onWindowDestroy: onWindowDestroy,
+    onCloseBtnClicked: () => {
       mainWindow.close()
-      console.log('window closed')
     },
-    onActionBtnClicked: function () {
+    onActionBtnClicked: () => {
       console.log('button clicked')
     }
   })
 
-  state.currentView = new EditorView(state)
+  const commands = context.commands = new CommandsManager()
 
-  mainGrid.attach(state.currentView, 0, 0, 1, 1)
+  const keymapManager = context.keymapManager = new KeymapManager()
+  keymapManager.addKeymap(mainWindow, windowKeymap)
+
+  context.currentView = new EditorView()
+
+  mainGrid.attach(context.currentView, 0, 0, 1, 1)
 
   mainWindow.setDefaultSize(800, 800)
 
-  mainWindow.on('key-press-event', onKeyPressEvent)
-
   Promise.all([
     initializeStyle(),
-    updateBufferList(),
     loadFile('src/index.js'),
   ])
   .then(() => {
+    setImmediate(() => context.loaded.resolve())
     mainWindow.showAll()
   })
 }
 
-function onKeyPressEvent(event) {
-  const keyname = Gdk.keyvalName(event.keyval)
-  const label = Gtk.acceleratorGetLabel(event.keyval, event.state)
-
-  console.log(event, event.keyval, keyname, label)
-
-  if (event.ctrlKey && event.keyval === Gdk.KEY_o) {
-    setImmediate(openFileDialog)
-    return true
-  }
-
-  return false
+function onWindowDestroy() {
+  Gtk.mainQuit()
+  process.exit(0)
 }
 
 function loadFile(filepath) {
-  console.log('Loading:', filepath)
+  console.log(`Loading "${filepath}"`)
 
-  const realpath =
-    path.isAbsolute(filepath) ?
-      filepath :
-      path.join(state.cwd, filepath)
+  const realpath = getAbsolutePath(filepath, context.cwd)
 
   return readFile(realpath)
   .then(content => {
-    const language = langManager.guessLanguage(realpath, null) || langManager.guessLanguage('file.js', null)
-
-    state.currentView.openBuffer({
-      content,
-      language,
-      filepath:realpath
-    })
+    context.currentView.openBuffer({ content, filepath: realpath })
   })
-}
-
-function updateBufferList() {
-  state.header.setText(
-    state.buffers.map(b => b.name).join(', ')
-  )
 }
 
 function initializeStyle() {
@@ -121,7 +117,7 @@ function initializeStyle() {
     if (eventType && eventType !== 'change')
       return
     return readFile(styleFile).then(buffer => {
-      state.cssProvider.loadFromData(buffer, buffer.length)
+      context.cssProvider.loadFromData(buffer, buffer.length)
       console.log('Styles loaded')
     })
   }
@@ -133,7 +129,7 @@ function initializeStyle() {
 
 function openFileDialog() {
   const dialog = new Gtk.FileChooserDialog(
-    'Open File', state.mainWindow, Gtk.FileChooserAction.OPEN)
+    'Open File', context.mainWindow, Gtk.FileChooserAction.OPEN)
   dialog.addButton(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL)
   dialog.addButton(Gtk.STOCK_OPEN, Gtk.ResponseType.ACCEPT)
 

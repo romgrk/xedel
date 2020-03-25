@@ -6,18 +6,31 @@
     <property name="can_focus">False</property>
     <signal name="destroy" handler="onWindowDestroy" swapped="no"/>
     <signal name="show" handler="onWindowShow" swapped="no"/>
+
     <child>
       <placeholder/>
     </child>
+
     <child>
       <object class="GtkBox">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
-        <property name="orientation">vertical</property>
+        <property name="orientation">horizontal</property>
+
+        <!-- toolbar -->
         <child>
-          <object class="GtkLabel" id="helloLabel">
+          <object class="GtkToolbar" id="toolbar">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
+            <property name="orientation">vertical</property>
+
+            <child>
+              <object class="GtkToolButton">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="icon_name">folder-documents-symbolic</property>
+              </object>
+            </child>
           </object>
           <packing>
             <property name="expand">False</property>
@@ -26,10 +39,71 @@
           </packing>
         </child>
 
+        <!-- mainPanel -->
         <child>
-          <object class="GtkGrid" id="mainGrid">
+          <object class="GtkBox">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
+            <property name="orientation">vertical</property>
+
+            <!-- mainGrid -->
+            <child>
+              <object class="GtkGrid" id="mainGrid">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+
+            <!-- actionButton -->
+            <child>
+              <object class="GtkButton" id="actionButton">
+                <property name="label" translatable="yes">Action</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <signal name="clicked" handler="onActionBtnClicked" swapped="no"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+
+            <!-- closeButton -->
+            <child>
+              <object class="GtkButton" id="closeButton">
+                <property name="label" translatable="yes">Close</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <signal name="clicked" handler="onCloseBtnClicked" swapped="no"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">2</property>
+              </packing>
+            </child>
+
+            <!-- statusLabel -->
+            <child>
+              <object class="GtkLabel" id="statusLabel">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">3</property>
+              </packing>
+            </child>
+
           </object>
           <packing>
             <property name="expand">True</property>
@@ -38,36 +112,8 @@
           </packing>
         </child>
 
-        <child>
-          <object class="GtkButton" id="actionButton">
-            <property name="label" translatable="yes">Action</property>
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <signal name="clicked" handler="onActionBtnClicked" swapped="no"/>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">2</property>
-          </packing>
-        </child>
-
-        <child>
-          <object class="GtkButton" id="closeButton">
-            <property name="label" translatable="yes">Close</property>
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <signal name="clicked" handler="onCloseBtnClicked" swapped="no"/>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">3</property>
-          </packing>
-        </child>
       </object>
+
     </child>
   </object>
 </interface>
