@@ -9,10 +9,9 @@ const Gdk = gi.require('Gdk', '3.0')
 const GtkSource = gi.require('GtkSource', '4')
 
 const context = require('./context')
+const Editor = require('./editor')
 
-let bufferId = 1
-
-const editorCommands = {
+const editorViewCommands = {
   'editor:next-buffer':          nextBuffer,
   'editor:previous-buffer':      previousBuffer,
   'editor:close-current-buffer': closeCurrentBuffer,
@@ -27,47 +26,37 @@ const editorViewKeymap = {
   }
 }
 
-const sourceViewKeymap = {
-  name: 'source-view',
-  keybindings: {
-    'I': 'editor:insert-mode',
-  }
-}
-
 context.loaded.then(() => {
-  context.commands.registerCommands('editor-view', editorCommands)
+  context.commands.registerCommands('editor-view', editorViewCommands)
 })
-
-const tagHighlight = new Gtk.TextTag('highlight')
-tagHighlight.background = '#EEE130'
 
 class EditorView extends Gtk.Notebook {
 
   constructor(existingBuffer) {
     super()
 
-    const sourceView = createSourceView()
-    const buffer = existingBuffer || sourceView.getBuffer()
+    const editor = createEditor()
+    const buffer = existingBuffer || editor.getBuffer()
     if (existingBuffer) {
-      sourceView.setBuffer(existingBuffer)
+      editor.setBuffer(existingBuffer)
     }
 
     this.showBorder = true
     this.showTabs = true
 
-    this.appendPage(sourceView.container)
-    this.setTabLabelText(sourceView.container, buffer.name)
+    this.appendPage(editor.container)
+    this.setTabLabelText(editor.container, buffer.name)
 
     context.keymapManager.addKeymap(this, editorViewKeymap)
   }
 
   openBuffer(options) {
-    const sourceView = createSourceView(options)
-    const buffer = sourceView.getBuffer()
+    const editor = createEditor(options)
+    const buffer = editor.getBuffer()
 
-    this.appendPage(sourceView.container)
-    this.setTabLabelText(sourceView.container, buffer.name)
-    sourceView.container.show()
+    this.appendPage(editor.container)
+    this.setTabLabelText(editor.container, buffer.name)
+    editor.container.show()
 
     this.setCurrentPage(-1)
   }
@@ -82,63 +71,20 @@ module.exports = EditorView
  * @param {string} options.name
  * @param {GtkSourceLanguage} options.language
  */
-function createSourceView(options) {
+function createEditor(options) {
   const scrollView = new Gtk.ScrolledWindow()
   scrollView.margin = 10
-  const sourceView   = new GtkSource.View()
-  sourceView.vexpand = true
-  sourceView.hexpand = true
-  sourceView.monospace = true
-  sourceView.showLineNumbers = true
-  sourceView.highlightCurrentLine = true
-  // sourceView.pixelsAboveLines = 10
-  // sourceView.pixelsBelowLines = 10
-  sourceView.getStyleContext().addProvider(context.cssProvider, 9999)
 
-  sourceView.container = scrollView
+  const editor = new Editor(scrollView, options)
 
-  context.keymapManager.addKeymap(sourceView, sourceViewKeymap)
-
-  scrollView.add(sourceView)
-  scrollView.sourceView = sourceView
-
-  const buffer = sourceView.getBuffer()
-  buffer.highlightSyntax = true
-  buffer.styleScheme = context.scheme
-  buffer.name = `[Buffer ${bufferId++}]`
-  buffer.id = bufferId
-
-  if (options) {
-    let { content, language, filepath, name } = options
-
-    if (!language) {
-      const filename = path.basename(filepath) || name || 'file.txt'
-      language = context.langManager.guessLanguage(filename, null) || null
-    }
-
-    // GObject props
-    buffer.text = content || ''
-    if (language)
-      buffer.language = language
-
-    buffer.filepath = filepath
-    buffer.name =
-      name ?
-        name :
-      filepath ?
-        path.basename(filepath) :
-        `[Buffer ${bufferId++}]`
-  }
-
-  const tagTable = buffer.getTagTable()
-  tagTable.add(tagHighlight)
-
-  context.buffers.push(buffer)
+  scrollView.add(editor)
+  scrollView.editor = editor
 
   scrollView.showAll()
 
-  return sourceView
+  return editor
 }
+
 
 /*
  * Keybinding functions

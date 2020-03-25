@@ -51,7 +51,7 @@ class KeymapManager {
   onKeyPressEvent(name, widget, event) {
     const keyname = Gdk.keyvalName(event.keyval)
     const description = getEventKeyDescription(event)
-    const key = keyFromDescription(description)
+    const key = Key.fromDescription(description, event)
 
     console.log('key-press', widget.constructor.name, event.keyval, keyname, description)
     // return
@@ -112,6 +112,74 @@ KeymapManager.KeybindingMatch = KeybindingMatch
 
 module.exports = KeymapManager
 
+class Key {
+  ctrl = false
+  shift = false
+  alt = false
+  super = false
+  value = undefined
+
+  event = undefined
+  description = undefined
+
+  static fromDescription = (description, event) => {
+    const key = new Key(description, event)
+
+    const parts = description.split('+')
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+
+      if (part === 'Ctrl') {
+        key.ctrl = true
+      }
+      else if (part === 'Shift') {
+        key.shift = true
+      }
+      else if (part === 'Alt') {
+        key.alt = true
+      }
+      else if (part === 'Super') {
+        key.super = true
+      }
+      else if (part === 'Mod4') {
+        // ignore
+      }
+      else if (i === parts.length - 1) {
+        key.value = part
+      }
+    }
+
+    return key
+  }
+
+  constructor(description, event) {
+    this.description = description
+    if (event) {
+      this.event = event
+    }
+  }
+
+  equals(other) {
+    if (this.ctrl !== other.ctrl) return false
+    if (this.shift !== other.shift) return false
+    if (this.alt !== other.alt) return false
+    if (this.super !== other.super) return false
+
+    if (this.value === other.value) return true
+
+    return false
+  }
+
+  isLetter() {
+    return /^[a-zA-Z]$/.test(this.value)
+  }
+
+  isDigit() {
+    return /^[0-9]$/.test(this.value)
+  }
+}
+
 function matchKeybinding(stack, keymap) {
   const { name, keybindings } = keymap
   const keybindingKeys = Object.keys(keybindings)
@@ -120,7 +188,7 @@ function matchKeybinding(stack, keymap) {
   let match
 
   outer: for (let keybinding of keybindingKeys) {
-    const keyStack = keybinding.split(/\s+/).map(keyFromDescription)
+    const keyStack = keybinding.split(/\s+/).map(d => Key.fromDescription(d))
 
     // console.log({ stack, keyStack })
 
@@ -130,7 +198,7 @@ function matchKeybinding(stack, keymap) {
     for (let i = 0; i < stack.length; i++) {
       const key = stack[i]
 
-      if (!keyEquals(key, keyStack[i]))
+      if (!key.equals(keyStack[i]))
         continue outer
     }
 
@@ -153,53 +221,4 @@ function getEventKeyDescription(event) {
   return label
     .replace('Left Tab', 'Tab')
     .replace(/ /g, '_')
-}
-
-function keyEquals(a, b) {
-  if (a.ctrl !== b.ctrl) return false
-  if (a.shift !== b.shift) return false
-  if (a.alt !== b.alt) return false
-  if (a.super !== b.super) return false
-
-  if (a.value === b.value) return true
-
-  return false
-}
-
-function keyFromDescription(description) {
-  const key = {
-    ctrl: false,
-    shift: false,
-    alt: false,
-    super: false,
-    value: undefined,
-    description
-  }
-
-  const parts = description.split('+')
-
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]
-
-    if (part === 'Ctrl') {
-      key.ctrl = true
-    }
-    else if (part === 'Shift') {
-      key.shift = true
-    }
-    else if (part === 'Alt') {
-      key.alt = true
-    }
-    else if (part === 'Super') {
-      key.super = true
-    }
-    else if (part === 'Mod4') {
-      // ignore
-    }
-    else if (i === parts.length - 1) {
-      key.value = part
-    }
-  }
-
-  return key
 }
