@@ -40,6 +40,9 @@ describe('Key', () => {
 
     parse('alt-@', { name: '2', alt: true, shift: true })
 
+    parse('escape', { name: 'escape' })
+    parse('Escape', { name: 'escape' })
+
     function parse(description, result) {
       it(`parses "${description}"`, () => {
         expect(Key.fromDescription(description)).toEqual(k(result))

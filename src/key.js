@@ -2,11 +2,11 @@
  * key.js
  */
 
+const KeySymbols = require('./key-symbols')
 const nativeKeymap = require('native-keymap').getKeyMap()
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
-const { LOWER_TO_UPPER } = require('./key-symbols')
 
 const keymap =
   Object.entries(nativeKeymap)
@@ -107,14 +107,19 @@ class Key {
           }
 
         }
-        // key name, eg "grave"
+        // key name, eg "grave", "Escape", "escape"
         else {
-          if (!isValidKeyvalName(name))
+          if (!isValidKeyvalName(name) && !KeySymbols.LOWER_TO_UPPER[name.toLowerCase()]) {
             throw new Error(`Couldn't parse key: "${description}"`)
+          }
 
           string = String.fromCharCode(Gdk.keyvalToUnicode(Gdk.keyvalFromName(name)))
+          name = name.toLowerCase()
 
-          const keymapEntry = keymap.find(k => k.withShift === string)
+          const keymapEntry =
+            string.charCodeAt(0) >= 0x20 ?
+              keymap.find(k => k.withShift === string) : undefined
+
           if (keymapEntry) {
             name = getKeyvalNameFromChar(keymapEntry.value)
             key.shift = true
