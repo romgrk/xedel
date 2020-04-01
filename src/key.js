@@ -6,6 +6,7 @@ const nativeKeymap = require('native-keymap').getKeyMap()
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
+const { LOWER_TO_UPPER } = require('./key-symbols')
 
 const keymap =
   Object.entries(nativeKeymap)
@@ -38,11 +39,19 @@ class Key {
   static fromEvent = (event) => {
     let shift = false
     let name = Gdk.keyvalName(event.keyval)
-    const keymapEntry = keymap.find(k => k.withShift === name)
+    let string = String.fromCharCode(Gdk.keyvalToUnicode(event.keyval))
+
+    const keymapEntry =
+      string.charCodeAt(0) >= 0x20 ?
+        keymap.find(k => k.withShift === string) : undefined
 
     if (keymapEntry) {
       name = keymapEntry.value
       shift = true
+    }
+    // eg "Escape", "BackSpace"
+    else {
+      name = name.toLowerCase()
     }
 
     const key = new Key()

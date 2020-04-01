@@ -51,6 +51,7 @@ describe('Key', () => {
 
     parse(['a', ModifierType.CONTROL_MASK], { ctrl: true, name: 'a' })
     parse(['A', ModifierType.CONTROL_MASK], { ctrl: true, name: 'a', shift: true })
+    parse(['Escape', ModifierType.CONTROL_MASK], { ctrl: true, name: 'escape' })
 
     function parse(description, result) {
       it(`parses "${description}"`, () => {
