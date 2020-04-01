@@ -10,6 +10,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "jest": "^25.2.3",
+    "native-keymap": "^2.1.1",
     "node-gtk": "0.3.0"
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-class-properties": "^7.8.3"
   }
 }
