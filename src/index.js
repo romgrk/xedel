@@ -33,9 +33,9 @@ let styleFileWatcher
 
 const windowKeymap = {
   name: 'window',
-  keybindings: {
-    'Ctrl+O': openFileDialog,
-    'Ctrl+W Q': ['destroy'],
+  keys: {
+    'ctrl-o': openFileDialog,
+    'ctrl-w q': ['destroy'],
   }
 }
 
@@ -46,8 +46,8 @@ context.set({
   cssProvider: new Gtk.CssProvider(),
   schemeManager: schemeManager,
   langManager: langManager,
-  keymapManager: null,
-  scheme: schemeManager.getScheme('oblivion'),
+  keymaps: null,
+  scheme: schemeManager.getScheme('builder-dark'),
 
   currentView: null,
   buffers: [],
@@ -77,8 +77,8 @@ function main() {
 
   const commands = context.commands = new CommandsManager()
 
-  const keymapManager = context.keymapManager = new KeymapManager()
-  keymapManager.addKeymap(mainWindow, windowKeymap)
+  const keymaps = context.keymaps = new KeymapManager()
+  keymaps.addKeymap(mainWindow, windowKeymap)
 
   context.currentView = new EditorView()
 

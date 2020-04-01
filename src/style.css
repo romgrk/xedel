@@ -4,5 +4,9 @@
 
 .sourceview {
   font-family: "Source Code Pro", "Fantasque Sans Mono", monospace;
-  font-size: 18px;
+  font-size: 16px;
 }
+
+/* notebook stack > * {
+ *   margin: -10px;
+ * } */

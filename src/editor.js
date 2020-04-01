@@ -26,7 +26,7 @@ const editorCommands = {
 
 const editorKeymap = {
   name: 'editor.normal-mode',
-  keybindings: {
+  keys: {
     'I': 'editor:insert-mode',
     '"': 'editor:set-register-mode',
   }
@@ -39,8 +39,8 @@ const editorRegisterKeymap = {
 
     editor.state.register
   },
-  keybindings: {
-    'Escape': 'editor:normal-mode',
+  keys: {
+    'escape': 'editor:normal-mode',
   }
 }
 
@@ -72,8 +72,8 @@ class Editor extends GtkSource.View {
 
     this.initializeBuffer(options)
 
-    context.keymapManager.addKeymap(this, editorKeymap)
-    context.keymapManager.addKeymap(this, editorRegisterKeymap)
+    context.keymaps.addKeymap(this, editorKeymap)
+    context.keymaps.addKeymap(this, editorRegisterKeymap)
   }
 
   initializeBuffer(options) {

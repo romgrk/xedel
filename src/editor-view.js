@@ -19,10 +19,10 @@ const editorViewCommands = {
 
 const editorViewKeymap = {
   name: 'editor-view',
-  keybindings: {
-    'Alt+,': 'editor:previous-buffer',
-    'Alt+.': 'editor:next-buffer',
-    'Alt+C': 'editor:close-current-buffer',
+  keys: {
+    'alt-,': 'editor:previous-buffer',
+    'alt-.': 'editor:next-buffer',
+    'alt-c': 'editor:close-current-buffer',
   }
 }
 
@@ -47,7 +47,7 @@ class EditorView extends Gtk.Notebook {
     this.appendPage(editor.container)
     this.setTabLabelText(editor.container, buffer.name)
 
-    context.keymapManager.addKeymap(this, editorViewKeymap)
+    context.keymaps.addKeymap(this, editorViewKeymap)
   }
 
   openBuffer(options) {

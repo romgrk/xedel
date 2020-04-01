@@ -15,7 +15,7 @@ const context = {
   scheme: null,
 
   commands: null,
-  keymapManager: null,
+  keymaps: null,
 
   /*
    * Resolved after the application is initialized

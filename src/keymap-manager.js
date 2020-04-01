@@ -4,6 +4,7 @@
 
 const context = require('./context')
 
+const Key = require('./key')
 const tryCall = require('./utils/try-call')
 const { unreachable } = require('./utils/assert')
 
@@ -14,15 +15,16 @@ const Gdk = gi.require('Gdk', '3.0')
 const CONTINUE = false
 const STOP_PROPAGATION = true
 
-const KeybindingMatch = {
-  NONE:    'NONE',
+const MATCH = {
   PARTIAL: 'PARTIAL',
   FULL:    'FULL',
 }
 
 class KeymapManager {
-  stack = []
-  keymapByLayer = {}
+  queuedEvents = []
+  queuedKeystrokes = []
+
+  keymapsByName = {}
 
   constructor() {
     context.loaded.then(() => {
@@ -31,56 +33,56 @@ class KeymapManager {
   }
 
   addKeymap(widget, keymap) {
-    const name = keymap.name
+    const name = widget.constructor.name
 
-    widget.on('key-press-event', (event) =>
-      tryCall(() => this.onKeyPressEvent(name, widget, event)))
+    if (this.keymapsByName[name] === undefined)
+      this.keymapsByName[name] = []
 
-    if (this.keymapByLayer[name] === undefined)
-      this.keymapByLayer[name] = []
-
-    this.keymapByLayer[name].push(keymap)
+    this.keymapsByName[name].push(keymap)
   }
 
   onWindowKeyPressEvent(event) {
     const keyname = Gdk.keyvalName(event.keyval)
     const description = getEventKeyDescription(event)
-    console.log('key-press', 'TOP_LEVEL', event.keyval, keyname, description)
-  }
+    const key = Key.fromEvent(event)
 
-  onKeyPressEvent(name, widget, event) {
-    const keyname = Gdk.keyvalName(event.keyval)
-    const description = getEventKeyDescription(event)
-    const key = Key.fromDescription(description, event)
+    console.log('key-press', event.keyval, keyname, key.toString())
 
-    console.log('key-press', widget.constructor.name, event.keyval, keyname, description)
-    // return
+    const elements = getElementsStack()
+    elements.forEach(e => console.log('-> ', e.constructor.name))
 
-    const currentStack = this.stack.concat(key)
+    const queuedKeystrokes = this.queuedKeystrokes.concat(key)
 
-    const keymaps = this.keymapByLayer[name]
+    for (let element of elements) {
+      const keymaps = this.keymapsByName[element.constructor.name]
 
-    // console.log({ name, keymaps })
+      if (!keymaps)
+        continue
 
-    const matches =
-      keymaps.map(keymap => matchKeybinding(currentStack, keymap))
-             .reduce((list, current) => list.concat(current), [])
+      // console.log({ name, keymaps })
 
-    if (matches.length > 0)
-      console.log('matches', matches)
+      const matches =
+        keymaps.map(keymap => matchKeybinding(queuedKeystrokes, keymap))
+              .reduce((list, current) => list.concat(current), [])
 
-    const fullMatch = matches.find(m => m.match === KeybindingMatch.FULL)
+      if (matches.length > 0)
+        console.log('matches', matches)
 
-    if (fullMatch && matches.length === 1) {
-      const { keybinding, effect, source } = fullMatch
+      const fullMatch = matches.find(m => m.match === MATCH.FULL)
 
-      this.runEffect(effect, widget)
-      this.stack = []
+      if (fullMatch && matches.length === 1) {
+        const { keys, effect, source } = fullMatch
 
-      return STOP_PROPAGATION
-    }
-    else if (matches.length > 0) {
-      this.stack = currentStack
+        this.runEffect(effect, element)
+        this.queuedEvents = []
+        this.queuedKeystrokes = []
+
+        return STOP_PROPAGATION
+      }
+      else if (matches.length > 0) {
+        this.queuedEvents = this.queuedEvents.concat(event)
+        this.queuedKeystrokes = queuedKeystrokes
+      }
     }
 
     return CONTINUE
@@ -108,93 +110,24 @@ class KeymapManager {
   }
 }
 
-KeymapManager.KeybindingMatch = KeybindingMatch
+KeymapManager.MATCH = MATCH
 
 module.exports = KeymapManager
 
-class Key {
-  ctrl = false
-  shift = false
-  alt = false
-  super = false
-  name = undefined
-  string = undefined
-
-  event = undefined
-  description = undefined
-
-  static fromEvent = (event) => {
-    const key = new Key()
-    key.event = event
-
-    key.ctrl = event.ctrlKey
-    key.shift = event.shiftKey
-    key.alt = event.altKey
-    key.super = event.superKey
-    key.name = Gdk.keyvalName(event.keyval)
-    key.string = event.string
-
-    return key
+function getElementsStack() {
+  const activeElement = context.mainWindow.getFocus()
+  const elements = [activeElement]
+  let current = activeElement
+  while ((current = current.getParent()) !== null) {
+    elements.push(current)
   }
 
-  static fromDescription = (description) => {
-    const key = new Key()
-    key.description = description
-
-    const parts = description.split('+')
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      const lcPart = part.toLowerCase()
-
-      if (lcPart === 'ctrl') {
-        key.ctrl = true
-      }
-      else if (lcPart === 'shift') {
-        key.shift = true
-      }
-      else if (lcPart === 'alt') {
-        key.alt = true
-      }
-      else if (lcPart === 'super') {
-        key.super = true
-      }
-      else if (i === parts.length - 1) {
-        key.name = part
-      }
-      else {
-        console.warn('Unhandled part: ', part, parts)
-      }
-    }
-
-    // FIXME(set key.string)
-
-    return key
-  }
-
-  equals(other) {
-    if (this.ctrl !== other.ctrl) return false
-    if (this.shift !== other.shift) return false
-    if (this.alt !== other.alt) return false
-    if (this.super !== other.super) return false
-
-    if (this.name === other.name) return true
-
-    return false
-  }
-
-  isLetter() {
-    return /^[a-zA-Z]$/.test(this.string)
-  }
-
-  isDigit() {
-    return /^[0-9]$/.test(this.string)
-  }
+  return elements
 }
 
-function matchKeybinding(stack, keymap) {
-  const { name, keybindings } = keymap
-  const keybindingKeys = Object.keys(keybindings)
+function matchKeybinding(queuedKeystrokes, keymap) {
+  const { name, keys } = keymap
+  const keybindingKeys = Object.keys(keys)
   const results = []
 
   let match
@@ -202,23 +135,23 @@ function matchKeybinding(stack, keymap) {
   outer: for (let keybinding of keybindingKeys) {
     const keyStack = keybinding.split(/\s+/).map(d => Key.fromDescription(d))
 
-    // console.log({ stack, keyStack })
+    // console.log({ queuedKeystrokes, keyStack })
 
-    if (keyStack.length < stack.length)
+    if (keyStack.length < queuedKeystrokes.length)
       continue
 
-    for (let i = 0; i < stack.length; i++) {
-      const key = stack[i]
+    for (let i = 0; i < queuedKeystrokes.length; i++) {
+      const key = queuedKeystrokes[i]
 
       if (!key.equals(keyStack[i]))
         continue outer
     }
 
-    if (stack.length < keyStack.length) {
-      results.push({ match: KeybindingMatch.PARTIAL, keybinding, effect: keybindings[keybinding], source: name })
+    if (queuedKeystrokes.length < keyStack.length) {
+      results.push({ match: MATCH.PARTIAL, keybinding, effect: keys[keybinding], source: name })
     }
-    else if (keyStack.length === stack.length) {
-      results.push({ match: KeybindingMatch.FULL, keybinding, effect: keybindings[keybinding], source: name })
+    else if (keyStack.length === queuedKeystrokes.length) {
+      results.push({ match: MATCH.FULL, keybinding, effect: keys[keybinding], source: name })
     }
     else {
       unreachable()
