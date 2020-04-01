@@ -41,15 +41,24 @@ class KeymapManager {
     this.keymapsByName[name].push(keymap)
   }
 
+  removeKeymap(widget, keymap) {
+    const name = widget.constructor.name
+
+    if (this.keymapsByName[name] === undefined)
+      return
+
+    this.keymapsByName[name] =
+      this.keymapsByName[name].filter(k => k !== keymap)
+  }
+
   onWindowKeyPressEvent(event) {
     const keyname = Gdk.keyvalName(event.keyval)
-    const description = getEventKeyDescription(event)
     const key = Key.fromEvent(event)
 
-    console.log('key-press', event.keyval, keyname, key.toString())
-
     const elements = getElementsStack()
-    elements.forEach(e => console.log('-> ', e.constructor.name))
+
+    console.log('key-press', event.keyval, keyname, key.toString())
+    // elements.forEach(e => console.log('-> ', e.constructor.name))
 
     const queuedKeystrokes = this.queuedKeystrokes.concat(key)
 
@@ -159,11 +168,4 @@ function matchKeybinding(queuedKeystrokes, keymap) {
   }
 
   return results
-}
-
-function getEventKeyDescription(event) {
-  const label = Gtk.acceleratorGetLabel(event.keyval, event.state)
-  return label
-    .replace('Left Tab', 'Tab')
-    .replace(/ /g, '_')
 }
