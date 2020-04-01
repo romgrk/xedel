@@ -36,7 +36,6 @@ const editorRegisterKeymap = {
   name: 'editor.set-register-mode',
   isActive: (editor) => editor.state.mode === MODE.SET_REGISTER,
   onKeyPress: (editor, key) => {
-
     editor.state.register
   },
   keys: {
@@ -46,6 +45,8 @@ const editorRegisterKeymap = {
 
 context.loaded.then(() => {
   context.commands.registerCommands('editor', editorCommands)
+  context.keymaps.addKeymap(Editor, editorKeymap)
+  context.keymaps.addKeymap(Editor, editorRegisterKeymap)
 })
 
 let bufferId = 1
@@ -64,16 +65,12 @@ class Editor extends GtkSource.View {
     this.monospace = true
     this.showLineNumbers = true
     this.highlightCurrentLine = true
-    this.getStyleContext().addProvider(context.cssProvider, 9999)
 
     this.on('focus-out-event', this.onFocusOut)
 
     this.container = container
 
     this.initializeBuffer(options)
-
-    context.keymaps.addKeymap(this, editorKeymap)
-    context.keymaps.addKeymap(this, editorRegisterKeymap)
   }
 
   initializeBuffer(options) {

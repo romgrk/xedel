@@ -7,6 +7,9 @@
   font-size: 16px;
 }
 
-/* notebook stack > * {
- *   margin: -10px;
- * } */
+notebook tab {
+  margin: 0;
+}
+notebook stack > * {
+  margin: -10px;
+}

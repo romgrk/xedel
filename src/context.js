@@ -6,7 +6,7 @@ const createControllablePromise = require('./utils/create-controllable-promise')
 
 const context = {
   mainWindow: null,
-  statusLabel: null,
+  statusbar: null,
   mainGrid: null,
 
   cssProvider: null,

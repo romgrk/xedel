@@ -32,8 +32,8 @@ class KeymapManager {
     })
   }
 
-  addKeymap(widget, keymap) {
-    const name = widget.constructor.name
+  addKeymap(element, keymap) {
+    const name = element.name || element.constructor.name || element
 
     if (this.keymapsByName[name] === undefined)
       this.keymapsByName[name] = []
@@ -41,8 +41,8 @@ class KeymapManager {
     this.keymapsByName[name].push(keymap)
   }
 
-  removeKeymap(widget, keymap) {
-    const name = widget.constructor.name
+  removeKeymap(element, keymap) {
+    const name = element.name || element.constructor.name || element
 
     if (this.keymapsByName[name] === undefined)
       return
@@ -57,10 +57,14 @@ class KeymapManager {
 
     const elements = getElementsStack()
 
-    console.log('key-press', event.keyval, keyname, key.toString())
+    console.log('key-press', key.toString())
     // elements.forEach(e => console.log('-> ', e.constructor.name))
 
-    const queuedKeystrokes = this.queuedKeystrokes.concat(key)
+    if (key.isModifier())
+      return CONTINUE
+
+    const keystrokes = this.queuedKeystrokes.concat(key)
+    const matches = []
 
     for (let element of elements) {
       const keymaps = this.keymapsByName[element.constructor.name]
@@ -70,31 +74,43 @@ class KeymapManager {
 
       // console.log({ name, keymaps })
 
-      const matches =
-        keymaps.map(keymap => matchKeybinding(queuedKeystrokes, keymap))
-              .reduce((list, current) => list.concat(current), [])
-
-      if (matches.length > 0)
-        console.log('matches', matches)
-
-      const fullMatch = matches.find(m => m.match === MATCH.FULL)
-
-      if (fullMatch && matches.length === 1) {
-        const { keys, effect, source } = fullMatch
-
-        this.runEffect(effect, element)
-        this.queuedEvents = []
-        this.queuedKeystrokes = []
-
-        return STOP_PROPAGATION
-      }
-      else if (matches.length > 0) {
-        this.queuedEvents = this.queuedEvents.concat(event)
-        this.queuedKeystrokes = queuedKeystrokes
-      }
+      matches.push(
+        ...keymaps.map(keymap => matchKeybinding(keystrokes, keymap, element))
+                  .reduce((list, current) => list.concat(current), []))
     }
 
-    return CONTINUE
+    if (matches.length > 0)
+      console.log('matches', matches)
+
+    let didCapture = false
+
+    const fullMatch = matches.find(m => m.match === MATCH.FULL)
+
+    if (fullMatch && matches.length === 1) {
+      const { keys, effect, source, element } = fullMatch
+
+      this.runEffect(effect, element)
+      this.queuedEvents = []
+      this.queuedKeystrokes = []
+
+      didCapture = true
+    }
+    else if (matches.length > 0) {
+      this.queuedEvents = this.queuedEvents.concat(event)
+      this.queuedKeystrokes = keystrokes
+
+      didCapture = true
+    }
+    else {
+      this.queuedEvents = []
+      this.queuedKeystrokes = []
+    }
+
+    context.statusbar.setText(
+      `[${this.queuedKeystrokes.join(', ')}]\t\t(${key.toString()})`
+    )
+
+    return didCapture ? STOP_PROPAGATION : CONTINUE
   }
 
   runEffect(effect, widget) {
@@ -134,7 +150,7 @@ function getElementsStack() {
   return elements
 }
 
-function matchKeybinding(queuedKeystrokes, keymap) {
+function matchKeybinding(queuedKeystrokes, keymap, element) {
   const { name, keys } = keymap
   const keybindingKeys = Object.keys(keys)
   const results = []
@@ -157,10 +173,10 @@ function matchKeybinding(queuedKeystrokes, keymap) {
     }
 
     if (queuedKeystrokes.length < keyStack.length) {
-      results.push({ match: MATCH.PARTIAL, keybinding, effect: keys[keybinding], source: name })
+      results.push({ match: MATCH.PARTIAL, keybinding, effect: keys[keybinding], source: name, element })
     }
     else if (keyStack.length === queuedKeystrokes.length) {
-      results.push({ match: MATCH.FULL, keybinding, effect: keys[keybinding], source: name })
+      results.push({ match: MATCH.FULL, keybinding, effect: keys[keybinding], source: name, element })
     }
     else {
       unreachable()

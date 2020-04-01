@@ -2,6 +2,27 @@
  * key-symbols.js
  */
 
+const MODIFIERS = new Set([
+  'shift_l',
+  'shift_r',
+  'control_l',
+  'control_r',
+  'caps_lock',
+  'shift_lock',
+  'meta_l',
+  'meta_r',
+  'alt_l',
+  'alt_r',
+  'super_l',
+  'super_r',
+  'hyper_l',
+  'hyper_r',
+])
+
+const CORRECTIONS = {
+  ISO_Left_Tab: "Tab",
+}
+
 const LOWER_TO_UPPER = {
   backspace: "BackSpace",
   tab: "Tab",
@@ -2182,4 +2203,4 @@ const LOWER_TO_UPPER = {
   loggrabinfo: "LogGrabInfo",
 }
 
-module.exports = { LOWER_TO_UPPER }
+module.exports = { LOWER_TO_UPPER, CORRECTIONS, MODIFIERS }

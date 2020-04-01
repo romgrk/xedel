@@ -91,9 +91,9 @@
               </packing>
             </child>
 
-            <!-- statusLabel -->
+            <!-- statusbar -->
             <child>
-              <object class="GtkLabel" id="statusLabel">
+              <object class="GtkLabel" id="statusbar">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
               </object>

@@ -3,6 +3,7 @@ const path = require('path')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
+const GdkX11 = gi.require('GdkX11', '3.0')
 const GtkSource = gi.require('GtkSource', '4')
 
 const context = require('./context')
@@ -41,7 +42,7 @@ const windowKeymap = {
 
 context.set({
   mainWindow: null,
-  statusLabel: null,
+  statusbar: null,
   mainGrid: null,
   cssProvider: new Gtk.CssProvider(),
   schemeManager: schemeManager,
@@ -60,9 +61,12 @@ context.loaded.then(() => {
 
 function main() {
 
+  Gtk.StyleContext.addProviderForScreen(
+    Gdk.Screen.getDefault(), context.cssProvider, 9999)
+
   const mainWindow = context.mainWindow = builder.getObject('mainWindow')
   const mainGrid = context.mainGrid = builder.getObject('mainGrid')
-  const statusLabel = context.statusLabel = builder.getObject('statusLabel')
+  const statusbar = context.statusbar = builder.getObject('statusbar')
 
   builder.connectSignals({
     onWindowShow: Gtk.main,
@@ -76,14 +80,12 @@ function main() {
   })
 
   const commands = context.commands = new CommandsManager()
-
   const keymaps = context.keymaps = new KeymapManager()
   keymaps.addKeymap(mainWindow, windowKeymap)
 
   context.currentView = new EditorView()
 
   mainGrid.attach(context.currentView, 0, 0, 1, 1)
-
   mainWindow.setDefaultSize(800, 800)
 
   Promise.all([

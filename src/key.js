@@ -41,6 +41,9 @@ class Key {
     let name = Gdk.keyvalName(event.keyval)
     let string = String.fromCharCode(Gdk.keyvalToUnicode(event.keyval))
 
+    if (name in KeySymbols.CORRECTIONS)
+      name = KeySymbols.CORRECTIONS[name]
+
     const keymapEntry =
       string.charCodeAt(0) >= 0x20 ?
         keymap.find(k => k.withShift === string) : undefined
@@ -151,6 +154,10 @@ class Key {
 
   isDigit() {
     return /^[0-9]$/.test(this.name)
+  }
+
+  isModifier() {
+    return KeySymbols.MODIFIERS.has(this.name)
   }
 
   toString() {
