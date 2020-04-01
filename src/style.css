@@ -13,3 +13,11 @@ notebook tab {
 notebook stack > * {
   margin: -10px;
 }
+
+.main-toolbar {
+  padding: 0;
+}
+.main-toolbar button {
+  border-radius: 0;
+  padding: 10px;
+}

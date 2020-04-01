@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const chokidar = require('chokidar')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
@@ -42,6 +43,7 @@ const windowKeymap = {
 
 context.set({
   mainWindow: null,
+  toolbar: null,
   statusbar: null,
   mainGrid: null,
   cssProvider: new Gtk.CssProvider(),
@@ -66,7 +68,10 @@ function main() {
 
   const mainWindow = context.mainWindow = builder.getObject('mainWindow')
   const mainGrid = context.mainGrid = builder.getObject('mainGrid')
+  const toolbar = context.toolbar = builder.getObject('toolbar')
   const statusbar = context.statusbar = builder.getObject('statusbar')
+
+  toolbar.getStyleContext().addClass('main-toolbar')
 
   builder.connectSignals({
     onWindowShow: Gtk.main,
@@ -115,16 +120,15 @@ function loadFile(filepath) {
 }
 
 function initializeStyle() {
-  const reloadStyles = (eventType, filename) => {
-    if (eventType && eventType !== 'change')
-      return
+  const reloadStyles = (filename, stats) => {
     return readFile(styleFile).then(buffer => {
       context.cssProvider.loadFromData(buffer, buffer.length)
       console.log('Styles loaded')
     })
   }
 
-  styleFileWatcher = fs.watch(styleFile, reloadStyles)
+  styleFileWatcher = chokidar.watch(styleFile)
+  styleFileWatcher.on('change', reloadStyles)
 
   return reloadStyles()
 }

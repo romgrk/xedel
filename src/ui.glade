@@ -23,6 +23,8 @@
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="orientation">vertical</property>
+            <property name="toolbar_style">icons</property>
+            <property name="icon_size">large_toolbar</property>
 
             <child>
               <object class="GtkToolButton">
@@ -30,6 +32,10 @@
                 <property name="can_focus">False</property>
                 <property name="icon_name">folder-documents-symbolic</property>
               </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="homogeneous">True</property>
+              </packing>
             </child>
           </object>
           <packing>
@@ -55,7 +61,6 @@
               <packing>
                 <property name="expand">True</property>
                 <property name="fill">True</property>
-                <property name="position">0</property>
               </packing>
             </child>
 
@@ -71,7 +76,6 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">True</property>
-                <property name="position">1</property>
               </packing>
             </child>
 
@@ -87,7 +91,6 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">True</property>
-                <property name="position">2</property>
               </packing>
             </child>
 
@@ -100,7 +103,6 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">True</property>
-                <property name="position">3</property>
               </packing>
             </child>
 

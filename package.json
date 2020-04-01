@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "chokidar": "^3.3.1",
     "jest": "^25.2.3",
     "native-keymap": "^2.1.1",
     "node-gtk": "0.3.0"
