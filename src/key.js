@@ -36,15 +36,23 @@ class Key {
   event = undefined
 
   static fromEvent = (event) => {
-    const key = new Key()
-    key.event = event
+    let shift = false
+    let name = Gdk.keyvalName(event.keyval)
+    const keymapEntry = keymap.find(k => k.withShift === name)
 
+    if (keymapEntry) {
+      name = keymapEntry.value
+      shift = true
+    }
+
+    const key = new Key()
     key.ctrl = event.ctrlKey
-    key.shift = event.shiftKey
+    key.shift = shift || event.shiftKey
     key.alt = event.altKey
     key.super = event.superKey
-    key.name = Gdk.keyvalName(event.keyval)
+    key.name = name
     key.string = event.string
+    key.event = event
 
     return key
   }
@@ -87,14 +95,13 @@ class Key {
 
           if (!isLetter(code) && !isDigit(code)) {
             name = getKeyvalNameFromChar(name)
-            console.log(part, 'isnt word', name)
           }
 
         }
         // key name, eg "grave"
         else {
           if (!isValidKeyvalName(name))
-            return null
+            throw new Error(`Couldn't parse key: "${description}"`)
 
           string = String.fromCharCode(Gdk.keyvalToUnicode(Gdk.keyvalFromName(name)))
 
@@ -108,7 +115,7 @@ class Key {
         key.name = name
       }
       else {
-        return null
+        throw new Error(`Couldn't parse key: "${description}"`)
       }
     }
 
@@ -120,18 +127,28 @@ class Key {
     if (this.shift !== other.shift) return false
     if (this.alt !== other.alt) return false
     if (this.super !== other.super) return false
-
-    if (this.name === other.name) return true
-
-    return false
+    if (this.name !== other.name) return false
+    return true
   }
 
   isLetter() {
-    return /^[a-zA-Z]$/.test(this.string)
+    return /^[a-zA-Z]$/.test(this.name)
   }
 
   isDigit() {
-    return /^[0-9]$/.test(this.string)
+    return /^[0-9]$/.test(this.name)
+  }
+
+  toString() {
+    return [
+      this.super ? 'super' : undefined,
+      this.ctrl ? 'ctrl' : undefined,
+      this.alt ? 'alt' : undefined,
+      this.shift ? 'shift' : undefined,
+      this.name,
+    ]
+    .filter(Boolean)
+    .join('-')
   }
 }
 
