@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const chalk = require('chalk')
 const chokidar = require('chokidar')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '3.0')
@@ -7,8 +8,9 @@ const Gdk = gi.require('Gdk', '3.0')
 const GdkX11 = gi.require('GdkX11', '3.0')
 const GtkSource = gi.require('GtkSource', '4')
 
-const context = require('./context')
+const workspace = require('./workspace')
 
+const MainWindow = require('./window')
 const EditorView = require('./editor-view')
 const CommandsManager = require('./commands-manager')
 const KeymapManager = require('./keymap-manager')
@@ -19,132 +21,91 @@ const readFile = fs.promises.readFile
 
 // Paths
 
-const gladeFile = path.join(__dirname, './ui.glade')
-const styleFile = path.join(__dirname, './style.css')
+const STYLE_FILE = path.join(__dirname, './style.css')
+
+
+// Initialize
 
 gi.startLoop()
 Gtk.init([])
 Gdk.init([])
-
-const builder = Gtk.Builder.newFromFile(gladeFile)
 
 const schemeManager = GtkSource.StyleSchemeManager.getDefault()
 const langManager = GtkSource.LanguageManager.getDefault()
 
 let styleFileWatcher
 
-const windowKeymap = {
-  name: 'window',
-  keys: {
-    'ctrl-o': openFileDialog,
-    'ctrl-w q': ['destroy'],
-  }
-}
-
-context.set({
+workspace.set({
   mainWindow: null,
   toolbar: null,
   statusbar: null,
   mainGrid: null,
+
   cssProvider: new Gtk.CssProvider(),
   schemeManager: schemeManager,
   langManager: langManager,
-  keymaps: null,
   scheme: schemeManager.getScheme('builder-dark'),
+
+  commands: null,
+  keymaps: null,
 
   currentView: null,
   buffers: [],
   cwd: process.cwd(),
+
+  loadFile: loadFile,
 })
 
-context.loaded.then(() => {
+workspace.loaded.then(() => {
   console.log('Loaded')
 })
 
 function main() {
-
   Gtk.StyleContext.addProviderForScreen(
-    Gdk.Screen.getDefault(), context.cssProvider, 9999)
+    Gdk.Screen.getDefault(), workspace.cssProvider, 9999)
 
-  const mainWindow = context.mainWindow = builder.getObject('mainWindow')
-  const mainGrid = context.mainGrid = builder.getObject('mainGrid')
-  const toolbar = context.toolbar = builder.getObject('toolbar')
-  const statusbar = context.statusbar = builder.getObject('statusbar')
+  const mainWindow = workspace.mainWindow = new MainWindow()
 
-  toolbar.getStyleContext().addClass('main-toolbar')
-
-  builder.connectSignals({
-    onWindowShow: Gtk.main,
-    onWindowDestroy: onWindowDestroy,
-    onCloseBtnClicked: () => {
-      mainWindow.close()
-    },
-    onActionBtnClicked: () => {
-      console.log('button clicked')
-    }
+  const commands = workspace.commands = new CommandsManager()
+  const keymaps = workspace.keymaps = new KeymapManager()
+  keymaps.addListener((key, element, elements) => {
+    console.log(chalk.grey('key-press'), key.toString())
+    // elements.forEach(e => console.log('-> ', e.constructor.name))
   })
-
-  const commands = context.commands = new CommandsManager()
-  const keymaps = context.keymaps = new KeymapManager()
-  keymaps.addKeymap(mainWindow, windowKeymap)
-
-  context.currentView = new EditorView()
-
-  mainGrid.attach(context.currentView, 0, 0, 1, 1)
-  mainWindow.setDefaultSize(800, 800)
 
   Promise.all([
     initializeStyle(),
     loadFile('src/index.js'),
   ])
   .then(() => {
-    setImmediate(() => context.loaded.resolve())
+    setImmediate(() => workspace.loaded.resolve())
     mainWindow.showAll()
   })
-}
-
-function onWindowDestroy() {
-  Gtk.mainQuit()
-  process.exit(0)
 }
 
 function loadFile(filepath) {
   console.log(`Loading "${filepath}"`)
 
-  const realpath = getAbsolutePath(filepath, context.cwd)
+  const realpath = getAbsolutePath(filepath, workspace.cwd)
 
   return readFile(realpath)
   .then(content => {
-    context.currentView.openBuffer({ content, filepath: realpath })
+    workspace.currentView.openBuffer({ content, filepath: realpath })
   })
 }
 
 function initializeStyle() {
   const reloadStyles = (filename, stats) => {
-    return readFile(styleFile).then(buffer => {
-      context.cssProvider.loadFromData(buffer, buffer.length)
+    return readFile(STYLE_FILE).then(buffer => {
+      workspace.cssProvider.loadFromData(buffer, buffer.length)
       console.log('Styles loaded')
     })
   }
 
-  styleFileWatcher = chokidar.watch(styleFile)
+  styleFileWatcher = chokidar.watch(STYLE_FILE)
   styleFileWatcher.on('change', reloadStyles)
 
   return reloadStyles()
-}
-
-function openFileDialog() {
-  const dialog = new Gtk.FileChooserDialog(
-    'Open File', context.mainWindow, Gtk.FileChooserAction.OPEN)
-  dialog.addButton(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL)
-  dialog.addButton(Gtk.STOCK_OPEN, Gtk.ResponseType.ACCEPT)
-
-  if (dialog.run() == Gtk.ResponseType.ACCEPT) {
-    const filename = dialog.getFilename()
-    setImmediate(() => loadFile(filename))
-  }
-
-  dialog.destroy()
 }
 
 function onExit() {

@@ -10,10 +10,26 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "chalk": "^3.0.0",
     "chokidar": "^3.3.1",
     "jest": "^25.2.3",
     "native-keymap": "^2.1.1",
-    "node-gtk": "0.3.0"
+    "node-gtk": "0.3.0",
+    "tree-sitter": "^0.16.1",
+    "tree-sitter-bash": "^0.16.1",
+    "tree-sitter-c": "^0.16.1",
+    "tree-sitter-cpp": "^0.16.0",
+    "tree-sitter-css": "^0.16.0",
+    "tree-sitter-go": "^0.16.0",
+    "tree-sitter-html": "^0.16.0",
+    "tree-sitter-java": "^0.16.0",
+    "tree-sitter-javascript": "^0.16.0",
+    "tree-sitter-json": "^0.16.0",
+    "tree-sitter-php": "^0.16.1",
+    "tree-sitter-python": "^0.16.1",
+    "tree-sitter-ruby": "^0.16.1",
+    "tree-sitter-rust": "^0.16.0",
+    "tree-sitter-typescript": "^0.16.1"
   },
   "devDependencies": {
     "@babel/plugin-proposal-class-properties": "^7.8.3"

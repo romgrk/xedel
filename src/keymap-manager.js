@@ -2,7 +2,7 @@
  * keymap-manager.js
  */
 
-const context = require('./context')
+const workspace = require('./workspace')
 
 const Key = require('./key')
 const tryCall = require('./utils/try-call')
@@ -21,15 +21,25 @@ const MATCH = {
 }
 
 class KeymapManager {
+  listeners = []
+
   queuedEvents = []
   queuedKeystrokes = []
 
   keymapsByName = {}
 
   constructor() {
-    context.loaded.then(() => {
-      context.mainWindow.on('key-press-event', this.onWindowKeyPressEvent.bind(this))
+    workspace.loaded.then(() => {
+      workspace.mainWindow.on('key-press-event', this.onWindowKeyPressEvent.bind(this))
     })
+  }
+
+  addListener(listener) {
+    this.listeners.push(listener)
+  }
+
+  removeListener(listener) {
+    this.listeners = this.listeners.filter(l => l !== listener)
   }
 
   addKeymap(element, keymap) {
@@ -57,8 +67,10 @@ class KeymapManager {
 
     const elements = getElementsStack()
 
-    console.log('key-press', key.toString())
-    // elements.forEach(e => console.log('-> ', e.constructor.name))
+    for (let listener of this.listeners) {
+      if (listener(key, elements[0], elements) === STOP_PROPAGATION)
+        return STOP_PROPAGATION
+    }
 
     if (key.isModifier())
       return CONTINUE
@@ -106,31 +118,32 @@ class KeymapManager {
       this.queuedKeystrokes = []
     }
 
-    context.statusbar.setText(
+    workspace.statusbar.setText(
       `[${this.queuedKeystrokes.join(', ')}]\t\t(${key.toString()})`
     )
 
     return didCapture ? STOP_PROPAGATION : CONTINUE
   }
 
-  runEffect(effect, widget) {
+  runEffect(effect, element) {
     // console.log({ effect })
 
     if (typeof effect === 'string') {
-      const command = context.commands.get(effect)
+      const command = workspace.commands.get(effect)
       effect = command.effect
     }
 
     if (typeof effect === 'function') {
-      return effect(widget)
+      return effect.call(element)
     }
 
     if (Array.isArray(effect)) {
       const [signalDetail, ...args] = effect
-      widget.emit(signalDetail, ...args)
+      element.emit(signalDetail, ...args)
       return
     }
 
+    console.log({ effect, element })
     unreachable()
   }
 }
@@ -140,7 +153,7 @@ KeymapManager.MATCH = MATCH
 module.exports = KeymapManager
 
 function getElementsStack() {
-  const activeElement = context.mainWindow.getFocus()
+  const activeElement = workspace.mainWindow.getFocus()
   const elements = [activeElement]
   let current = activeElement
   while ((current = current.getParent()) !== null) {

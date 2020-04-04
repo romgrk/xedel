@@ -1,10 +1,10 @@
 /*
- * context.js
+ * workspace.js
  */
 
 const createControllablePromise = require('./utils/create-controllable-promise')
 
-const context = {
+const workspace = {
   mainWindow: null,
   toolbar: null,
   statusbar: null,
@@ -28,8 +28,8 @@ const context = {
   cwd: null,
 
   set: (fields) => {
-    Object.assign(context, fields)
+    Object.assign(workspace, fields)
   }
 }
 
-module.exports = context
+module.exports = workspace

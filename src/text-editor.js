@@ -8,7 +8,8 @@ const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
 const GtkSource = gi.require('GtkSource', '4')
 
-const context = require('./context')
+const workspace = require('./workspace')
+const TextBuffer = require('./text-buffer')
 
 const MODE = {
   NORMAL: 'NORMAL',
@@ -43,21 +44,27 @@ const editorRegisterKeymap = {
   }
 }
 
-context.loaded.then(() => {
-  context.commands.registerCommands('editor', editorCommands)
-  context.keymaps.addKeymap(Editor, editorKeymap)
-  context.keymaps.addKeymap(Editor, editorRegisterKeymap)
+workspace.loaded.then(() => {
+  workspace.commands.registerCommands('editor', editorCommands)
+  workspace.keymaps.addKeymap(TextEditor, editorKeymap)
+  workspace.keymaps.addKeymap(TextEditor, editorRegisterKeymap)
 })
 
 let bufferId = 1
 
-class Editor extends GtkSource.View {
+class TextEditor extends GtkSource.View {
   state = {
     mode: MODE.NORMAL,
     register: undefined,
   }
 
-  constructor(container, options) {
+  static create(container, options) {
+    const buffer = new TextBuffer(options)
+    const editor = new TextEditor(buffer, container)
+    return editor
+  }
+
+  constructor(buffer, container) {
     super()
 
     this.vexpand = true
@@ -66,43 +73,10 @@ class Editor extends GtkSource.View {
     this.showLineNumbers = true
     this.highlightCurrentLine = true
 
-    this.on('focus-out-event', this.onFocusOut)
-
     this.container = container
+    this.setBuffer(buffer)
 
-    this.initializeBuffer(options)
-  }
-
-  initializeBuffer(options) {
-    const buffer = this.getBuffer()
-    buffer.highlightSyntax = true
-    buffer.styleScheme = context.scheme
-    buffer.id = bufferId++
-
-    if (options) {
-      let { content, language, filepath, name } = options
-
-      if (!language) {
-        const filename = path.basename(filepath) || name || 'file.txt'
-        language = context.langManager.guessLanguage(filename, null) || null
-      }
-
-      // GObject props
-      buffer.text = content || ''
-      if (language)
-        buffer.language = language
-
-      buffer.filepath = filepath
-      buffer.name =
-        name ? name :
-        filepath ? path.basename(filepath) :
-          `[Buffer ${bufferId++}]`
-    }
-    else {
-      buffer.name = `[Buffer ${buffer.id}]`
-    }
-
-    context.buffers.push(buffer)
+    this.on('focus-out-event', this.onFocusOut)
   }
 
   onFocusOut = () => {
@@ -114,7 +88,7 @@ class Editor extends GtkSource.View {
   }
 }
 
-module.exports = Editor
+module.exports = TextEditor
 
 /*
  * Commands

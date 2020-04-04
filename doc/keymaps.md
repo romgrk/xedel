@@ -4,7 +4,7 @@
 
 Window mappings
 |
-|-> Editor/input mappings (state: editor)
+|-> TextEditor/input mappings (state: editor)
 | |-> common mappings
 | | |-> normal mode
 | | |-> operator mode
@@ -13,4 +13,4 @@ Window mappings
 | |
 | |-> language specific mappings
 |
-|-> Editor mappings
+|-> TextEditor mappings

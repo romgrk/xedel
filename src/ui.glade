@@ -2,10 +2,8 @@
 <!-- Generated with glade 3.22.1 -->
 <interface>
   <requires lib="gtk+" version="3.20"/>
-  <object class="GtkWindow" id="mainWindow">
+  <object class="GtkBox" id="mainBox">
     <property name="can_focus">False</property>
-    <signal name="destroy" handler="onWindowDestroy" swapped="no"/>
-    <signal name="show" handler="onWindowShow" swapped="no"/>
 
     <child>
       <placeholder/>
@@ -24,7 +22,6 @@
             <property name="can_focus">False</property>
             <property name="orientation">vertical</property>
             <property name="toolbar_style">icons</property>
-            <property name="icon_size">large_toolbar</property>
 
             <child>
               <object class="GtkToolButton">

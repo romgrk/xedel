@@ -8,26 +8,28 @@ const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
 const GtkSource = gi.require('GtkSource', '4')
 
-const context = require('./context')
-const Editor = require('./editor')
+const workspace = require('./workspace')
+const TextEditor = require('./text-editor')
 
-const editorViewCommands = {
-  'editor:next-buffer':          nextBuffer,
-  'editor:previous-buffer':      previousBuffer,
-  'editor:close-current-buffer': closeCurrentBuffer,
-}
+workspace.loaded.then(() => {
 
-const editorViewKeymap = {
-  name: 'editor-view',
-  keys: {
-    'alt-,': 'editor:previous-buffer',
-    'alt-.': 'editor:next-buffer',
-    'alt-c': 'editor:close-current-buffer',
+  const editorViewCommands = {
+    'pane:next':     EditorView.prototype.nextBuffer,
+    'pane:previous': EditorView.prototype.previousBuffer,
+    'pane:close':    EditorView.prototype.closeCurrentBuffer,
   }
-}
 
-context.loaded.then(() => {
-  context.commands.registerCommands('editor-view', editorViewCommands)
+  const editorViewKeymap = {
+    name: 'editor-view',
+    keys: {
+      'alt-,': 'pane:previous',
+      'alt-.': 'pane:next',
+      'alt-c': 'pane:close',
+    }
+  }
+
+  workspace.commands.registerCommands('editor-view', editorViewCommands)
+  workspace.keymaps.addKeymap(EditorView, editorViewKeymap)
 })
 
 class EditorView extends Gtk.Notebook {
@@ -46,8 +48,6 @@ class EditorView extends Gtk.Notebook {
 
     this.appendPage(editor.container)
     this.setTabLabelText(editor.container, buffer.name)
-
-    context.keymaps.addKeymap(this, editorViewKeymap)
   }
 
   openBuffer(options) {
@@ -59,6 +59,28 @@ class EditorView extends Gtk.Notebook {
     editor.container.show()
 
     this.setCurrentPage(-1)
+  }
+
+  /*
+   * Commands
+   */
+
+  nextBuffer() {
+    const pages = this.getNPages()
+    const current = this.getCurrentPage()
+    const next = (current + 1) % pages
+    this.setCurrentPage(next)
+  }
+
+  previousBuffer() {
+    const pages = this.getNPages()
+    const current = this.getCurrentPage()
+    const previous = current - 1
+    this.setCurrentPage(previous)
+  }
+
+  closeCurrentBuffer() {
+    this.removePage(this.getCurrentPage())
   }
 }
 
@@ -75,7 +97,7 @@ function createEditor(options) {
   const scrollView = new Gtk.ScrolledWindow()
   scrollView.margin = 10
 
-  const editor = new Editor(scrollView, options)
+  const editor = TextEditor.create(scrollView, options)
 
   scrollView.add(editor)
   scrollView.editor = editor
@@ -84,27 +106,3 @@ function createEditor(options) {
 
   return editor
 }
-
-
-/*
- * Keybinding functions
- */
-
-function nextBuffer(editorView) {
-  const pages = editorView.getNPages()
-  const current = editorView.getCurrentPage()
-  const next = (current + 1) % pages
-  editorView.setCurrentPage(next)
-}
-
-function previousBuffer(editorView) {
-  const pages = editorView.getNPages()
-  const current = editorView.getCurrentPage()
-  const previous = current - 1
-  editorView.setCurrentPage(previous)
-}
-
-function closeCurrentBuffer(editorView) {
-  editorView.removePage(editorView.getCurrentPage())
-}
-
