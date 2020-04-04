@@ -95,5 +95,5 @@ module.exports = TextEditor
  */
 
 function setMode(mode) {
-  return (editor) => { editor.setMode(mode) }
+  return function() { this.setMode(mode) }
 }

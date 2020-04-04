@@ -17,10 +17,40 @@ const workspace = require('./workspace')
 let bufferId = 1
 
 const tags = [
-  { name: 'keyword',     foreground: 'red' },
+  { name: 'keyword',     foreground: '#FF9100' },
+  { name: 'operator',    foreground: '#AE8A5B' },
   { name: 'string',      foreground: '#3AAF1A' },
   { name: 'punctuation', foreground: '#7B7B7B' },
 ]
+
+const keywords = new Set([
+  'var',
+  'let',
+  'const',
+  'if',
+  'else',
+  'return',
+  'function',
+  'class',
+  'extends',
+])
+
+const punctuation = new Set([
+  '{', '}',
+  '[', ']',
+  '(', ')',
+  ';',
+  ',',
+  '.',
+])
+
+const operators = new Set([
+  '=', '==', '===', '!=',
+  '+', '+=',
+  '-', '-=',
+  '*', '*=',
+  '/', '/=',
+])
 
 class TextBuffer extends GtkSource.Buffer {
   languageName = undefined
@@ -92,41 +122,27 @@ class TextBuffer extends GtkSource.Buffer {
     console.log('start')
     console.log(this.tree)
 
-    let node = this.tree.rootNode
-    main: while (true) {
-      while (node.firstChild) {
-        node = node.firstChild
-      }
-
-      console.log('CURRENT', node)
-      if (node.parent.type !== 'string') { // node.type === 'const'
-        if (node.isNamed)
-          this.applyTagByNameAtNode('keyword', node)
-        else
-          this.applyTagByNameAtNode('punctuation', node)
-      }
-
-      if (node.nextSibling) {
-        console.log('NEXT', node.nextSibling)
-        node = node.nextSibling
-        if (node.type === 'string') {
-          this.applyTagByNameAtNode('string', node)
-        }
-        continue
-      }
-      while (true) {
-        if (node.parent && node.parent.nextSibling) {
-          node = node.parent.nextSibling
-          continue main
-        }
-        if (node.parent) {
-          node = node.parent
-          continue
-        }
-        break
-      }
-      break
+    const getType = (node, parents) => {
+      const parentTypes = parents.reduce((acc, n) =>
+        `${acc ? acc + '.' : ''}${n.type}`, '')
+      return parentTypes ? `${parentTypes}.${node.type}` : node.type
     }
+
+    walkTree(this.tree, (node, parents) => {
+      console.log(
+        node.startPosition.row,
+        getType(node, parents),
+        [node.childCount, node.text.slice(0, 50)]
+      )
+      if (node.type === 'string')
+        this.applyTagByNameAtNode('string', node)
+      else if (keywords.has(node.type))
+        this.applyTagByNameAtNode('keyword', node)
+      else if (punctuation.has(node.type))
+        this.applyTagByNameAtNode('punctuation', node)
+      else if (operators.has(node.type))
+        this.applyTagByNameAtNode('operator', node)
+    })
   }
 
   initializeTagTable() {
@@ -146,12 +162,37 @@ function createTag(d) {
   return tag
 }
 
-function display(x) {
+function walkTree(tree, fn) {
+  let node = tree.rootNode
+  let parents = []
 
-  let c = x
-  do {
-    Object.keys(x).forEach(k => {
-      console.log(`  "${k}": ${x[k]},`)
-    })
-  } while (c = c.__proto__)
+  main: while (true) {
+    while (node.firstChild) {
+      fn(node, parents)
+      parents.push(node)
+      node = node.firstChild
+    }
+
+    fn(node, parents)
+
+    if (node.nextSibling) {
+      node = node.nextSibling
+      continue
+    }
+
+    while (true) {
+      if (node.parent && node.parent.nextSibling) {
+        parents.pop()
+        node = node.parent.nextSibling
+        continue main
+      }
+      if (node.parent) {
+        parents.pop()
+        node = node.parent
+        continue
+      }
+      break
+    }
+    break
+  }
 }

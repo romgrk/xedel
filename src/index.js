@@ -75,7 +75,7 @@ function main() {
 
   Promise.all([
     initializeStyle(),
-    loadFile('src/index.js'),
+    loadFile('test.js'),
   ])
   .then(() => {
     setImmediate(() => workspace.loaded.resolve())
