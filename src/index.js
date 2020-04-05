@@ -10,6 +10,7 @@ const GtkSource = gi.require('GtkSource', '4')
 
 const workspace = require('./workspace')
 
+const grammars = require('./grammars')
 const MainWindow = require('./window')
 const EditorView = require('./editor-view')
 const CommandsManager = require('./commands-manager')
@@ -75,7 +76,7 @@ function main() {
 
   Promise.all([
     initializeStyle(),
-    loadFile('test.js'),
+    grammars.loaded.then(() => loadFile('test.js')),
   ])
   .then(() => {
     setImmediate(() => workspace.loaded.resolve())

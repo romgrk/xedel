@@ -10,47 +10,27 @@ const Gdk = gi.require('Gdk', '3.0')
 const GtkSource = gi.require('GtkSource', '4')
 
 const { TreeCursor } = require('tree-sitter');
+const walkTree = require('./tree-sitter/walk-tree')
 
-const parsers = require('./parsers')
+const grammars = require('./grammars')
 const workspace = require('./workspace')
 
 let bufferId = 1
 
 const tags = [
-  { name: 'keyword',     foreground: '#FF9100' },
-  { name: 'operator',    foreground: '#AE8A5B' },
-  { name: 'string',      foreground: '#3AAF1A' },
-  { name: 'punctuation', foreground: '#7B7B7B' },
+  { name: 'variable' },
+  { name: 'keyword',               foreground: '#FF9100' },
+  { name: 'constant',              foreground: '#FFAB86' },
+  { name: 'property',              foreground: '#AE8A5B' },
+  { name: 'operator',              foreground: '#AE8A5B' },
+  { name: 'string',                foreground: '#3AAF1A' },
+  { name: 'number',                foreground: '#E7E63D' },
+  { name: 'punctuation',           foreground: '#7B7B7B' },
+  { name: 'punctuation.bracket',   foreground: '#7B7B7B' },
+  { name: 'punctuation.delimiter', foreground: '#7B7B7B' },
+  { name: 'punctuation.special',   foreground: '#7B7B7B' },
+  { name: 'function.builtin',      foreground: '#FFD986' },
 ]
-
-const keywords = new Set([
-  'var',
-  'let',
-  'const',
-  'if',
-  'else',
-  'return',
-  'function',
-  'class',
-  'extends',
-])
-
-const punctuation = new Set([
-  '{', '}',
-  '[', ']',
-  '(', ')',
-  ';',
-  ',',
-  '.',
-])
-
-const operators = new Set([
-  '=', '==', '===', '!=',
-  '+', '+=',
-  '-', '-=',
-  '*', '*=',
-  '/', '/=',
-])
 
 class TextBuffer extends GtkSource.Buffer {
   languageName = undefined
@@ -71,7 +51,7 @@ class TextBuffer extends GtkSource.Buffer {
         const filename = path.basename(filepath) || name || 'file.txt'
         language = workspace.langManager.guessLanguage(filename, null) || null
 
-        this.languageName = parsers.guessLanguage(filename)
+        this.languageName = grammars.guessLanguage(filename)
       }
 
       // GObject props
@@ -96,15 +76,14 @@ class TextBuffer extends GtkSource.Buffer {
   }
 
   initializeTree() {
-    console.log('initializeTree')
-    if (!parsers[this.languageName])
+    if (!grammars.parsers[this.languageName])
       return
 
     const start = this.getStartIter()
     const end = this.getEndIter()
     const text = this.getText(start, end, true)
 
-    this.tree = parsers[this.languageName].parse(text)
+    this.tree = grammars.parsers[this.languageName].parse(text)
 
     this.initializeSyntax()
   }
@@ -119,8 +98,7 @@ class TextBuffer extends GtkSource.Buffer {
     if (!this.tree)
       return
 
-    console.log('start')
-    console.log(this.tree)
+    // console.log(this.tree)
 
     const getType = (node, parents) => {
       const parentTypes = parents.reduce((acc, n) =>
@@ -128,20 +106,18 @@ class TextBuffer extends GtkSource.Buffer {
       return parentTypes ? `${parentTypes}.${node.type}` : node.type
     }
 
-    walkTree(this.tree, (node, parents) => {
-      console.log(
-        node.startPosition.row,
-        getType(node, parents),
-        [node.childCount, node.text.slice(0, 50)]
-      )
-      if (node.type === 'string')
-        this.applyTagByNameAtNode('string', node)
-      else if (keywords.has(node.type))
-        this.applyTagByNameAtNode('keyword', node)
-      else if (punctuation.has(node.type))
-        this.applyTagByNameAtNode('punctuation', node)
-      else if (operators.has(node.type))
-        this.applyTagByNameAtNode('operator', node)
+    const applyTagByNameAtNode = (tagName, node) =>
+      this.applyTagByNameAtNode(tagName, node)
+
+    walkTree(this.tree, (node, parent, parents) => {
+      /* console.log(
+       *   node.startPosition.row,
+       *   getType(node, parents),
+       *   [node.childCount, node.text.slice(0, 50)]
+       * ) */
+
+      grammars.queries.some(q =>
+        q(node, parent, parents, applyTagByNameAtNode))
     })
   }
 
@@ -160,39 +136,4 @@ function createTag(d) {
   if (d.background) tag.background = d.background
   if (d.foreground) tag.foreground = d.foreground
   return tag
-}
-
-function walkTree(tree, fn) {
-  let node = tree.rootNode
-  let parents = []
-
-  main: while (true) {
-    while (node.firstChild) {
-      fn(node, parents)
-      parents.push(node)
-      node = node.firstChild
-    }
-
-    fn(node, parents)
-
-    if (node.nextSibling) {
-      node = node.nextSibling
-      continue
-    }
-
-    while (true) {
-      if (node.parent && node.parent.nextSibling) {
-        parents.pop()
-        node = node.parent.nextSibling
-        continue main
-      }
-      if (node.parent) {
-        parents.pop()
-        node = node.parent
-        continue
-      }
-      break
-    }
-    break
-  }
 }
