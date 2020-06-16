@@ -98,27 +98,17 @@ class TextBuffer extends GtkSource.Buffer {
     if (!this.tree)
       return
 
-    // console.log(this.tree)
+    const query = grammars.parsers[this.languageName].query
 
-    const getType = (node, parents) => {
-      const parentTypes = parents.reduce((acc, n) =>
-        `${acc ? acc + '.' : ''}${n.type}`, '')
-      return parentTypes ? `${parentTypes}.${node.type}` : node.type
+    if (!query)
+      return
+
+    const captures = query.captures(this.tree.rootNode)
+
+    for (let i = 0; i < captures.length; i++) {
+      const capture = captures[i]
+      this.applyTagByNameAtNode(capture.name, capture.node)
     }
-
-    const applyTagByNameAtNode = (tagName, node) =>
-      this.applyTagByNameAtNode(tagName, node)
-
-    walkTree(this.tree, (node, parent, parents) => {
-      /* console.log(
-       *   node.startPosition.row,
-       *   getType(node, parents),
-       *   [node.childCount, node.text.slice(0, 50)]
-       * ) */
-
-      grammars.queries.some(q =>
-        q(node, parent, parents, applyTagByNameAtNode))
-    })
   }
 
   initializeTagTable() {
