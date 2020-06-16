@@ -76,7 +76,7 @@ function main() {
 
   Promise.all([
     initializeStyle(),
-    grammars.loaded.then(() => loadFile('test.js')),
+    grammars.loaded.then(() => loadFile('./static/example-javascript.js')),
   ])
   .then(() => {
     setImmediate(() => workspace.loaded.resolve())
