@@ -83,7 +83,7 @@ class TextBuffer extends GtkSource.Buffer {
     const end = this.getEndIter()
     const text = this.getText(start, end, true)
 
-    this.tree = grammars.parsers[this.languageName].parse(text)
+    this.tree = grammars.parsers[this.languageName].parser.parse(text)
 
     this.initializeSyntax()
   }
