@@ -2,6 +2,9 @@
 # xedel
 
 The goal of xedel is to be a modern text editor, that would be a spiritual successor to neovim.
+I should note that this is currently very hypothetical, don't be fooled by the nice screenshot
+below, all the hard parts are yet to be implemented. The only reason I'm writing all
+this is to inspire people to help me make this come true.
 
 ### Goals
  - Keyboard-centric, inspired from vim, kakoune, spacemacs
@@ -27,10 +30,15 @@ core. It also makes it easy to create a plugin system where authors can use Java
 the closest thing we have to a programming *lingua franca* (and that I happen to like a lot).
 
 ### Functionalities
- - [ ] Core (editing, keyboard-mappings, etc)
+ - [ ] UI (side panels, grid view, tabs)
+ - [ ] Core: keyboard-mapping system
+ - [ ] Syntax (tree-sitter)
+ - [ ] Editor: rendering
+ - [ ] Editor: marks & decorations
+ - [ ] Editor: multi-cursor
+ - [ ] Editor: API
  - [ ] Fuzzy-finder
  - [ ] File searching/replacing
- - [ ] Syntax (tree-sitter)
  - [ ] Language Server Protocol
  - [ ] Debug Adapter Protocol
  - [ ] Plugin system
