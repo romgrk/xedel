@@ -9,6 +9,8 @@ The goal of xedel is to be a modern text editor, that would be a spiritual succe
  - Batteries-included, as in VSCode-equivalent
  - Extendable, using a decent scripting language
 
+![Demo](./static/demo.png)
+
 ### Current technological choices
  - Node.js
  - GTK+ via node-gtk
