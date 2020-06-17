@@ -6,19 +6,17 @@
 const path = require('path')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '3.0')
-const Gdk = gi.require('Gdk', '3.0')
-const GtkSource = gi.require('GtkSource', '4')
+// const GtkSource = gi.require('GtkSource', '4')
 
-const { TreeCursor } = require('tree-sitter');
-const walkTree = require('./tree-sitter/walk-tree')
-
-const grammars = require('./grammars')
-const workspace = require('./workspace')
+const grammars = require('../grammars')
+const workspace = require('../workspace')
 
 let bufferId = 1
 
 const tags = [
+  { name: 'embedded',              foreground: '#fefefe' },
   { name: 'variable' },
+  { name: 'variable.parameter' },
   { name: 'keyword',               foreground: '#FF9100' },
   { name: 'constant',              foreground: '#FFAB86' },
   { name: 'property',              foreground: '#AE8A5B' },
@@ -29,10 +27,13 @@ const tags = [
   { name: 'punctuation.bracket',   foreground: '#7B7B7B' },
   { name: 'punctuation.delimiter', foreground: '#7B7B7B' },
   { name: 'punctuation.special',   foreground: '#7B7B7B' },
+  { name: 'constructor' },
+  { name: 'function',              foreground: '#FFD986' },
+  { name: 'function.method',       foreground: '#FFD986' },
   { name: 'function.builtin',      foreground: '#FFD986' },
 ]
 
-class TextBuffer extends GtkSource.Buffer {
+class TextBuffer extends Gtk.TextBuffer {
   languageName = undefined
 
   constructor(options) {
@@ -75,13 +76,18 @@ class TextBuffer extends GtkSource.Buffer {
     this.initializeTree()
   }
 
+  getAllText() {
+    const start = this.getStartIter()
+    const end = this.getEndIter()
+    const text = this.getText(start, end, true)
+    return text
+  }
+
   initializeTree() {
     if (!grammars.parsers[this.languageName])
       return
 
-    const start = this.getStartIter()
-    const end = this.getEndIter()
-    const text = this.getText(start, end, true)
+    const text = this.getAllText()
 
     this.tree = grammars.parsers[this.languageName].parser.parse(text)
 

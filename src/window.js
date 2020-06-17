@@ -45,7 +45,7 @@ class MainWindow extends Gtk.Window {
     mainGrid.attach(workspace.currentView, 0, 0, 1, 1)
 
     this.add(mainBox)
-    this.setDefaultSize(800, 400)
+    this.setDefaultSize(800, 800)
 
     this.on('show', () => this.onShow())
     this.on('destroy', () => this.onDestroy())

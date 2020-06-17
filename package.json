@@ -12,9 +12,11 @@
   "dependencies": {
     "chalk": "^3.0.0",
     "chokidar": "^3.3.1",
+    "colornames": "^1.1.1",
     "jest": "^25.2.3",
     "native-keymap": "^2.1.1",
     "node-gtk": "0.3.0",
+    "superstring": "^2.4.2",
     "tree-sitter": "^0.16.1",
     "tree-sitter-bash": "^0.16.1",
     "tree-sitter-c": "^0.16.1",

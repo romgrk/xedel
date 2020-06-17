@@ -6,10 +6,10 @@ const path = require('path')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
-const GtkSource = gi.require('GtkSource', '4')
+// const GtkSource = gi.require('GtkSource', '4')
 
-const workspace = require('./workspace')
-const TextBuffer = require('./text-buffer')
+const workspace = require('../workspace')
+const TextBuffer = require('./TextBuffer')
 
 const MODE = {
   NORMAL: 'NORMAL',
@@ -52,7 +52,7 @@ workspace.loaded.then(() => {
 
 let bufferId = 1
 
-class TextEditor extends GtkSource.View {
+class TextEditor extends Gtk.TextView {
   state = {
     mode: MODE.NORMAL,
     register: undefined,
