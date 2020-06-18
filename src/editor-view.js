@@ -47,17 +47,17 @@ class EditorView extends Gtk.Notebook {
     this.showBorder = true
     this.showTabs = true
 
-    this.appendPage(editor.container)
-    this.setTabLabelText(editor.container, buffer.name)
+    this.appendPage(editor)
+    this.setTabLabelText(editor, buffer.name)
   }
 
   openBuffer(options) {
     const editor = createEditor(options)
     const buffer = editor.getBuffer()
 
-    this.appendPage(editor.container)
-    this.setTabLabelText(editor.container, buffer.name)
-    editor.container.show()
+    this.appendPage(editor)
+    this.setTabLabelText(editor, buffer.name)
+    editor.show()
 
     this.setCurrentPage(-1)
   }
@@ -95,15 +95,7 @@ module.exports = EditorView
  * @param {GtkSourceLanguage} options.language
  */
 function createEditor(options) {
-  const scrollView = new Gtk.ScrolledWindow()
-  scrollView.margin = 10
-
-  const editor = TextEditor.create(scrollView, options)
-
-  scrollView.add(editor)
-  scrollView.editor = editor
-
-  scrollView.showAll()
-
+  const editor = TextEditor.create(options)
+  editor.showAll()
   return editor
 }

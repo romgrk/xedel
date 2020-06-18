@@ -22,13 +22,15 @@ module.exports = {
 }
 
 Promise.all([
-  initParser('javascript'),
-  initParser('json'),
-  initParser('html'),
-  initParser('css'),
-  initParser('c'),
-  initParser('cpp'),
-  initParser('python'),
+  /*
+   * initParser('javascript'),
+   * initParser('json'),
+   * initParser('html'),
+   * initParser('css'),
+   * initParser('c'),
+   * initParser('cpp'),
+   * initParser('python'),
+   */
 ])
 .then(() => loaded.resolve())
 

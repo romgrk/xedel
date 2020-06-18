@@ -41,6 +41,10 @@ class Cursor {
     return this.editor.getBuffer()
   }
 
+  getScreenPosition() {
+    return this
+  }
+
   moveUp(rowCount = 1) {
     this.row -= rowCount
     if (this.row < 0)
@@ -94,50 +98,55 @@ class Cursor {
   moveToTop() {
     this.row = 0
     this.column = 0
+    this.columnWanted = 0
   }
 
   moveToBottom() {
     this.row = this.buffer.getLastRow()
     this.column = 0
+    this.columnWanted = 0
   }
 }
 
-class TextEditor extends Gtk.DrawingArea {
+class TextEditor extends Gtk.ScrolledWindow {
   buffer = null
 
   cursors = [new Cursor(0, 0, this)]
-  cursorMain = 0
+  cursorMainIndex = 0
+  get cursorMain() { return this.cursors[this.cursorMainIndex] }
 
   blinkValue = true
 
-  static create(container, options) {
+  static create(options) {
     const buffer = new TextBuffer(options)
-    const editor = new TextEditor(buffer, container)
+    const editor = new TextEditor(buffer)
     return editor
   }
 
-  constructor(buffer, container) {
+  constructor(buffer) {
     super()
 
     this.vexpand = true
     this.hexpand = true
-    this.canFocus = true
-    this.addEvents(Gdk.EventMask.ALL_EVENTS_MASK)
+
+    this.drawingArea = new Gtk.DrawingArea()
+    this.drawingArea.canFocus = true
+    this.drawingArea.addEvents(Gdk.EventMask.ALL_EVENTS_MASK)
+    this.add(this.drawingArea)
 
     this.pangoContext = this.createPangoContext()
 
-    this.container = container
     this.setBuffer(buffer)
 
     /*
      * Event handlers
      */
 
-    this.on('realize', this.onRealize)
-    this.on('draw', this.onDraw)
-    this.on('key-press-event', this.onKeyPressEvent)
-    this.on('focus-in-event', this.onFocusIn)
-    this.on('focus-out-event', this.onFocusOut)
+    this.drawingArea.on('realize', this.onRealize)
+    this.drawingArea.on('key-press-event', this.onKeyPressEvent)
+    this.drawingArea.on('focus-in-event', this.onFocusIn)
+    this.drawingArea.on('focus-out-event', this.onFocusOut)
+    this.drawingArea.on('draw', this.onDraw)
   }
 
   setBuffer(buffer) {
@@ -146,6 +155,10 @@ class TextEditor extends Gtk.DrawingArea {
 
   getBuffer() {
     return this.buffer
+  }
+
+  queueDraw() {
+    this.drawingArea.queueDraw()
   }
 
   /*
@@ -174,6 +187,39 @@ class TextEditor extends Gtk.DrawingArea {
   }
 
   /*
+   * Position
+   */
+
+  getLastVisibleBufferRow() {
+    const visibleHeight = this.getAllocatedHeight()
+    const offsetHeight = this.getVadjustment().getValue()
+    return Math.floor((visibleHeight + offsetHeight) / this.font.cellHeight) - 1
+  }
+
+  getFirstVisibleBufferRow() {
+    const offsetHeight = this.getVadjustment().getValue()
+    return Math.ceil(offsetHeight / this.font.cellHeight)
+  }
+
+  scrollMainCursorIntoView() {
+    this.scrollRowIntoView(this.cursorMain.getScreenPosition().row)
+  }
+
+  scrollRowIntoView(row) {
+    const firstVisibleRow = this.getFirstVisibleBufferRow()
+    const lastVisibleRow = this.getLastVisibleBufferRow()
+
+    if (row < firstVisibleRow) {
+      this.getVadjustment().setValue(row * this.font.cellHeight)
+    }
+    else if (row > lastVisibleRow) {
+      const visibleHeight = this.getAllocatedHeight()
+      const visibleRows = Math.floor(visibleHeight / this.font.cellHeight)
+      this.getVadjustment().setValue((row + 1) * this.font.cellHeight - visibleRows * this.font.cellHeight)
+    }
+  }
+
+  /*
    * Cursor
    */
 
@@ -182,40 +228,38 @@ class TextEditor extends Gtk.DrawingArea {
   }
 
   moveDown(lineCount) {
-    this.cursors.forEach(c => {
-      c.moveDown(lineCount)
-    })
+    this.cursors.forEach(c => c.moveDown(lineCount))
+    this.scrollMainCursorIntoView()
     this.queueDraw()
   }
 
   moveUp(lineCount) {
-    this.cursors.forEach(c => {
-      c.moveUp(lineCount)
-    })
+    this.cursors.forEach(c => c.moveUp(lineCount))
+    this.scrollMainCursorIntoView()
     this.queueDraw()
   }
 
   moveLeft(columnCount) {
-    this.cursors.forEach(c => {
-      c.moveLeft(columnCount)
-    })
+    this.cursors.forEach(c => c.moveLeft(columnCount))
+    this.scrollMainCursorIntoView()
     this.queueDraw()
   }
 
   moveRight(columnCount) {
-    this.cursors.forEach(c => {
-      c.moveRight(columnCount)
-    })
+    this.cursors.forEach(c => c.moveRight(columnCount))
+    this.scrollMainCursorIntoView()
     this.queueDraw()
   }
 
   moveToTop() {
     this.cursors.forEach(c => c.moveToTop())
+    this.scrollMainCursorIntoView()
     this.queueDraw()
   }
 
   moveToBottom() {
     this.cursors.forEach(c => c.moveToBottom())
+    this.scrollMainCursorIntoView()
     this.queueDraw()
   }
 
@@ -238,7 +282,7 @@ class TextEditor extends Gtk.DrawingArea {
     // Calculate and set total dimensions
     this.totalWidth  = this.font.cellWidth  * cols
     this.totalHeight = this.font.cellHeight * lines + 2 * this.verticalPadding
-    this.setSizeRequest(this.totalWidth, this.totalHeight)
+    this.drawingArea.setSizeRequest(this.totalWidth, this.totalHeight)
 
     // Recreate drawing surface
     /*
@@ -278,12 +322,10 @@ class TextEditor extends Gtk.DrawingArea {
   }
 
   onDraw = (cx) => {
-    const allocatedWidth  = this.getAllocatedWidth()
-    const allocatedHeight = this.getAllocatedHeight()
 
     /* Draw background */
     setContextColorFromHex(cx, theme.backgroundColor)
-    cx.rectangle(0, 0, allocatedWidth, allocatedHeight)
+    cx.rectangle(0, 0, this.totalWidth, this.totalHeight)
     cx.fill()
 
     /* Surface not ready yet */
@@ -386,8 +428,8 @@ class TextEditor extends Gtk.DrawingArea {
         this.font.cellWidth,
         this.font.cellHeight
       )
-      if (this.hasFocus()) {
-        if (this.blinkValue || this.cursorMain !== i) {
+      if (this.drawingArea.hasFocus()) {
+        if (this.blinkValue || this.cursorMainIndex !== i) {
           setContextColorFromHex(cx, theme.cursorColorFocus)
           cx.fill()
         }
@@ -401,7 +443,7 @@ class TextEditor extends Gtk.DrawingArea {
   }
 
   drawCursorLine(cx) {
-    const cursor = this.cursors[this.cursorMain]
+    const cursor = this.cursors[this.cursorMainIndex]
 
     const linePosition = cursor.row * this.font.cellHeight
     const width = this.getAllocatedWidth()

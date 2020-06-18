@@ -11,7 +11,7 @@ notebook tab {
   margin: 0;
 }
 notebook stack > * {
-  margin: -10px;
+  margin: 0px;
 }
 
 .main-toolbar {
