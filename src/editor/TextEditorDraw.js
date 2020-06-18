@@ -90,6 +90,16 @@ class Cursor {
       this.column = line.length
     this.columnWanted = this.column
   }
+
+  moveToTop() {
+    this.row = 0
+    this.column = 0
+  }
+
+  moveToBottom() {
+    this.row = this.buffer.getLastRow()
+    this.column = 0
+  }
 }
 
 class TextEditor extends Gtk.DrawingArea {
@@ -139,8 +149,37 @@ class TextEditor extends Gtk.DrawingArea {
   }
 
   /*
+   * Event handlers
+   */
+
+  onFocusIn = () => {
+    this.resetBlink()
+  }
+
+  onFocusOut = () => {
+    this.stopBlink()
+  }
+
+  onKeyPressEvent = (event) => {
+    if (!event)
+      return
+    console.log('editor', event)
+    this.resetBlink()
+    return true
+  }
+
+  onRealize = () => {
+    this.updateDimensions()
+    this.redrawText()
+  }
+
+  /*
    * Cursor
    */
+
+  hasMultipleCursors() {
+    return this.cursors.length > 1
+  }
 
   moveDown(lineCount) {
     this.cursors.forEach(c => {
@@ -170,29 +209,14 @@ class TextEditor extends Gtk.DrawingArea {
     this.queueDraw()
   }
 
-  /*
-   * Event handlers
-   */
-
-  onFocusIn = () => {
-    this.resetBlink()
+  moveToTop() {
+    this.cursors.forEach(c => c.moveToTop())
+    this.queueDraw()
   }
 
-  onFocusOut = () => {
-    this.stopBlink()
-  }
-
-  onKeyPressEvent = (event) => {
-    if (!event)
-      return
-    console.log('editor', event)
-    this.resetBlink()
-    return true
-  }
-
-  onRealize = () => {
-    this.updateDimensions()
-    this.redrawText()
+  moveToBottom() {
+    this.cursors.forEach(c => c.moveToBottom())
+    this.queueDraw()
   }
 
   /*
@@ -200,7 +224,7 @@ class TextEditor extends Gtk.DrawingArea {
    */
 
   updateDimensions() {
-    const bufferLines = this.buffer.getAllText().split('\n')
+    const bufferLines = this.buffer.getLines()
     const lines = bufferLines.length || 1
     const cols = bufferLines.reduce((max, line) => max > line.length ? max : line.length, 0) || 1
 

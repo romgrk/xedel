@@ -93,8 +93,17 @@ class TextBuffer extends Gtk.TextBuffer {
   }
 
   lineForRow(n) {
-    return this.getAllText().split('\n')[n]
+    return this.getLines()[n]
   }
+
+  getLineCount() {
+    return this.getLines().length
+  }
+
+  getLastRow() {
+    return this.getLines().length - 1
+  }
+
 
   initializeTree() {
     if (!grammars.parsers[this.languageName])

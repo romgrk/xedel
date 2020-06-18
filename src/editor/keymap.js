@@ -11,6 +11,8 @@ const editorCommands = {
   'core:up':    TextEditor.prototype.moveUp,
   'core:left':  TextEditor.prototype.moveLeft,
   'core:right': TextEditor.prototype.moveRight,
+  'editor:move-to-top': TextEditor.prototype.moveToTop,
+  'editor:move-to-bottom': TextEditor.prototype.moveToBottom,
 }
 
 const editorKeymap = {
@@ -21,6 +23,8 @@ const editorKeymap = {
     'k': 'core:up',
     'h': 'core:left',
     'l': 'core:right',
+    'g g': 'editor:move-to-top',
+    'G': 'editor:move-to-bottom',
   }
 }
 
