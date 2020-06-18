@@ -135,7 +135,7 @@ class TextEditor extends Gtk.DrawingArea {
   resetBlink() {
     if (this.blinkInterval)
       clearInterval(this.blinkInterval)
-    this.blinkInterval = setInterval(this.blink, 600)
+    this.blinkInterval = setInterval(this.blink, 500)
     this.blinkInterval.unref()
     this.blinkValue = true
   }
@@ -158,9 +158,9 @@ class TextEditor extends Gtk.DrawingArea {
     if (this.textSurface === undefined)
       return
 
-    cx.translate(0, this.verticalPadding)
 
     /* Draw tokens */
+    cx.translate(0, this.verticalPadding)
     this.textSurface.flush()
     cx.save()
     cx.rectangle(0, 0, this.totalWidth, this.totalHeight)
@@ -169,6 +169,7 @@ class TextEditor extends Gtk.DrawingArea {
     cx.paint()
     cx.restore()
 
+    /* Draw cursor */
     cx.translate(this.gutterOffset, 0)
 
     this.drawCursors(cx)

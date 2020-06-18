@@ -61,21 +61,6 @@
               </packing>
             </child>
 
-            <!-- actionButton -->
-            <child>
-              <object class="GtkButton" id="actionButton">
-                <property name="label" translatable="yes">Action</property>
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">True</property>
-                <signal name="clicked" handler="onActionBtnClicked" swapped="no"/>
-              </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-              </packing>
-            </child>
-
             <!-- closeButton -->
             <child>
               <object class="GtkButton" id="closeButton">
@@ -83,7 +68,6 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
-                <signal name="clicked" handler="onCloseBtnClicked" swapped="no"/>
               </object>
               <packing>
                 <property name="expand">False</property>
