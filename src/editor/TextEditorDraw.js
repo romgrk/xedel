@@ -18,17 +18,84 @@ const TextBuffer = require('./TextBuffer')
 const DEFAULT_FONT_SIZE = 16
 
 const theme = {
-  lineNumber:      '#888888',
-  backgroundColor: '#1e1e1e',
-  cursorColor:     'rgba(255, 255, 255, 0.3)',
-  cursorLineColor: 'rgba(255, 255, 255, 0.1)',
+  lineNumber:       '#888888',
+  backgroundColor:  '#1e1e1e',
+  cursorColor:      'rgba(145, 190, 255, 1.0)',
+  cursorColorFocus: 'rgba(89, 158, 255, 0.6)',
+  cursorLineColor:  'rgba(255, 255, 255, 0.1)',
 }
 
+class Cursor {
+  row = 0
+  column = 0
+  columnWanted = 0
+  editor = null
+
+  constructor(row, column, editor) {
+    this.row = row
+    this.column = column
+    this.editor = editor
+  }
+
+  get buffer() {
+    return this.editor.getBuffer()
+  }
+
+  moveUp(rowCount = 1) {
+    this.row -= rowCount
+    if (this.row < 0)
+      this.row = 0
+    const line = this.buffer.lineForRow(this.row)
+    if (this.column > line.length) {
+      this.columnWanted = Math.max(this.columnWanted, this.column)
+      this.column = line.length
+    }
+    else if (this.column !== this.columnWanted) {
+      if (line.length <= this.columnWanted)
+        this.column = line.length
+      else
+        this.column = this.columnWanted
+    }
+  }
+
+  moveDown(rowCount = 1) {
+    this.row += rowCount
+    const maxRow = this.buffer.getLines().length - 1
+    if (this.row > maxRow)
+      this.row = maxRow
+    const line = this.buffer.lineForRow(this.row)
+    if (this.column > line.length) {
+      this.columnWanted = Math.max(this.columnWanted, this.column)
+      this.column = line.length
+    }
+    else if (this.column !== this.columnWanted) {
+      if (line.length <= this.columnWanted)
+        this.column = line.length
+      else
+        this.column = this.columnWanted
+    }
+  }
+
+  moveLeft(columnCount = 1) {
+    this.column -= columnCount
+    if (this.column < 0)
+      this.column = 0
+    this.columnWanted = this.column
+  }
+
+  moveRight(columnCount = 1) {
+    const line = this.buffer.lineForRow(this.row)
+    this.column += columnCount
+    if (this.column > line.length)
+      this.column = line.length
+    this.columnWanted = this.column
+  }
+}
 
 class TextEditor extends Gtk.DrawingArea {
   buffer = null
 
-  cursors = [{ line: 0, column: 0 }]
+  cursors = [new Cursor(0, 0, this)]
   cursorMain = 0
 
   blinkValue = true
@@ -71,6 +138,42 @@ class TextEditor extends Gtk.DrawingArea {
     return this.buffer
   }
 
+  /*
+   * Cursor
+   */
+
+  moveDown(lineCount) {
+    this.cursors.forEach(c => {
+      c.moveDown(lineCount)
+    })
+    this.queueDraw()
+  }
+
+  moveUp(lineCount) {
+    this.cursors.forEach(c => {
+      c.moveUp(lineCount)
+    })
+    this.queueDraw()
+  }
+
+  moveLeft(columnCount) {
+    this.cursors.forEach(c => {
+      c.moveLeft(columnCount)
+    })
+    this.queueDraw()
+  }
+
+  moveRight(columnCount) {
+    this.cursors.forEach(c => {
+      c.moveRight(columnCount)
+    })
+    this.queueDraw()
+  }
+
+  /*
+   * Event handlers
+   */
+
   onFocusIn = () => {
     this.resetBlink()
   }
@@ -91,6 +194,10 @@ class TextEditor extends Gtk.DrawingArea {
     this.updateDimensions()
     this.redrawText()
   }
+
+  /*
+   * Rendering
+   */
 
   updateDimensions() {
     const bufferLines = this.buffer.getAllText().split('\n')
@@ -138,6 +245,7 @@ class TextEditor extends Gtk.DrawingArea {
     this.blinkInterval = setInterval(this.blink, 500)
     this.blinkInterval.unref()
     this.blinkValue = true
+    this.queueDraw()
   }
 
   blink = () => {
@@ -157,7 +265,6 @@ class TextEditor extends Gtk.DrawingArea {
     /* Surface not ready yet */
     if (this.textSurface === undefined)
       return
-
 
     /* Draw tokens */
     cx.translate(0, this.verticalPadding)
@@ -247,28 +354,32 @@ class TextEditor extends Gtk.DrawingArea {
   }
 
   drawCursors(cx) {
-    if (!this.blinkValue)
-      return
-
     for (let i = 0; i < this.cursors.length; i++) {
       const cursor = this.cursors[i]
-      setContextColorFromHex(cx, theme.cursorColor)
       cx.rectangle(
         cursor.column * this.font.cellWidth,
-        cursor.line   * this.font.cellHeight,
+        cursor.row    * this.font.cellHeight,
         this.font.cellWidth,
         this.font.cellHeight
       )
-      cx.fill()
-      if (i === this.cursorMain)
+      if (this.hasFocus()) {
+        if (this.blinkValue || this.cursorMain !== i) {
+          setContextColorFromHex(cx, theme.cursorColorFocus)
+          cx.fill()
+        }
+      }
+      else {
+        setContextColorFromHex(cx, theme.cursorColor)
+        cx.setLineWidth(1)
         cx.stroke()
+      }
     }
   }
 
   drawCursorLine(cx) {
     const cursor = this.cursors[this.cursorMain]
 
-    const linePosition = cursor.line * this.font.cellHeight
+    const linePosition = cursor.row * this.font.cellHeight
     const width = this.getAllocatedWidth()
 
     setContextColorFromHex(cx, theme.cursorLineColor)

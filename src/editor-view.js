@@ -9,9 +9,8 @@ const Gdk = gi.require('Gdk', '3.0')
 
 const workspace = require('./workspace')
 // const TextEditorSourceView = require('./editor/TextEditorSourceView')
-const TextEditorDraw = require('./editor/TextEditorDraw')
+const TextEditor = require('./editor')
 
-const TextEditor = TextEditorDraw;
 
 workspace.loaded.then(() => {
 

@@ -17,12 +17,16 @@ const tags = [
   { name: 'embedded',              foreground: '#fefefe' },
   { name: 'variable' },
   { name: 'variable.parameter' },
+  { name: 'variable.builtin' },
   { name: 'keyword',               foreground: '#FF9100' },
   { name: 'constant',              foreground: '#FFAB86' },
+  { name: 'constant.builtin',      foreground: '#FFAB86' },
   { name: 'property',              foreground: '#AE8A5B' },
   { name: 'operator',              foreground: '#AE8A5B' },
   { name: 'string',                foreground: '#3AAF1A' },
+  { name: 'string.special',        foreground: '#3AAF1A' },
   { name: 'number',                foreground: '#E7E63D' },
+  { name: 'comment',               foreground: '#7B7B7B' },
   { name: 'punctuation',           foreground: '#7B7B7B' },
   { name: 'punctuation.bracket',   foreground: '#7B7B7B' },
   { name: 'punctuation.delimiter', foreground: '#7B7B7B' },
@@ -32,6 +36,7 @@ const tags = [
   { name: 'function.method',       foreground: '#FFD986' },
   { name: 'function.builtin',      foreground: '#FFD986' },
 ]
+
 
 class TextBuffer extends Gtk.TextBuffer {
   languageName = undefined
@@ -81,6 +86,14 @@ class TextBuffer extends Gtk.TextBuffer {
     const end = this.getEndIter()
     const text = this.getText(start, end, true)
     return text
+  }
+
+  getLines() {
+    return this.getAllText().split('\n')
+  }
+
+  lineForRow(n) {
+    return this.getAllText().split('\n')[n]
   }
 
   initializeTree() {

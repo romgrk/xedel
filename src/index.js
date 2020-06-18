@@ -76,7 +76,7 @@ function main() {
 
   Promise.all([
     initializeStyle(),
-    grammars.loaded.then(() => loadFile('./static/example-javascript.js')),
+    grammars.loaded.then(() => loadFile('./src/editor/TextEditorDraw.js')),
   ])
   .then(() => {
     setImmediate(() => workspace.loaded.resolve())
