@@ -95,17 +95,22 @@ class KeymapManager {
       console.log('matches', matches)
 
     let didCapture = false
+    let shouldStopPropagation = true
 
     const fullMatch = matches.find(m => m.match === MATCH.FULL)
 
     if (fullMatch && matches.length === 1) {
       const { keys, effect, source, element } = fullMatch
+      const keymap = this.keymapsByName[element.constructor.name].find(k => k.name === source)
 
       this.runEffect(effect, element)
       this.queuedEvents = []
       this.queuedKeystrokes = []
 
       didCapture = true
+      shouldStopPropagation =
+        keymap.options && ('preventPropagation' in keymap.options) ?
+          keymap.options.preventPropagation : true
     }
     else if (matches.length > 0) {
       this.queuedEvents = this.queuedEvents.concat(event)
@@ -122,7 +127,11 @@ class KeymapManager {
       `[${this.queuedKeystrokes.join(', ')}]\t\t(${key.toString()})`
     )
 
-    return didCapture ? STOP_PROPAGATION : CONTINUE
+    return (
+      didCapture && shouldStopPropagation ?
+        STOP_PROPAGATION :
+        CONTINUE
+    )
   }
 
   runEffect(effect, element) {
@@ -186,10 +195,22 @@ function matchKeybinding(queuedKeystrokes, keymap, element) {
     }
 
     if (queuedKeystrokes.length < keyStack.length) {
-      results.push({ match: MATCH.PARTIAL, keybinding, effect: keys[keybinding], source: name, element })
+      results.push({
+        match: MATCH.PARTIAL,
+        keybinding,
+        effect: keys[keybinding],
+        source: name,
+        element
+      })
     }
     else if (keyStack.length === queuedKeystrokes.length) {
-      results.push({ match: MATCH.FULL, keybinding, effect: keys[keybinding], source: name, element })
+      results.push({
+        match: MATCH.FULL,
+        keybinding,
+        effect: keys[keybinding],
+        source: name,
+        element
+      })
     }
     else {
       unreachable()
