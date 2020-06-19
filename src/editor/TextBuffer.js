@@ -6,7 +6,6 @@
 const path = require('path')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '3.0')
-// const GtkSource = gi.require('GtkSource', '4')
 
 const grammars = require('../grammars')
 const workspace = require('../workspace')
@@ -39,6 +38,7 @@ const tags = [
 
 
 class TextBuffer extends Gtk.TextBuffer {
+  name = undefined
   languageName = undefined
 
   constructor(options) {
@@ -76,8 +76,6 @@ class TextBuffer extends Gtk.TextBuffer {
       this.name = `[Buffer ${this.id}]`
     }
 
-    this.placeCursor(this.getStartIter())
-    this.initializeTagTable()
     this.initializeTree()
   }
 
@@ -137,13 +135,6 @@ class TextBuffer extends Gtk.TextBuffer {
       const capture = captures[i]
       this.applyTagByNameAtNode(capture.name, capture.node)
     }
-  }
-
-  initializeTagTable() {
-    const table = this.getTagTable()
-    tags.forEach(d => {
-      table.add(createTag(d))
-    })
   }
 }
 

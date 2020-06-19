@@ -12,10 +12,10 @@ const workspace = require('./workspace')
 
 const grammars = require('./grammars')
 const MainWindow = require('./window')
-const EditorView = require('./editor-view')
 const CommandsManager = require('./commands-manager')
 const KeymapManager = require('./keymap-manager')
 
+require('./utils/cairo-prototype-extend')
 const getAbsolutePath = require('./utils/get-absolute-path')
 
 const readFile = fs.promises.readFile
@@ -76,7 +76,7 @@ function main() {
 
   Promise.all([
     initializeStyle(),
-    grammars.loaded.then(() => loadFile('./src/editor/TextEditorDraw.js')),
+    grammars.loaded.then(() => loadFile('./src/editor/TextEditor.js')),
   ])
   .then(() => {
     setImmediate(() => workspace.loaded.resolve())

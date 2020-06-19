@@ -2,7 +2,7 @@
  * index.js
  */
 
-const TextEditor = require('./TextEditorDraw')
+const TextEditor = require('./TextEditor')
 
 require('./keymap')
 

@@ -3,7 +3,7 @@
  */
 
 const workspace = require('../workspace')
-const TextEditor = require('./TextEditorDraw')
+const TextEditor = require('./TextEditor')
 
 
 const editorCommands = {

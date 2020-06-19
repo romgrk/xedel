@@ -12,6 +12,7 @@ const PangoCairo = gi.require('PangoCairo')
 
 const workspace = require('../workspace')
 const Font = require('../utils/font')
+
 const Cursor = require('./Cursor')
 const TextBuffer = require('./TextBuffer')
 
@@ -28,6 +29,7 @@ const theme = {
 
 class TextEditor extends Gtk.HBox {
   buffer = null
+  model = null
 
   cursors = [new Cursor(0, 0, this)]
   cursorMainIndex = 0
@@ -84,6 +86,14 @@ class TextEditor extends Gtk.HBox {
     return this.buffer
   }
 
+  setModel(model) {
+    this.model = model
+  }
+
+  getModel() {
+    return this.model
+  }
+
   queueDraw() {
     this.textArea.queueDraw()
   }
@@ -103,7 +113,6 @@ class TextEditor extends Gtk.HBox {
   onKeyPressEvent = (event) => {
     if (!event)
       return
-    console.log('editor', event)
     this.resetBlink()
     return true
   }
@@ -117,13 +126,13 @@ class TextEditor extends Gtk.HBox {
    * Position
    */
 
-  getLastVisibleBufferRow() {
+  getLastVisibleScreenRow() {
     const visibleHeight = this.getAllocatedHeight()
     const offsetHeight = this.textWindow.getVadjustment().getValue()
     return Math.floor((visibleHeight + offsetHeight) / this.font.cellHeight) - 1
   }
 
-  getFirstVisibleBufferRow() {
+  getFirstVisibleScreenRow() {
     const offsetHeight = this.textWindow.getVadjustment().getValue()
     return Math.ceil(offsetHeight / this.font.cellHeight)
   }
@@ -133,8 +142,8 @@ class TextEditor extends Gtk.HBox {
   }
 
   scrollRowIntoView(row) {
-    const firstVisibleRow = this.getFirstVisibleBufferRow()
-    const lastVisibleRow = this.getLastVisibleBufferRow()
+    const firstVisibleRow = this.getFirstVisibleScreenRow()
+    const lastVisibleRow = this.getLastVisibleScreenRow()
 
     if (row < firstVisibleRow) {
       this.textWindow.getVadjustment().setValue(row * this.font.cellHeight)
@@ -223,14 +232,21 @@ class TextEditor extends Gtk.HBox {
     this.horizontalPadding = 5
 
     // Calculate and set total dimensions
+
+    const allocatedWidth  = this.getAllocatedWidth()
+    const allocatedHeight = this.getAllocatedHeight()
+
     this.totalWidth  = this.font.cellWidth  * cols  + 1 * this.horizontalPadding
     this.totalHeight = this.font.cellHeight * lines + 2 * this.verticalPadding
-    this.textWidth  = Math.max(this.totalWidth, this.getAllocatedWidth())
-    this.textHeight = Math.max(this.totalHeight, this.getAllocatedHeight())
-    this.textArea.setSizeRequest(this.textWidth, this.textHeight)
 
-    this.gutterWidth = this.font.cellWidth * 5
-    this.gutterArea.setSizeRequest(this.gutterWidth, this.getAllocatedHeight())
+    this.gutterWidth  = this.font.cellWidth * 5
+    this.gutterHeight = allocatedHeight
+
+    this.textWidth  = Math.max(this.totalWidth,  allocatedWidth - this.gutterWidth)
+    this.textHeight = Math.max(this.totalHeight, allocatedHeight)
+
+    this.textArea.setSizeRequest(this.textWidth, this.textHeight)
+    this.gutterArea.setSizeRequest(this.gutterWidth, this.gutterHeight)
 
     /* Recreate drawing surfaces */
     this.textSurface = new Cairo.ImageSurface(Cairo.Format.ARGB32, this.totalWidth, this.totalHeight)
@@ -268,11 +284,6 @@ class TextEditor extends Gtk.HBox {
   onDrawGutter = (cx) => {
     console.time('onDrawGutter')
 
-    /* Draw background */
-    // setContextColorFromHex(cx, theme.backgroundColor)
-    // cx.rectangle(0, 0, this.totalWidth, this.totalHeight)
-    // cx.fill()
-
     /* Surface not ready yet */
     if (this.gutterSurface === undefined)
       return
@@ -281,7 +292,7 @@ class TextEditor extends Gtk.HBox {
     cx.translate(0, this.verticalPadding - this.getVerticalOffset())
     this.gutterSurface.flush()
     cx.save()
-    cx.rectangle(0, 0, this.totalWidth, this.totalHeight)
+    cx.rectangle(0, 0, this.gutterWidth, this.totalHeight)
     cx.clip()
     cx.setSourceSurface(this.gutterSurface, 0, 0)
     cx.paint()
@@ -295,7 +306,7 @@ class TextEditor extends Gtk.HBox {
     console.time('onDrawText')
 
     /* Draw background */
-    setContextColorFromHex(cx, theme.backgroundColor)
+    cx.setColor(theme.backgroundColor)
     cx.rectangle(0, 0, this.textWidth, this.textHeight)
     cx.fill()
 
@@ -332,6 +343,7 @@ class TextEditor extends Gtk.HBox {
     const lines = this.buffer.getLineCount() || 1
     const cx = this.gutterContext
 
+    console.log({ lines })
     for (let row = 0; row < lines; row++) {
       const x = 0
       const y = row * this.font.cellHeight
@@ -425,12 +437,12 @@ class TextEditor extends Gtk.HBox {
       )
       if (this.textArea.hasFocus()) {
         if (this.blinkValue || this.cursorMainIndex !== i) {
-          setContextColorFromHex(cx, theme.cursorColorFocus)
+          cx.setColor(theme.cursorColorFocus)
           cx.fill()
         }
       }
       else {
-        setContextColorFromHex(cx, theme.cursorColor)
+        cx.setColor(theme.cursorColor)
         cx.setLineWidth(1)
         cx.stroke()
       }
@@ -443,7 +455,7 @@ class TextEditor extends Gtk.HBox {
     const linePosition = cursor.row * this.font.cellHeight
     const width = this.getAllocatedWidth()
 
-    setContextColorFromHex(cx, theme.cursorLineColor)
+    cx.setColor(theme.cursorLineColor)
     cx.setLineWidth(2)
     cx.moveTo(-this.horizontalPadding, linePosition)
     cx.lineTo(width, linePosition)
@@ -455,17 +467,6 @@ class TextEditor extends Gtk.HBox {
 }
 
 module.exports = TextEditor
-
-function setContextColorFromHex(cx, color) {
-  /* const r = parseInt(hex.slice(1, 3), 16) / 255
-   * const g = parseInt(hex.slice(3, 5), 16) / 255
-   * const b = parseInt(hex.slice(5, 7), 16) / 255 */
-  const c = new Gdk.RGBA()
-  const success = c.parse(color)
-  if (!success)
-    throw new Error(`GdkRGBA.parse: invalid color: ${color}`)
-  cx.setSourceRgba(c.red, c.green, c.blue, c.alpha)
-}
 
 function escapeMarkup(text) {
   return text.replace(/<|>|&/g, m => {
