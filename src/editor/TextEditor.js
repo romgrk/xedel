@@ -317,6 +317,10 @@ class TextEditor extends Gtk.HBox {
     /* Skip horizontal & vertical padding */
     cx.translate(this.horizontalPadding, this.verticalPadding)
 
+    /* Draw cursor */
+    this.drawCursorLine(cx)
+    this.drawCursors(cx)
+
     /* Draw tokens */
     this.textSurface.flush()
     cx.save()
@@ -325,10 +329,6 @@ class TextEditor extends Gtk.HBox {
     cx.setSourceSurface(this.textSurface, 0, 0)
     cx.paint()
     cx.restore()
-
-    /* Draw cursor */
-    this.drawCursorLine(cx)
-    this.drawCursors(cx)
 
     console.timeEnd('onDrawText')
     return true
@@ -430,8 +430,8 @@ class TextEditor extends Gtk.HBox {
     for (let i = 0; i < this.cursors.length; i++) {
       const cursor = this.cursors[i]
       cx.rectangle(
-        cursor.column * this.font.cellWidth,
-        cursor.row    * this.font.cellHeight,
+        cursor.column * this.font.cellWidth  + 0.5,
+        cursor.row    * this.font.cellHeight + 0.5,
         this.font.cellWidth,
         this.font.cellHeight
       )
