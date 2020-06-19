@@ -26,7 +26,7 @@ const theme = {
   cursorLineColor:  'rgba(255, 255, 255, 0.1)',
 }
 
-class TextEditor extends Gtk.ScrolledWindow {
+class TextEditor extends Gtk.HBox {
   buffer = null
 
   cursors = [new Cursor(0, 0, this)]
@@ -47,10 +47,17 @@ class TextEditor extends Gtk.ScrolledWindow {
     this.vexpand = true
     this.hexpand = true
 
-    this.drawingArea = new Gtk.DrawingArea()
-    this.drawingArea.canFocus = true
-    this.drawingArea.addEvents(Gdk.EventMask.ALL_EVENTS_MASK)
-    this.add(this.drawingArea)
+    this.gutterArea = new Gtk.DrawingArea()
+
+    this.textArea = new Gtk.DrawingArea()
+    this.textArea.canFocus = true
+    this.textArea.addEvents(Gdk.EventMask.ALL_EVENTS_MASK)
+
+    this.textWindow = new Gtk.ScrolledWindow()
+    this.textWindow.add(this.textArea)
+
+    this.packStart(this.gutterArea, false, false, 0)
+    this.packStart(this.textWindow, true,  true,  0)
 
     this.pangoContext = this.createPangoContext()
 
@@ -60,11 +67,13 @@ class TextEditor extends Gtk.ScrolledWindow {
      * Event handlers
      */
 
-    this.drawingArea.on('realize', this.onRealize)
-    this.drawingArea.on('key-press-event', this.onKeyPressEvent)
-    this.drawingArea.on('focus-in-event', this.onFocusIn)
-    this.drawingArea.on('focus-out-event', this.onFocusOut)
-    this.drawingArea.on('draw', this.onDraw)
+    this.textArea.on('realize', this.onRealize)
+    this.textArea.on('key-press-event', this.onKeyPressEvent)
+    this.textArea.on('focus-in-event', this.onFocusIn)
+    this.textArea.on('focus-out-event', this.onFocusOut)
+    this.textArea.on('draw', this.onDrawText)
+
+    this.gutterArea.on('draw', this.onDrawGutter)
   }
 
   setBuffer(buffer) {
@@ -76,7 +85,7 @@ class TextEditor extends Gtk.ScrolledWindow {
   }
 
   queueDraw() {
-    this.drawingArea.queueDraw()
+    this.textArea.queueDraw()
   }
 
   /*
@@ -101,7 +110,7 @@ class TextEditor extends Gtk.ScrolledWindow {
 
   onRealize = () => {
     this.updateDimensions()
-    this.redrawText()
+    this.redraw()
   }
 
   /*
@@ -110,12 +119,12 @@ class TextEditor extends Gtk.ScrolledWindow {
 
   getLastVisibleBufferRow() {
     const visibleHeight = this.getAllocatedHeight()
-    const offsetHeight = this.getVadjustment().getValue()
+    const offsetHeight = this.textWindow.getVadjustment().getValue()
     return Math.floor((visibleHeight + offsetHeight) / this.font.cellHeight) - 1
   }
 
   getFirstVisibleBufferRow() {
-    const offsetHeight = this.getVadjustment().getValue()
+    const offsetHeight = this.textWindow.getVadjustment().getValue()
     return Math.ceil(offsetHeight / this.font.cellHeight)
   }
 
@@ -128,12 +137,12 @@ class TextEditor extends Gtk.ScrolledWindow {
     const lastVisibleRow = this.getLastVisibleBufferRow()
 
     if (row < firstVisibleRow) {
-      this.getVadjustment().setValue(row * this.font.cellHeight)
+      this.textWindow.getVadjustment().setValue(row * this.font.cellHeight)
     }
     else if (row > lastVisibleRow) {
       const visibleHeight = this.getAllocatedHeight()
       const visibleRows = Math.floor(visibleHeight / this.font.cellHeight)
-      this.getVadjustment().setValue((row + 1) * this.font.cellHeight - visibleRows * this.font.cellHeight)
+      this.textWindow.getVadjustment().setValue((row + 1) * this.font.cellHeight - visibleRows * this.font.cellHeight)
     }
   }
 
@@ -185,6 +194,22 @@ class TextEditor extends Gtk.ScrolledWindow {
    * Rendering
    */
 
+  getVerticalOffset() {
+    return this.textWindow.getVadjustment().getValue()
+  }
+
+  setVerticalOffset(offset) {
+    this.textWindow.getVadjustment().setValue(offset)
+  }
+
+  getHorizontalOffset() {
+    return this.textWindow.getHadjustment().getValue()
+  }
+
+  setHorizontalOffset(offset) {
+    this.textWindow.getHadjustment().setValue(offset)
+  }
+
   updateDimensions() {
     const bufferLines = this.buffer.getLines()
     const lines = bufferLines.length || 1
@@ -194,30 +219,31 @@ class TextEditor extends Gtk.ScrolledWindow {
     this.fontSize = DEFAULT_FONT_SIZE
     this.font = Font.parse(`Hasklug Nerd Font ${this.fontSize}px`)
 
-    this.gutterOffset = this.font.cellWidth * 5
     this.verticalPadding = 5
+    this.horizontalPadding = 5
 
     // Calculate and set total dimensions
-    this.totalWidth  = this.font.cellWidth  * cols
+    this.totalWidth  = this.font.cellWidth  * cols  + 1 * this.horizontalPadding
     this.totalHeight = this.font.cellHeight * lines + 2 * this.verticalPadding
-    this.drawingArea.setSizeRequest(this.totalWidth, this.totalHeight)
+    this.textWidth  = Math.max(this.totalWidth, this.getAllocatedWidth())
+    this.textHeight = Math.max(this.totalHeight, this.getAllocatedHeight())
+    this.textArea.setSizeRequest(this.textWidth, this.textHeight)
 
-    // Recreate drawing surface
-    /*
-     * this.textSurface = this.getWindow().createSimilarSurface(
-     *                                     Cairo.Content.COLOR,
-     *                                     this.totalWidth,
-     *                                     this.totalHeight)
-     */
-    this.textSurface = new Cairo.ImageSurface(
-                                        Cairo.Format.ARGB32,
-                                        this.totalWidth,
-                                        this.totalHeight)
+    this.gutterWidth = this.font.cellWidth * 5
+    this.gutterArea.setSizeRequest(this.gutterWidth, this.getAllocatedHeight())
 
+    /* Recreate drawing surfaces */
+    this.textSurface = new Cairo.ImageSurface(Cairo.Format.ARGB32, this.totalWidth, this.totalHeight)
     this.textContext = new Cairo.Context(this.textSurface)
-    this.pangoLayout = PangoCairo.createLayout(this.textContext)
-    this.pangoLayout.setAlignment(Pango.Alignment.LEFT)
-    this.pangoLayout.setFontDescription(this.font.description)
+    this.textLayout = PangoCairo.createLayout(this.textContext)
+    this.textLayout.setAlignment(Pango.Alignment.LEFT)
+    this.textLayout.setFontDescription(this.font.description)
+
+    this.gutterSurface = new Cairo.ImageSurface(Cairo.Format.ARGB32, this.gutterWidth, this.totalHeight)
+    this.gutterContext = new Cairo.Context(this.gutterSurface)
+    this.gutterLayout = PangoCairo.createLayout(this.gutterContext)
+    this.gutterLayout.setAlignment(Pango.Alignment.LEFT)
+    this.gutterLayout.setFontDescription(this.font.description)
   }
 
   stopBlink() {
@@ -228,49 +254,101 @@ class TextEditor extends Gtk.ScrolledWindow {
   resetBlink() {
     if (this.blinkInterval)
       clearInterval(this.blinkInterval)
-    this.blinkInterval = setInterval(this.blink, 500)
+    this.blinkInterval = setInterval(this.blinkTick, 500)
     this.blinkInterval.unref()
     this.blinkValue = true
     this.queueDraw()
   }
 
-  blink = () => {
+  blinkTick = () => {
     this.blinkValue = !this.blinkValue
     this.queueDraw()
   }
 
-  onDraw = (cx) => {
+  onDrawGutter = (cx) => {
+    console.time('onDrawGutter')
+
+    /* Draw background */
+    // setContextColorFromHex(cx, theme.backgroundColor)
+    // cx.rectangle(0, 0, this.totalWidth, this.totalHeight)
+    // cx.fill()
+
+    /* Surface not ready yet */
+    if (this.gutterSurface === undefined)
+      return
+
+    /* Draw tokens */
+    cx.translate(0, this.verticalPadding - this.getVerticalOffset())
+    this.gutterSurface.flush()
+    cx.save()
+    cx.rectangle(0, 0, this.totalWidth, this.totalHeight)
+    cx.clip()
+    cx.setSourceSurface(this.gutterSurface, 0, 0)
+    cx.paint()
+    cx.restore()
+
+    console.timeEnd('onDrawGutter')
+    return true
+  }
+
+  onDrawText = (cx) => {
+    console.time('onDrawText')
 
     /* Draw background */
     setContextColorFromHex(cx, theme.backgroundColor)
-    cx.rectangle(0, 0, this.totalWidth, this.totalHeight)
+    cx.rectangle(0, 0, this.textWidth, this.textHeight)
     cx.fill()
 
     /* Surface not ready yet */
     if (this.textSurface === undefined)
       return
 
+    /* Skip horizontal & vertical padding */
+    cx.translate(this.horizontalPadding, this.verticalPadding)
+
     /* Draw tokens */
-    cx.translate(0, this.verticalPadding)
     this.textSurface.flush()
     cx.save()
-    cx.rectangle(0, 0, this.totalWidth, this.totalHeight)
+    cx.rectangle(0, 0, this.textWidth, this.textHeight)
     cx.clip()
     cx.setSourceSurface(this.textSurface, 0, 0)
     cx.paint()
     cx.restore()
 
     /* Draw cursor */
-    cx.translate(this.gutterOffset, 0)
-
     this.drawCursorLine(cx)
     this.drawCursors(cx)
 
+    console.timeEnd('onDrawText')
     return true
   }
 
+  redraw() {
+    this.redrawGutter()
+    this.redrawText()
+  }
+
+  redrawGutter() {
+    const lines = this.buffer.getLineCount() || 1
+    const cx = this.gutterContext
+
+    for (let row = 0; row < lines; row++) {
+      const x = 0
+      const y = row * this.font.cellHeight
+
+      const markup = `<span foreground="${theme.lineNumber}">${String(row + 1).padStart(4, ' ')} </span>`
+
+      cx.moveTo(x, y)
+      this.gutterLayout.setMarkup(markup)
+      PangoCairo.updateLayout(cx, this.gutterLayout)
+      PangoCairo.showLayout(cx, this.gutterLayout)
+    }
+
+    this.queueDraw()
+  }
+
   redrawText() {
-    const lines = this.buffer.getAllText().split('\n')
+    const lines = this.buffer.getLines()
     const cx = this.textContext
 
     lines.forEach((text, index) => {
@@ -280,13 +358,12 @@ class TextEditor extends Gtk.ScrolledWindow {
       const x = col  * this.font.cellWidth
       const y = line * this.font.cellHeight
 
-      const lineNumber = `<span foreground="${theme.lineNumber}">${String(index + 1).padStart(4, ' ')} </span>`
-      const lineContent = `<span foreground="#ffffff">${escapeMarkup(text)}</span>`
+      const markup = `<span foreground="#ffffff">${escapeMarkup(text)}</span>`
 
       cx.moveTo(x, y)
-      this.pangoLayout.setMarkup(lineNumber + lineContent)
-      PangoCairo.updateLayout(cx, this.pangoLayout)
-      PangoCairo.showLayout(cx, this.pangoLayout)
+      this.textLayout.setMarkup(markup)
+      PangoCairo.updateLayout(cx, this.textLayout)
+      PangoCairo.showLayout(cx, this.textLayout)
     })
 
     this.queueDraw()
@@ -295,9 +372,9 @@ class TextEditor extends Gtk.ScrolledWindow {
   drawText(line, col, token) {
 
     // console.log(token)
-    this.pangoLayout.setMarkup(`<span ${this.getPangoAttributes(token.attr || {})}>${escapeMarkup(token.text)}</span>`)
+    this.textLayout.setMarkup(`<span ${this.getPangoAttributes(token.attr || {})}>${escapeMarkup(token.text)}</span>`)
 
-    const {width} = this.pangoLayout.getPixelExtents()[1]
+    const {width} = this.textLayout.getPixelExtents()[1]
     const calculatedWidth = this.font.cellWidth * token.text.length
 
 
@@ -309,8 +386,8 @@ class TextEditor extends Gtk.ScrolledWindow {
 
       // console.log({ x, y, line, col }, `<span ${this.getPangoAttributes(token.attr || {})}>${escapeMarkup(token.text)}</span>`)
       this.textContext.moveTo(x, y)
-      PangoCairo.updateLayout(this.textContext, this.pangoLayout)
-      PangoCairo.showLayout(this.textContext, this.pangoLayout)
+      PangoCairo.updateLayout(this.textContext, this.textLayout)
+      PangoCairo.showLayout(this.textContext, this.textLayout)
     }
     else {
       // Draw characters one by one
@@ -328,11 +405,11 @@ class TextEditor extends Gtk.ScrolledWindow {
         const y = line * this.font.cellHeight
 
         // console.log({ x, y, line, col, cellWidth: this.font.cellWidth }, `<span ${this.getPangoAttributes(token.attr || {})}>${escapeMarkup(char)}</span>`)
-        this.pangoLayout.setMarkup(`<span ${this.getPangoAttributes(token.attr || {})}>${escapeMarkup(char)}</span>`)
+        this.textLayout.setMarkup(`<span ${this.getPangoAttributes(token.attr || {})}>${escapeMarkup(char)}</span>`)
 
         this.textContext.moveTo(x, y)
-        PangoCairo.updateLayout(this.textContext, this.pangoLayout)
-        PangoCairo.showLayout(this.textContext, this.pangoLayout)
+        PangoCairo.updateLayout(this.textContext, this.textLayout)
+        PangoCairo.showLayout(this.textContext, this.textLayout)
       }
     }
   }
@@ -346,7 +423,7 @@ class TextEditor extends Gtk.ScrolledWindow {
         this.font.cellWidth,
         this.font.cellHeight
       )
-      if (this.drawingArea.hasFocus()) {
+      if (this.textArea.hasFocus()) {
         if (this.blinkValue || this.cursorMainIndex !== i) {
           setContextColorFromHex(cx, theme.cursorColorFocus)
           cx.fill()
@@ -368,10 +445,10 @@ class TextEditor extends Gtk.ScrolledWindow {
 
     setContextColorFromHex(cx, theme.cursorLineColor)
     cx.setLineWidth(2)
-    cx.moveTo(0,     linePosition)
+    cx.moveTo(-this.horizontalPadding, linePosition)
     cx.lineTo(width, linePosition)
     cx.stroke()
-    cx.moveTo(0,     linePosition + this.font.cellHeight)
+    cx.moveTo(-this.horizontalPadding, linePosition + this.font.cellHeight)
     cx.lineTo(width, linePosition + this.font.cellHeight)
     cx.stroke()
   }
