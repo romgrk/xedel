@@ -14,8 +14,7 @@ const workspace = require('../workspace')
 const Font = require('../utils/font')
 
 const Cursor = require('./Cursor')
-const TextBuffer = require('./TextBuffer')
-
+const TextBuffer = require('./buffer')
 
 const DEFAULT_FONT_SIZE = 16
 
@@ -37,8 +36,16 @@ class TextEditor extends Gtk.HBox {
 
   blinkValue = true
 
-  static create(options) {
-    const buffer = new TextBuffer(options)
+  /**
+   * @param {object} [options]
+   * @param {string} options.text
+   * @param {string} options.filepath
+   * @param {string} options.name
+   */
+  static create({ text = '', filepath } = {}) {
+    const buffer = new TextBuffer({ text })
+    if (filepath)
+      buffer.setPath(filepath)
     const editor = new TextEditor(buffer)
     return editor
   }

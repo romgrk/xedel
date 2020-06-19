@@ -90,8 +90,9 @@ function loadFile(filepath) {
   const realpath = getAbsolutePath(filepath, workspace.cwd)
 
   return readFile(realpath)
-  .then(content => {
-    workspace.currentView.openBuffer({ content, filepath: realpath })
+  .then(buffer => buffer.toString())
+  .then(text => {
+    workspace.currentView.openBuffer({ text, filepath: realpath })
   })
 }
 

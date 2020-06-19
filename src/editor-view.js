@@ -8,7 +8,6 @@ const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
 
 const workspace = require('./workspace')
-// const TextEditorSourceView = require('./editor/TextEditorSourceView')
 const TextEditor = require('./editor')
 
 
@@ -38,7 +37,7 @@ class EditorView extends Gtk.Notebook {
   constructor(existingBuffer) {
     super()
 
-    const editor = createEditor()
+    const editor = TextEditor.create()
     const buffer = existingBuffer || editor.getBuffer()
     if (existingBuffer) {
       editor.setBuffer(existingBuffer)
@@ -48,16 +47,15 @@ class EditorView extends Gtk.Notebook {
     this.showTabs = true
 
     this.appendPage(editor)
-    this.setTabLabelText(editor, buffer.name)
+    this.setTabLabelText(editor, buffer.getName())
   }
 
   openBuffer(options) {
-    const editor = createEditor(options)
+    const editor = TextEditor.create(options)
     const buffer = editor.getBuffer()
 
     this.appendPage(editor)
-    this.setTabLabelText(editor, buffer.name)
-    editor.show()
+    this.setTabLabelText(editor, buffer.getName())
 
     this.setCurrentPage(-1)
   }
@@ -86,16 +84,3 @@ class EditorView extends Gtk.Notebook {
 }
 
 module.exports = EditorView
-
-/**
- * @param {object} [options]
- * @param {string} options.content
- * @param {string} options.filepath
- * @param {string} options.name
- * @param {GtkSourceLanguage} options.language
- */
-function createEditor(options) {
-  const editor = TextEditor.create(options)
-  editor.showAll()
-  return editor
-}

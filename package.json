@@ -17,6 +17,7 @@
     "native-keymap": "^2.1.1",
     "node-gtk": "0.3.0",
     "superstring": "^2.4.2",
+    "text-buffer": "^13.17.3",
     "tree-sitter": "^0.16.1",
     "tree-sitter-bash": "^0.16.1",
     "tree-sitter-c": "^0.16.1",
