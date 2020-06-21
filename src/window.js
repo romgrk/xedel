@@ -43,9 +43,9 @@ class MainWindow extends Gtk.Window {
 
 
     // TODO: temporary, for testing purposes
-    const filepath = getAbsolutePath('./editor/TextEditor.js', workspace.cwd)
-    const text = fs.readFileSync(filepath).toString()
-    workspace.currentView = new EditorView({ text, filepath: realpath })
+    const filepath = getAbsolutePath('./src/editor/TextEditor.js', workspace.cwd)
+    const text = require('fs').readFileSync(filepath).toString()
+    workspace.currentView = new EditorView({ text, filepath })
     // workspace.currentView = new EditorView()
 
     mainGrid.attach(workspace.currentView, 0, 0, 1, 1)
