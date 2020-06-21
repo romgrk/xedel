@@ -75,7 +75,7 @@ const DEFAULT_NON_WORD_CHARACTERS = '/\\()"\':,.;<>~!@#$%^&*|+=[]{}`?-…';
 //
 // **When in doubt, just default to buffer coordinates**, then experiment with
 // soft wraps and folds to ensure your code interacts with them correctly.
-module.exports = class TextEditor {
+module.exports = class TextEditorModel {
   static setClipboard(clipboard) {
     this.clipboard = clipboard;
   }
@@ -309,12 +309,6 @@ module.exports = class TextEditor {
     this.subscribeToBuffer();
     this.subscribeToDisplayLayer();
 
-    if (this.cursors.length === 0 && !params.suppressCursorCreation) {
-      const initialLine = Math.max(parseInt(params.initialLine) || 0, 0);
-      const initialColumn = Math.max(parseInt(params.initialColumn) || 0, 0);
-      this.addCursorAtBufferPosition([initialLine, initialColumn]);
-    }
-
     this.gutterContainer = new GutterContainer(this);
     this.lineNumberGutter = this.gutterContainer.addGutter({
       name: 'line-number',
@@ -323,7 +317,11 @@ module.exports = class TextEditor {
       visible: params.lineNumberGutterVisible
     });
 
-    this._element = null;
+    if (this.cursors.length === 0 && !params.suppressCursorCreation) {
+      const initialLine = Math.max(parseInt(params.initialLine) || 0, 0);
+      const initialColumn = Math.max(parseInt(params.initialColumn) || 0, 0);
+      this.addCursorAtBufferPosition([initialLine, initialColumn]);
+    }
   }
 
   get element() {
@@ -4931,7 +4929,7 @@ module.exports = class TextEditor {
   scrollToScreenRange(screenRange, options = {}) {
     if (options.clip !== false) screenRange = this.clipScreenRange(screenRange);
     const scrollEvent = { screenRange, options };
-    if (this.component) this.component.didRequestAutoscroll(scrollEvent);
+    this.element.didRequestAutoscroll(scrollEvent);
     this.emitter.emit('did-request-autoscroll', scrollEvent);
   }
 

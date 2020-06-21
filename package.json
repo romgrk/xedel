@@ -19,6 +19,8 @@
     "grim": "^2.0.2",
     "idle-callback": "^1.0.3",
     "jest": "^25.2.3",
+    "line-top-index": "^0.3.1",
+    "lodash.isequal": "^4.5.0",
     "native-keymap": "^2.1.1",
     "node-gtk": "0.3.0",
     "superstring": "^2.4.2",
