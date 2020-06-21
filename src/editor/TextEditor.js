@@ -19,6 +19,8 @@ const TextBuffer = require('./buffer')
 const CURSOR_BLINK_RESUME = 300;
 const CURSOR_BLINK_PERIOD = 800;
 
+const SPACE_CHARACTER = ' ';
+
 const DEFAULT_FONT_SIZE = 16
 
 const theme = {
@@ -51,7 +53,11 @@ class TextEditor extends Gtk.HBox {
       if (filepath)
         buffer.setPath(filepath)
     }
-    const model = new TextEditorModel({ buffer, softWrapped: true })
+    const model = new TextEditorModel({
+      buffer,
+      softWrapped: true,
+      showLineNumbers: true,
+    })
     return model.getElement()
   }
 
@@ -92,6 +98,19 @@ class TextEditor extends Gtk.HBox {
     this.textArea.on('draw', this.onDrawText)
 
     this.gutterArea.on('draw', this.onDrawGutter)
+
+    /*
+     * Class members
+     */
+
+    this.lineNumbersToRender = {
+      maxDigits: 2,
+      bufferRows: [],
+      screenRows: [],
+      keys: [],
+      softWrappedFlags: [],
+      foldableFlags: []
+    };
   }
 
   get buffer() {
@@ -146,6 +165,63 @@ class TextEditor extends Gtk.HBox {
    * Position
    */
 
+  updateDimensions() {
+
+    const rows = this.model.getScreenLineCount() || 1
+    const cols = this.model.getLongestScreenRow()
+    const isWrapped = this.model.isSoftWrapped()
+
+    // Parse font details
+    this.fontSize = DEFAULT_FONT_SIZE
+    this.font = Font.parse(`Hasklug Nerd Font ${this.fontSize}px`)
+
+    this.verticalPadding = 5
+    this.horizontalPadding = 5
+
+    // Calculate and set total dimensions
+
+    const allocatedWidth  = this.getAllocatedWidth()
+    const allocatedHeight = this.getAllocatedHeight()
+
+    this.totalWidth  = this.font.cellWidth  * cols + 1 * this.horizontalPadding
+    this.totalHeight = this.font.cellHeight * rows + 2 * this.verticalPadding
+
+    this.queryMaxLineNumberDigits();
+
+    this.gutterWidth  = this.font.cellWidth * (this.lineNumbersToRender.maxDigits + 2)
+    this.gutterHeight = allocatedHeight
+
+    const visibleTextWidth  = allocatedWidth - this.gutterWidth
+    const editorWidthInChars = Math.floor(visibleTextWidth / this.font.cellWidth) - 1
+
+    this.textWidth  = isWrapped ? visibleTextWidth : Math.max(this.totalWidth,  allocatedWidth - this.gutterWidth)
+    this.textHeight = Math.max(this.totalHeight, allocatedHeight)
+
+    this.textArea.setSizeRequest(this.textWidth, this.textHeight)
+    this.gutterArea.setSizeRequest(this.gutterWidth, this.gutterHeight)
+
+    this.model.update({
+      width: visibleTextWidth,
+      editorWidthInChars,
+    })
+
+    this.queryLineNumbersToRender()
+
+
+    /* Recreate drawing surfaces */
+    this.textSurface = new Cairo.ImageSurface(Cairo.Format.ARGB32, this.totalWidth, this.totalHeight)
+    this.textContext = new Cairo.Context(this.textSurface)
+    this.textLayout = PangoCairo.createLayout(this.textContext)
+    this.textLayout.setAlignment(Pango.Alignment.LEFT)
+    this.textLayout.setFontDescription(this.font.description)
+
+    this.gutterSurface = new Cairo.ImageSurface(Cairo.Format.ARGB32, this.gutterWidth, this.totalHeight)
+    this.gutterContext = new Cairo.Context(this.gutterSurface)
+    this.gutterLayout = PangoCairo.createLayout(this.gutterContext)
+    this.gutterLayout.setAlignment(Pango.Alignment.LEFT)
+    this.gutterLayout.setFontDescription(this.font.description)
+  }
+
   getLastVisibleScreenRow() {
     const visibleHeight = this.getAllocatedHeight()
     const offsetHeight = this.textWindow.getVadjustment().getValue()
@@ -176,46 +252,6 @@ class TextEditor extends Gtk.HBox {
   }
 
   /*
-   * Cursor
-   */
-
-  moveDown(lineCount) {
-    this.cursors.forEach(c => c.moveDown(lineCount))
-    this.scrollMainCursorIntoView()
-    this.queueDraw()
-  }
-
-  moveUp(lineCount) {
-    this.cursors.forEach(c => c.moveUp(lineCount))
-    this.scrollMainCursorIntoView()
-    this.queueDraw()
-  }
-
-  moveLeft(columnCount) {
-    this.cursors.forEach(c => c.moveLeft(columnCount))
-    this.scrollMainCursorIntoView()
-    this.queueDraw()
-  }
-
-  moveRight(columnCount) {
-    this.cursors.forEach(c => c.moveRight(columnCount))
-    this.scrollMainCursorIntoView()
-    this.queueDraw()
-  }
-
-  moveToTop() {
-    this.cursors.forEach(c => c.moveToTop())
-    this.scrollMainCursorIntoView()
-    this.queueDraw()
-  }
-
-  moveToBottom() {
-    this.cursors.forEach(c => c.moveToBottom())
-    this.scrollMainCursorIntoView()
-    this.queueDraw()
-  }
-
-  /*
    * Rendering
    */
 
@@ -235,55 +271,86 @@ class TextEditor extends Gtk.HBox {
     this.textWindow.getHadjustment().setValue(offset)
   }
 
-  updateDimensions() {
-    const bufferLines = this.buffer.getLines()
-    const lines = bufferLines.length || 1
-    const cols = bufferLines.reduce((max, line) => max > line.length ? max : line.length, 0) || 1
-
-    // Parse font details
-    this.fontSize = DEFAULT_FONT_SIZE
-    this.font = Font.parse(`Hasklug Nerd Font ${this.fontSize}px`)
-
-    this.verticalPadding = 5
-    this.horizontalPadding = 5
-
-    // Calculate and set total dimensions
-
-    const allocatedWidth  = this.getAllocatedWidth()
-    const allocatedHeight = this.getAllocatedHeight()
-
-    this.totalWidth  = this.font.cellWidth  * cols  + 1 * this.horizontalPadding
-    this.totalHeight = this.font.cellHeight * lines + 2 * this.verticalPadding
-
-    this.gutterWidth  = this.font.cellWidth * 5
-    this.gutterHeight = allocatedHeight
-
-    this.textWidth  = Math.max(this.totalWidth,  allocatedWidth - this.gutterWidth)
-    this.textHeight = Math.max(this.totalHeight, allocatedHeight)
-
-    this.textWidthInChars = Math.floor(this.textWidth / this.font.cellWidth)
-
-    this.textArea.setSizeRequest(this.textWidth, this.textHeight)
-    this.gutterArea.setSizeRequest(this.gutterWidth, this.gutterHeight)
-
-    this.model.update({
-      width: this.textWidth,
-      editorWidthInChars: this.textWidthInChars,
-    })
-
-    /* Recreate drawing surfaces */
-    this.textSurface = new Cairo.ImageSurface(Cairo.Format.ARGB32, this.totalWidth, this.totalHeight)
-    this.textContext = new Cairo.Context(this.textSurface)
-    this.textLayout = PangoCairo.createLayout(this.textContext)
-    this.textLayout.setAlignment(Pango.Alignment.LEFT)
-    this.textLayout.setFontDescription(this.font.description)
-
-    this.gutterSurface = new Cairo.ImageSurface(Cairo.Format.ARGB32, this.gutterWidth, this.totalHeight)
-    this.gutterContext = new Cairo.Context(this.gutterSurface)
-    this.gutterLayout = PangoCairo.createLayout(this.gutterContext)
-    this.gutterLayout.setAlignment(Pango.Alignment.LEFT)
-    this.gutterLayout.setFontDescription(this.font.description)
+  getRenderedStartRow() {
+    return 0
   }
+
+  getRenderedEndRow() {
+    return this.model.getScreenLineCount()
+  }
+
+  getRenderedRowCount() {
+    return Math.max(0, this.getRenderedEndRow() - this.getRenderedStartRow())
+  }
+
+  queryLineNumbersToRender() {
+    const { model } = this;
+    if (!model.anyLineNumberGutterVisible()) return;
+    if (this.showLineNumbers !== model.doesShowLineNumbers()) {
+      this.remeasureGutterDimensions = true;
+      this.showLineNumbers = model.doesShowLineNumbers();
+    }
+
+    // this.queryMaxLineNumberDigits();
+
+    const startRow = this.getRenderedStartRow();
+    const endRow = this.getRenderedEndRow();
+    const renderedRowCount = this.getRenderedRowCount();
+
+    const bufferRows = model.bufferRowsForScreenRows(startRow, endRow);
+    const screenRows = new Array(renderedRowCount);
+    const keys = new Array(renderedRowCount);
+    const foldableFlags = new Array(renderedRowCount);
+    const softWrappedFlags = new Array(renderedRowCount);
+
+    let previousBufferRow =
+      startRow > 0 ? model.bufferRowForScreenRow(startRow - 1) : -1;
+    let softWrapCount = 0;
+    for (let row = startRow; row < endRow; row++) {
+      const i = row - startRow;
+      const bufferRow = bufferRows[i];
+      if (bufferRow === previousBufferRow) {
+        softWrapCount++;
+        softWrappedFlags[i] = true;
+        keys[i] = bufferRow + '-' + softWrapCount;
+      } else {
+        softWrapCount = 0;
+        softWrappedFlags[i] = false;
+        keys[i] = bufferRow;
+      }
+
+      const nextBufferRow = bufferRows[i + 1];
+      if (bufferRow !== nextBufferRow) {
+        foldableFlags[i] = model.isFoldableAtBufferRow(bufferRow);
+      } else {
+        foldableFlags[i] = false;
+      }
+
+      screenRows[i] = row;
+      previousBufferRow = bufferRow;
+    }
+
+    // Delete extra buffer row at the end because it's not currently on screen.
+    bufferRows.pop();
+
+    this.lineNumbersToRender.bufferRows = bufferRows;
+    this.lineNumbersToRender.screenRows = screenRows;
+    this.lineNumbersToRender.keys = keys;
+    this.lineNumbersToRender.foldableFlags = foldableFlags;
+    this.lineNumbersToRender.softWrappedFlags = softWrappedFlags;
+  }
+
+  queryMaxLineNumberDigits() {
+    const { model } = this;
+    if (model.anyLineNumberGutterVisible()) {
+      const maxDigits = Math.max(2, model.getLineCount().toString().length);
+      if (maxDigits !== this.lineNumbersToRender.maxDigits) {
+        this.remeasureGutterDimensions = true;
+        this.lineNumbersToRender.maxDigits = maxDigits;
+      }
+    }
+  }
+
 
   stopBlink() {
     this.blinkInterval = clearInterval(this.blinkInterval)
@@ -363,15 +430,59 @@ class TextEditor extends Gtk.HBox {
   }
 
   redrawGutter() {
-    const lines = this.buffer.getLineCount() || 1
+    const rowCount = this.model.getScreenLineCount() || 1
     const cx = this.gutterContext
 
-    console.log({ lines })
-    for (let row = 0; row < lines; row++) {
-      const x = 0
-      const y = row * this.font.cellHeight
+    const {
+      maxDigits,
+      softWrappedFlags,
+      foldableFlags,
+      bufferRows,
+      screenRows,
+    } = this.lineNumbersToRender
 
-      const markup = `<span foreground="${theme.lineNumber}">${String(row + 1).padStart(4, ' ')} </span>`
+    const startRow = 0
+    const endRow = rowCount
+
+    for (let row = startRow; row < endRow; row++) {
+      const j = row - startRow;
+      // const key = keys[j];
+      const softWrapped = softWrappedFlags[j];
+      const foldable = foldableFlags[j];
+      const bufferRow = bufferRows[j];
+      const screenRow = screenRows[j];
+
+      /*
+       * const decorationsForRow = decorations[j];
+       * if (decorationsForRow)
+       *   className = className + ' ' + decorationsForRow;
+       */
+
+      let number = null;
+      {
+        number = softWrapped ? SPACE_CHARACTER : String(bufferRow + 1);
+        number = SPACE_CHARACTER.repeat(maxDigits - number.length + 1) + number
+        number = number + (foldable ? '>' : SPACE_CHARACTER)
+      }
+
+      // We need to adjust the line number position to account for block
+      // decorations preceding the current row and following the preceding
+      // row. Note that we ignore the latter when the line number starts at
+      // the beginning of the tile, because the tile will already be
+      // positioned to take into account block decorations added after the
+      // last row of the previous tile.
+      /*
+       * let marginTop = rootComponent.heightForBlockDecorationsBeforeRow(row);
+       * if (indexInTile > 0)
+       *   marginTop += rootComponent.heightForBlockDecorationsAfterRow(
+       *     row - 1
+       *   );
+       */
+
+      const x = 0
+      const y = screenRow * this.font.cellHeight
+
+      const markup = `<span foreground="${theme.lineNumber}">${number}</span>`
 
       cx.moveTo(x, y)
       this.gutterLayout.setMarkup(markup)
@@ -407,8 +518,6 @@ class TextEditor extends Gtk.HBox {
   }
 
   drawText(line, col, token) {
-
-    // console.log(token)
     this.textLayout.setMarkup(`<span ${this.getPangoAttributes(token.attr || {})}>${escapeMarkup(token.text)}</span>`)
 
     const {width} = this.textLayout.getPixelExtents()[1]
