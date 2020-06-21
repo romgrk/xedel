@@ -6,13 +6,17 @@ const workspace = require('../workspace')
 const TextEditor = require('./TextEditor')
 
 
+const callWithModel = fn => element => element.model[fn]()
+
 const editorCommands = {
-  'core:down':  TextEditor.prototype.moveDown,
-  'core:up':    TextEditor.prototype.moveUp,
-  'core:left':  TextEditor.prototype.moveLeft,
-  'core:right': TextEditor.prototype.moveRight,
-  'editor:move-to-top': TextEditor.prototype.moveToTop,
-  'editor:move-to-bottom': TextEditor.prototype.moveToBottom,
+  'core:down':  callWithModel('moveDown'),
+  'core:up':    callWithModel('moveUp'),
+  'core:left':  callWithModel('moveLeft'),
+  'core:right': callWithModel('moveRight'),
+  'editor:move-to-top': callWithModel('moveToTop'),
+  'editor:move-to-bottom': callWithModel('moveToBottom'),
+  'editor:move-to-next-subword-boundary': callWithModel('moveToNextSubwordBoundary'),
+  'editor:move-to-previous-subword-boundary': callWithModel('moveToPreviousSubwordBoundary'),
 }
 
 const editorKeymap = {
@@ -25,6 +29,9 @@ const editorKeymap = {
     'l': 'core:right',
     'g g': 'editor:move-to-top',
     'G': 'editor:move-to-bottom',
+
+    'w': 'editor:move-to-next-subword-boundary',
+    'b': 'editor:move-to-previous-subword-boundary',
   }
 }
 

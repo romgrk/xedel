@@ -13,8 +13,11 @@ const PangoCairo = gi.require('PangoCairo')
 const workspace = require('../workspace')
 const Font = require('../utils/font')
 
-const Cursor = require('./Cursor')
+const TextEditorModel = require('./TextEditorModel')
 const TextBuffer = require('./buffer')
+
+const CURSOR_BLINK_RESUME = 300;
+const CURSOR_BLINK_PERIOD = 800;
 
 const DEFAULT_FONT_SIZE = 16
 
@@ -27,12 +30,11 @@ const theme = {
 }
 
 class TextEditor extends Gtk.HBox {
-  buffer = null
-  model = null
 
-  cursors = [new Cursor(0, 0, this)]
-  cursorMainIndex = 0
-  get cursorMain() { return this.cursors[this.cursorMainIndex] }
+  /**
+   * @type {TextEditorModel}
+   */
+  model = null
 
   blinkValue = true
 
@@ -40,18 +42,27 @@ class TextEditor extends Gtk.HBox {
    * @param {object} [options]
    * @param {string} options.text
    * @param {string} options.filepath
-   * @param {string} options.name
+   * @param {string} options.buffer
    */
-  static create({ text = '', filepath } = {}) {
-    const buffer = new TextBuffer({ text })
-    if (filepath)
-      buffer.setPath(filepath)
-    const editor = new TextEditor(buffer)
-    return editor
+  static create({ text = '', filepath, buffer: existingBuffer } = {}) {
+    let buffer = existingBuffer
+    if (!buffer) {
+      buffer = new TextBuffer({ text })
+      if (filepath)
+        buffer.setPath(filepath)
+    }
+    const model = new TextEditorModel({ buffer, softWrapped: true })
+    return model.getElement()
   }
 
-  constructor(buffer) {
+  /**
+   * @param {Object} params
+   * @param {TextEditorModel} params.model
+   */
+  constructor(params) {
     super()
+
+    this.model = params.model
 
     this.vexpand = true
     this.hexpand = true
@@ -70,8 +81,6 @@ class TextEditor extends Gtk.HBox {
 
     this.pangoContext = this.createPangoContext()
 
-    this.setBuffer(buffer)
-
     /*
      * Event handlers
      */
@@ -85,12 +94,16 @@ class TextEditor extends Gtk.HBox {
     this.gutterArea.on('draw', this.onDrawGutter)
   }
 
+  get buffer() {
+    return this.model.getBuffer()
+  }
+
   setBuffer(buffer) {
-    this.buffer = buffer
+    this.model.setBuffer(buffer)
   }
 
   getBuffer() {
-    return this.buffer
+    return this.model.getBuffer()
   }
 
   setModel(model) {
@@ -145,7 +158,7 @@ class TextEditor extends Gtk.HBox {
   }
 
   scrollMainCursorIntoView() {
-    this.scrollRowIntoView(this.cursorMain.getScreenPosition().row)
+    this.scrollRowIntoView(this.model.getLastCursor().getScreenPosition().row)
   }
 
   scrollRowIntoView(row) {
@@ -165,10 +178,6 @@ class TextEditor extends Gtk.HBox {
   /*
    * Cursor
    */
-
-  hasMultipleCursors() {
-    return this.cursors.length > 1
-  }
 
   moveDown(lineCount) {
     this.cursors.forEach(c => c.moveDown(lineCount))
@@ -252,8 +261,15 @@ class TextEditor extends Gtk.HBox {
     this.textWidth  = Math.max(this.totalWidth,  allocatedWidth - this.gutterWidth)
     this.textHeight = Math.max(this.totalHeight, allocatedHeight)
 
+    this.textWidthInChars = Math.floor(this.textWidth / this.font.cellWidth)
+
     this.textArea.setSizeRequest(this.textWidth, this.textHeight)
     this.gutterArea.setSizeRequest(this.gutterWidth, this.gutterHeight)
+
+    this.model.update({
+      width: this.textWidth,
+      editorWidthInChars: this.textWidthInChars,
+    })
 
     /* Recreate drawing surfaces */
     this.textSurface = new Cairo.ImageSurface(Cairo.Format.ARGB32, this.totalWidth, this.totalHeight)
@@ -277,7 +293,7 @@ class TextEditor extends Gtk.HBox {
   resetBlink() {
     if (this.blinkInterval)
       clearInterval(this.blinkInterval)
-    this.blinkInterval = setInterval(this.blinkTick, 500)
+    this.blinkInterval = setInterval(this.blinkTick, CURSOR_BLINK_PERIOD)
     this.blinkInterval.unref()
     this.blinkValue = true
     this.queueDraw()
@@ -367,23 +383,25 @@ class TextEditor extends Gtk.HBox {
   }
 
   redrawText() {
-    const lines = this.buffer.getLines()
     const cx = this.textContext
+    const lines = this.model.displayLayer.getScreenLines()
 
-    lines.forEach((text, index) => {
-      const col = 0
-      const line = index
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index]
 
-      const x = col  * this.font.cellWidth
-      const y = line * this.font.cellHeight
+      const row = index
+      const colum = 0
 
-      const markup = `<span foreground="#ffffff">${escapeMarkup(text)}</span>`
+      const x = colum * this.font.cellWidth
+      const y = row   * this.font.cellHeight
+
+      const markup = `<span foreground="#ffffff">${escapeMarkup(line.lineText)}</span>`
 
       cx.moveTo(x, y)
       this.textLayout.setMarkup(markup)
       PangoCairo.updateLayout(cx, this.textLayout)
       PangoCairo.showLayout(cx, this.textLayout)
-    })
+    }
 
     this.queueDraw()
   }
@@ -434,16 +452,20 @@ class TextEditor extends Gtk.HBox {
   }
 
   drawCursors(cx) {
-    for (let i = 0; i < this.cursors.length; i++) {
-      const cursor = this.cursors[i]
+    const cursors = this.model.getCursors()
+
+    for (let i = 0; i < cursors.length; i++) {
+      const cursor = cursors[i]
+      const position = cursor.getScreenPosition()
+
       cx.rectangle(
-        cursor.column * this.font.cellWidth  + 0.5,
-        cursor.row    * this.font.cellHeight + 0.5,
+        position.column * this.font.cellWidth  + 0.5,
+        position.row    * this.font.cellHeight + 0.5,
         this.font.cellWidth,
         this.font.cellHeight
       )
       if (this.textArea.hasFocus()) {
-        if (this.blinkValue || this.cursorMainIndex !== i) {
+        if (this.blinkValue || !cursor.isLastCursor()) {
           cx.setColor(theme.cursorColorFocus)
           cx.fill()
         }
@@ -457,7 +479,7 @@ class TextEditor extends Gtk.HBox {
   }
 
   drawCursorLine(cx) {
-    const cursor = this.cursors[this.cursorMainIndex]
+    const cursor = this.model.getLastCursor().getScreenPosition()
 
     const linePosition = cursor.row * this.font.cellHeight
     const width = this.getAllocatedWidth()

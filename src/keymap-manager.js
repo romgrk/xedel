@@ -143,7 +143,7 @@ class KeymapManager {
     }
 
     if (typeof effect === 'function') {
-      return effect.call(element)
+      return effect.call(element, element)
     }
 
     if (Array.isArray(effect)) {

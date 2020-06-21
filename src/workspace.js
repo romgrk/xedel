@@ -10,6 +10,8 @@ const workspace = {
   statusbar: null,
   mainGrid: null,
 
+  clipboard: null,
+
   cssProvider: null,
   schemeManager: null,
   langManager: null,

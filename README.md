@@ -29,6 +29,10 @@ Using node.js also provides a non-blocking model by default, being based on an e
 core. It also makes it easy to create a plugin system where authors can use Javascript, which is
 the closest thing we have to a programming *lingua franca* (and that I happen to like a lot).
 
+### Open questions
+
+ - How to implement packages/plugins
+
 ### Functionalities
  - [ ] UI (side panels, grid view, tabs)
  - [ ] Core: keyboard-mapping system
@@ -42,3 +46,11 @@ the closest thing we have to a programming *lingua franca* (and that I happen to
  - [ ] Language Server Protocol
  - [ ] Debug Adapter Protocol
  - [ ] Plugin system
+
+
+### License
+
+MIT
+
+The editing code (in `src/editor`) has been mostly extracted from
+[Atom](https://github.com/atom/atom), also licensed under MIT.

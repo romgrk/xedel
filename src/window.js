@@ -9,6 +9,7 @@ const Gdk = gi.require('Gdk', '3.0')
 
 const workspace = require('./workspace')
 const openFileDialog = require('./utils/open-file-dialog')
+const getAbsolutePath = require('./utils/get-absolute-path')
 
 const EditorView = require('./editor-view')
 
@@ -40,7 +41,12 @@ class MainWindow extends Gtk.Window {
 
     toolbar.getStyleContext().addClass('main-toolbar')
 
-    workspace.currentView = new EditorView()
+
+    // TODO: temporary, for testing purposes
+    const filepath = getAbsolutePath('./editor/TextEditor.js', workspace.cwd)
+    const text = fs.readFileSync(filepath).toString()
+    workspace.currentView = new EditorView({ text, filepath: realpath })
+    // workspace.currentView = new EditorView()
 
     mainGrid.attach(workspace.currentView, 0, 0, 1, 1)
 
