@@ -84,15 +84,10 @@ class KeymapManager {
       if (!keymaps)
         continue
 
-      // console.log({ name, keymaps })
-
       matches.push(
         ...keymaps.map(keymap => matchKeybinding(keystrokes, keymap, element))
                   .reduce((list, current) => list.concat(current), []))
     }
-
-    if (matches.length > 0)
-      console.log('matches', matches)
 
     let didCapture = false
     let shouldStopPropagation = true
@@ -100,8 +95,10 @@ class KeymapManager {
     const fullMatch = matches.find(m => m.match === MATCH.FULL)
 
     if (fullMatch && matches.length === 1) {
-      const { keys, effect, source, element } = fullMatch
+      const { keybinding, effect, source, element } = fullMatch
       const keymap = this.keymapsByName[element.constructor.name].find(k => k.name === source)
+
+      console.log(`${element.constructor.name}.${source}: [${keybinding}]: ${effect}`)
 
       this.runEffect(effect, element)
       this.queuedEvents = []
