@@ -119,9 +119,8 @@ class TextEditor extends Gtk.HBox {
      * Event handlers
      */
 
+    this.didBlur = this.didBlur.bind(this);
     this.didFocus = this.didFocus.bind(this);
-    this.didBlurHiddenInput = this.didBlurHiddenInput.bind(this);
-    this.didFocusHiddenInput = this.didFocusHiddenInput.bind(this);
     this.didPaste = this.didPaste.bind(this);
     this.didTextInput = this.didTextInput.bind(this);
     this.didKeydown = this.didKeydown.bind(this);
@@ -143,7 +142,7 @@ class TextEditor extends Gtk.HBox {
     this.textContainer.on('button-press-event', this.didMouseDownOnContent)
     this.textContainer.on('key-press-event', this.onKeyPressEvent)
     this.textContainer.on('focus-in-event', this.didFocus)
-    this.textContainer.on('focus-out-event', this.didBlurHiddenInput)
+    this.textContainer.on('focus-out-event', this.didBlur)
 
     this.textWindow.getVadjustment().on('value-changed', this.didScrollDummyScrollbar)
     this.textWindow.getHadjustment().on('value-changed', this.didScrollDummyScrollbar)
@@ -1523,29 +1522,9 @@ class TextEditor extends Gtk.HBox {
   // listener to be fired, even if other listeners are bound before creating
   // the component.
   didBlur(event) {
-    if (event.relatedTarget === this.getHiddenInput()) {
-      event.stopImmediatePropagation();
-    }
-  }
-
-  didBlurHiddenInput(event) {
     this.focused = false;
     this.stopCursorBlinking();
     this.scheduleUpdate();
-  }
-
-  didFocusHiddenInput() {
-    // Focusing the hidden input when it is off-screen causes the browser to
-    // scroll it into view. Since we use synthetic scrolling this behavior
-    // causes all the lines to disappear so we counteract it by always setting
-    // the scroll position to 0.
-    this.refs.scrollContainer.scrollTop = 0;
-    this.refs.scrollContainer.scrollLeft = 0;
-    if (!this.focused) {
-      this.focused = true;
-      this.startCursorBlinking();
-      this.scheduleUpdate();
-    }
   }
 
   didMouseWheel(event) {
@@ -2318,6 +2297,7 @@ class TextEditor extends Gtk.HBox {
       width: textContainerWidth,
       editorWidthInChars,
     })
+    console.log('TODO: handle this')
     console.log({
       width: textContainerWidth,
       editorWidthInChars,
