@@ -5,6 +5,7 @@
 const path = require('path')
 const isEqual = require('lodash.isequal')
 const LineTopIndex = require('line-top-index');
+const { CompositeDisposable, Disposable, Emitter } = require('event-kit');
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '3.0')
 const Gdk = gi.require('Gdk', '3.0')
@@ -18,11 +19,6 @@ const Font = require('../utils/font')
 const { isPairedCharacter } = require('./text-utils');
 const TextEditorModel = require('./TextEditorModel')
 const TextBuffer = require('./buffer')
-const {
-  drawCursors,
-  drawCursorLine,
-  drawLineNumberGutter,
-} = require('./rendering')
 
 const DEFAULT_ROWS_PER_TILE = 6;
 
@@ -53,11 +49,6 @@ class TextEditor extends Gtk.HBox {
    */
   model = null
 
-  blinkValue = true
-
-  get visible() { return this._visible }
-  set visible(v) { this._visible = v }
-
   /**
    * @param {object} [options]
    * @param {string} options.text
@@ -75,6 +66,8 @@ class TextEditor extends Gtk.HBox {
       buffer,
       softWrapped: true,
       showLineNumbers: true,
+      width: 691,
+      editorWidthInChars: 67,
     })
     return model.getElement()
   }
@@ -91,12 +84,8 @@ class TextEditor extends Gtk.HBox {
     this.vexpand = true
     this.hexpand = true
 
-    this.lineNumberGutterArea =
-      new LineNumberGutterComponent({
-        rootComponent: this,
-        model: this.model,
-        name: 'line-number',
-      })
+    this.backgroundArea = new BackgroundComponent({ element: this })
+    this.cursorArea     = new CursorsComponent({ element: this })
 
     this.lineNumberGutterArea =
       new LineNumberGutterComponent({
@@ -111,12 +100,19 @@ class TextEditor extends Gtk.HBox {
     this.textContainer = new Gtk.Fixed()
     this.textContainer.canFocus = true
     this.textContainer.addEvents(Gdk.EventMask.ALL_EVENTS_MASK)
+    this.textContainer.put(this.cursorArea, 0, 0)
 
     this.textWindow = new Gtk.ScrolledWindow()
+    this.textWindow.hexpand = true
+    this.textWindow.vexpand = true
     this.textWindow.add(this.textContainer)
 
-    this.packStart(this.gutterContainer, false, false, 0)
-    this.packStart(this.textWindow,      true,  true,  0)
+    this.textWindowContainer = new Gtk.Fixed()
+    this.textWindowContainer.put(this.backgroundArea, 0, 0)
+    this.textWindowContainer.put(this.textWindow,     0, 0)
+
+    this.packStart(this.gutterContainer,     false, false, 0)
+    this.packStart(this.textWindowContainer, true,  true,  0)
 
 
     /*
@@ -135,6 +131,7 @@ class TextEditor extends Gtk.HBox {
     this.didCompositionUpdate = this.didCompositionUpdate.bind(this);
     this.didCompositionEnd = this.didCompositionEnd.bind(this);
 
+    this.didChangeCursorPosition = this.didChangeCursorPosition.bind(this);
     this.didScrollDummyScrollbar = this.didScrollDummyScrollbar.bind(this);
     this.didMouseDownOnContent = this.didMouseDownOnContent.bind(this);
     this.debouncedResumeCursorBlinking = debounce(
@@ -151,6 +148,11 @@ class TextEditor extends Gtk.HBox {
     this.textWindow.getVadjustment().on('value-changed', this.didScrollDummyScrollbar)
     this.textWindow.getHadjustment().on('value-changed', this.didScrollDummyScrollbar)
 
+
+    this.emitter = new Emitter();
+    this.disposables = new CompositeDisposable();
+    this.disposables.add(
+      this.model.onDidChangeCursorPosition(this.didChangeCursorPosition))
 
     /*
      * Class members
@@ -171,13 +173,16 @@ class TextEditor extends Gtk.HBox {
       lineNumberGutterWidth: 0,
       clientContainerHeight: 0,
       clientContainerWidth: 0,
+      textContainerWidth: 0,
+      textContainerHeight: 0,
       verticalScrollbarWidth: 0,
       horizontalScrollbarHeight: 0,
       horizontalPadding: 10,
+      verticalPadding: 0,
       longestLineWidth: 0
     };
     this.derivedDimensionsCache = {};
-    this.visible = false;
+    this._visible = false;
     this.cursorsBlinking = false;
     this.cursorsBlinkedOff = false;
     this.nextUpdateOnlyBlinksCursors = null;
@@ -249,6 +254,13 @@ class TextEditor extends Gtk.HBox {
     this.redraw()
   }
 
+  destroy() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.disposables.dispose();
+    this.model.destroy()
+  }
+
   get buffer() {
     return this.model.getBuffer()
   }
@@ -269,6 +281,10 @@ class TextEditor extends Gtk.HBox {
     return this.model
   }
 
+  hasFocus() {
+    return this.textContainer.isFocus()
+  }
+
   /*
    * Event handlers
    */
@@ -276,7 +292,8 @@ class TextEditor extends Gtk.HBox {
   onKeyPressEvent = (event) => {
     if (!event)
       return
-    this.resetBlink()
+    // TODO: handle this
+    this.pauseCursorBlinking()
     return true
   }
 
@@ -289,25 +306,6 @@ class TextEditor extends Gtk.HBox {
   /*
    * Rendering
    */
-
-  stopBlink() {
-    this.blinkInterval = clearInterval(this.blinkInterval)
-    this.blinkValue = true
-  }
-
-  resetBlink() {
-    if (this.blinkInterval)
-      clearInterval(this.blinkInterval)
-    this.blinkInterval = setInterval(this.blinkTick, CURSOR_BLINK_PERIOD)
-    this.blinkInterval.unref()
-    this.blinkValue = true
-    this.queueDraw()
-  }
-
-  blinkTick = () => {
-    this.blinkValue = !this.blinkValue
-    this.queueDraw()
-  }
 
   onDrawGutter = (cx) => {
     console.time('onDrawGutter')
@@ -332,49 +330,12 @@ class TextEditor extends Gtk.HBox {
     return true
   }
 
-  onDrawText = (cx) => {
-    console.time('onDrawText')
-
-    /* Draw background */
-    cx.setColor(theme.backgroundColor)
-    cx.rectangle(0, 0, this.textWidth, this.textHeight)
-    cx.fill()
-
-    /* Surface not ready yet */
-    if (this.textSurface === undefined)
-      return
-
-    /* Skip horizontal & vertical padding */
-    cx.translate(this.measurements.horizontalPadding, this.verticalPadding)
-
-    /* Draw cursor */
-    drawCursorLine(cx, this.model, this)
-    drawCursors(cx, this.model, this)
-
-    /* Draw tokens */
-    this.textSurface.flush()
-    cx.save()
-    cx.rectangle(0, 0, this.textWidth, this.textHeight)
-    cx.clip()
-    cx.setSourceSurface(this.textSurface, 0, 0)
-    cx.paint()
-    cx.restore()
-
-    console.timeEnd('onDrawText')
-    return true
-  }
-
   redraw() {
     this.redrawGutter()
     this.redrawText()
   }
 
   redrawGutter() {
-    console.log(
-      this.measurements.gutterContainerWidth,
-      this.getAllocatedHeight()
-    )
-
     this.gutterContainer.setSizeRequest(
       this.measurements.gutterContainerWidth,
       this.getAllocatedHeight()
@@ -406,19 +367,25 @@ class TextEditor extends Gtk.HBox {
       // lineHeight: lineHeight,
       // showLineNumbers
     })
-    this.lineNumberGutterArea.queueDraw()
-
-    /* drawLineNumberGutter(
-     *   this.gutterContext,
-     *   this.model,
-     *   this,
-     *   this.lineNumbersToRender,
-     *   this.gutterLayout,
-     *   this.font
-     * ) */
   }
 
   redrawText() {
+    const { measurements } = this
+    const {
+      textContainerWidth: width,
+      textContainerHeight: height,
+    } = measurements
+
+    const textContentWidth = this.getScrollWidth()
+
+    this.backgroundArea.setSizeRequest(width, height)
+    this.backgroundArea.update({ width, height })
+
+    this.textWindow.setSizeRequest(width, height)
+
+    this.cursorArea.setSizeRequest(textContentWidth, height)
+    this.cursorArea.update({ width: textContentWidth, height })
+
     this.textContainer.setSizeRequest(
       this.getScrollWidth(),
       this.getScrollHeight()
@@ -529,7 +496,7 @@ class TextEditor extends Gtk.HBox {
 
   pixelPositionForScreenPosition({ row, column }) {
     const top = this.pixelPositionAfterBlocksForRow(row);
-    let left = column === 0 ? 0 : this.pixelLeftForRowAndColumn(row, column);
+    let left = this.pixelLeftForRowAndColumn(row, column);
     if (left == null) {
       this.requestHorizontalMeasurement(row, column);
       this.updateSync();
@@ -539,7 +506,7 @@ class TextEditor extends Gtk.HBox {
   }
 
   scheduleUpdate(nextUpdateOnlyBlinksCursors = false) {
-    if (!this.visible) return;
+    if (!this._visible) return;
     if (this.suppressUpdates) return;
 
     this.nextUpdateOnlyBlinksCursors =
@@ -551,7 +518,7 @@ class TextEditor extends Gtk.HBox {
 
   updateSync(useScheduler = false) {
     // Don't proceed if we know we are not visible
-    if (!this.visible) {
+    if (!this._visible) {
       this.updateScheduled = false;
       return;
     }
@@ -1512,9 +1479,9 @@ class TextEditor extends Gtk.HBox {
   }
 
   didShow() {
-    if (!this.visible && this.isVisible()) {
+    if (!this._visible && this.isVisible()) {
       if (!this.hasInitialMeasurements) this.measureDimensions();
-      this.visible = true;
+      this._visible = true;
       this.model.setVisible(true);
       this.resizeBlockDecorationMeasurementsArea = true;
       this.updateSync();
@@ -1523,8 +1490,8 @@ class TextEditor extends Gtk.HBox {
   }
 
   didHide() {
-    if (this.visible) {
-      this.visible = false;
+    if (this._visible) {
+      this._visible = false;
       this.model.setVisible(false);
     }
   }
@@ -1541,7 +1508,7 @@ class TextEditor extends Gtk.HBox {
     // it has been shown for the first time. If this element is being focused,
     // it is necessarily visible, so we call `didShow` to ensure the hidden
     // input is rendered before we try to shift focus to it.
-    if (!this.visible) this.didShow();
+    if (!this._visible) this.didShow();
 
     if (!this.focused) {
       this.focused = true;
@@ -1646,10 +1613,15 @@ class TextEditor extends Gtk.HBox {
     }
   }
 
+  didChangeCursorPosition() {
+    this.cursorArea.queueDraw()
+  }
+
   didScrollDummyScrollbar() {
     // this.updateSync()
     // this.redrawGutter()
     this.derivedDimensionsCache = {};
+    this.textContainer.move(this.cursorArea, 0, this.getScrollTop())
   }
 
   didUpdateStyles() {
@@ -1724,6 +1696,10 @@ class TextEditor extends Gtk.HBox {
   // keypress, meaning we're *holding* the _same_ key we intially pressed.
   // Got that?
   didKeydown(event) {
+    this.pauseCursorBlinking()
+    return
+    // FIXME: handle this
+
     // Stop dragging when user interacts with the keyboard. This prevents
     // unwanted selections in the case edits are performed while selecting text
     // at the same time. Modifier keys are exempt to preserve the ability to
@@ -2002,7 +1978,7 @@ class TextEditor extends Gtk.HBox {
 
     const animationFrameLoop = () => {
       window.requestAnimationFrame(() => {
-        if (dragging && this.visible) {
+        if (dragging && this._visible) {
           didDrag(lastMousemoveEvent);
           animationFrameLoop();
         }
@@ -2136,7 +2112,11 @@ class TextEditor extends Gtk.HBox {
   }
 
   didRequestAutoscroll(autoscroll) {
-    console.log('AUTOSCROLL', autoscroll.screenRange, autoscroll.options)
+    this.autoscrollVertically(autoscroll.screenRange, autoscroll.options)
+    /* const coords = this.pixelPositionForScreenPosition(autoscroll.start)
+     * this.setScrollTop(coords.top)
+     * this.setScrollLeft(coords.left) */
+    // console.log('AUTOSCROLL', autoscroll.screenRange, autoscroll.options)
     // this.pendingAutoscroll = autoscroll;
     // this.scheduleUpdate();
 
@@ -2322,8 +2302,26 @@ class TextEditor extends Gtk.HBox {
     this.measureClientContainerHeight();
     this.measureClientContainerWidth();
     this.measureGutterDimensions();
+    this.measureTextContainerDimensions();
     this.measureScrollbarDimensions();
     this.hasInitialMeasurements = true;
+
+    const {
+      textContainerWidth,
+      baseCharacterWidth,
+      horizontalPadding,
+    } = this.measurements
+
+    const usableTextWidth = textContainerWidth - horizontalPadding
+    const editorWidthInChars = Math.floor(usableTextWidth / baseCharacterWidth) - 1
+    this.model.update({
+      width: textContainerWidth,
+      editorWidthInChars,
+    })
+    console.log({
+      width: textContainerWidth,
+      editorWidthInChars,
+    })
   }
 
   measureCharacterDimensions() {
@@ -2382,6 +2380,12 @@ class TextEditor extends Gtk.HBox {
     } else {
       return false;
     }
+  }
+
+  measureTextContainerDimensions() {
+    const { measurements } = this
+    measurements.textContainerWidth  = measurements.clientContainerWidth - measurements.gutterContainerWidth
+    measurements.textContainerHeight = measurements.clientContainerHeight
   }
 
   measureScrollbarDimensions() {
@@ -2479,82 +2483,89 @@ class TextEditor extends Gtk.HBox {
     columnsToMeasure,
     positions
   ) {
-    let lineNodeClientLeft = -1;
-    let textNodeStartColumn = 0;
-    let textNodesIndex = 0;
-    let lastTextNodeRight = null;
 
-    const text = lineComponent.getText()
-
-    // eslint-disable-next-line no-labels
-    columnLoop: for (
-      let columnsIndex = 0;
-      columnsIndex < columnsToMeasure.length;
-      columnsIndex++
-    ) {
-      const nextColumnToMeasure = columnsToMeasure[columnsIndex];
-      while (textNodesIndex < textNodes.length) {
-        if (nextColumnToMeasure === 0) {
-          positions.set(0, 0);
-          continue columnLoop; // eslint-disable-line no-labels
-        }
-
-        if (positions.has(nextColumnToMeasure)) continue columnLoop; // eslint-disable-line no-labels
-        const textNode = textNodes[textNodesIndex];
-        const textNodeEndColumn =
-          textNodeStartColumn + textNode.textContent.length;
-
-        if (nextColumnToMeasure < textNodeEndColumn) {
-          let clientPixelPosition;
-          if (nextColumnToMeasure === textNodeStartColumn) {
-            // clientPixelPosition = clientRectForRange(textNode, 0, 1).left;
-            clientPixelPosition =
-              Font.measure(this.font.description, text.slice(0, textNodeStartColumn));
-          } else {
-            // clientPixelPosition = clientRectForRange(
-            //   textNode,
-            //   0,
-            //   nextColumnToMeasure - textNodeStartColumn
-            // ).right;
-            clientPixelPosition =
-              Font.measure(this.font.description, text.slice(0, nextColumnToMeasure));
-          }
-
-          if (lineNodeClientLeft === -1) {
-            // lineNodeClientLeft = lineNode.getBoundingClientRect().left;
-            lineNodeClientLeft = 0;
-          }
-
-          positions.set(
-            nextColumnToMeasure,
-            Math.round(clientPixelPosition - lineNodeClientLeft)
-          );
-          continue columnLoop; // eslint-disable-line no-labels
-        } else {
-          textNodesIndex++;
-          textNodeStartColumn = textNodeEndColumn;
-        }
-      }
-
-      if (lastTextNodeRight == null) {
-        const lastTextNode = textNodes[textNodes.length - 1];
-        lastTextNodeRight = clientRectForRange(
-          lastTextNode,
-          0,
-          lastTextNode.textContent.length
-        ).right;
-      }
-
-      if (lineNodeClientLeft === -1) {
-        // lineNodeClientLeft = lineNode.getBoundingClientRect().left;
-        lineNodeClientLeft = 0;
-      }
-
-      positions.set(
-        nextColumnToMeasure,
-        Math.round(lastTextNodeRight - lineNodeClientLeft)
-      );
+    for (let i = 0; i < columnsToMeasure.length; i++) {
+      const column = columnsToMeasure[i]
+      const x = this.measurements.baseCharacterWidth * column
+      positions.set(column, x)
     }
+
+    /* let lineNodeClientLeft = -1;
+     * let textNodeStartColumn = 0;
+     * let textNodesIndex = 0;
+     * let lastTextNodeRight = null;
+     *
+     * const text = lineComponent.getText()
+     *
+     * // eslint-disable-next-line no-labels
+     * columnLoop: for (
+     *   let columnsIndex = 0;
+     *   columnsIndex < columnsToMeasure.length;
+     *   columnsIndex++
+     * ) {
+     *   const nextColumnToMeasure = columnsToMeasure[columnsIndex];
+     *   while (textNodesIndex < textNodes.length) {
+     *     if (nextColumnToMeasure === 0) {
+     *       positions.set(0, 0);
+     *       continue columnLoop; // eslint-disable-line no-labels
+     *     }
+     *
+     *     if (positions.has(nextColumnToMeasure)) continue columnLoop; // eslint-disable-line no-labels
+     *     const textNode = textNodes[textNodesIndex];
+     *     const textNodeEndColumn =
+     *       textNodeStartColumn + textNode.textContent.length;
+     *
+     *     if (nextColumnToMeasure < textNodeEndColumn) {
+     *       let clientPixelPosition;
+     *       if (nextColumnToMeasure === textNodeStartColumn) {
+     *         // clientPixelPosition = clientRectForRange(textNode, 0, 1).left;
+     *         clientPixelPosition =
+     *           Font.measure(this.font.description, text.slice(0, textNodeStartColumn));
+     *       } else {
+     *         // clientPixelPosition = clientRectForRange(
+     *         //   textNode,
+     *         //   0,
+     *         //   nextColumnToMeasure - textNodeStartColumn
+     *         // ).right;
+     *         clientPixelPosition =
+     *           Font.measure(this.font.description, text.slice(0, nextColumnToMeasure));
+     *       }
+     *
+     *       if (lineNodeClientLeft === -1) {
+     *         // lineNodeClientLeft = lineNode.getBoundingClientRect().left;
+     *         lineNodeClientLeft = 0;
+     *       }
+     *
+     *       positions.set(
+     *         nextColumnToMeasure,
+     *         Math.round(clientPixelPosition - lineNodeClientLeft)
+     *       );
+     *       continue columnLoop; // eslint-disable-line no-labels
+     *     } else {
+     *       textNodesIndex++;
+     *       textNodeStartColumn = textNodeEndColumn;
+     *     }
+     *   }
+     *
+     *   if (lastTextNodeRight == null) {
+     *     const lastTextNode = textNodes[textNodes.length - 1];
+     *     lastTextNodeRight = clientRectForRange(
+     *       lastTextNode,
+     *       0,
+     *       lastTextNode.textContent.length
+     *     ).right;
+     *   }
+     *
+     *   if (lineNodeClientLeft === -1) {
+     *     // lineNodeClientLeft = lineNode.getBoundingClientRect().left;
+     *     lineNodeClientLeft = 0;
+     *   }
+     *
+     *   positions.set(
+     *     nextColumnToMeasure,
+     *     Math.round(lastTextNodeRight - lineNodeClientLeft)
+     *   );
+     * } */
   }
 
   rowForPixelPosition(pixelPosition) {
@@ -2797,7 +2808,7 @@ class TextEditor extends Gtk.HBox {
   }
 
   /* didResizeBlockDecorations(entries) {
-    if (!this.visible) return;
+    if (!this._visible) return;
 
     for (let i = 0; i < entries.length; i++) {
       const { target, contentRect } = entries[i];
@@ -3082,7 +3093,7 @@ class TextEditor extends Gtk.HBox {
       this.derivedDimensionsCache = {};
       this.scrollTopPending = true;
       this.textWindow.getVadjustment().setValue(scrollTop)
-      this.element.emitter.emit('did-change-scroll-top', scrollTop);
+      this.emitter.emit('did-change-scroll-top', scrollTop);
       return true;
     } else {
       return false;
@@ -3121,7 +3132,7 @@ class TextEditor extends Gtk.HBox {
     if (scrollLeft !== this.getScrollLeft()) {
       this.scrollLeftPending = true;
       this.textWindow.setHadjustment().getValue(scrollLeft)
-      this.element.emitter.emit('did-change-scroll-left', scrollLeft);
+      this.emitter.emit('did-change-scroll-left', scrollLeft);
       return true;
     } else {
       return false;
@@ -3347,10 +3358,6 @@ class LinesTileComponent extends Gtk.DrawingArea {
       measurements,
     } = this.props;
 
-    /* Draw background */
-    cx.setColor(theme.backgroundColor)
-    cx.rectangle(0, 0, width, height)
-    cx.fill()
     /* cx.setColor('#ff0000')
      * cx.rectangle(0, 0, width, height)
      * cx.stroke() */
@@ -3695,7 +3702,7 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
 
         this.tilesById.set(tileId, tile)
         // rootComponent.textContainer.put(tile, 0, top)
-        console.log('CREATE TILE', tileId)
+        // console.log('CREATE TILE', tileId)
       }
     }
   }
@@ -3858,6 +3865,90 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
   }
 }
 
+class BackgroundComponent extends Gtk.DrawingArea {
+  props = {
+    width: 0,
+    height: 0,
+  }
+
+  constructor(props) {
+    super()
+    this.update(props)
+    this.on('draw', this.onDraw.bind(this))
+  }
+
+  update(newProps) {
+    this.props = Object.assign({}, this.props, newProps)
+    this.queueDraw()
+  }
+
+  onDraw(cx) {
+    const { width, height } = this.props
+
+    /* Draw background */
+    cx.setColor(theme.backgroundColor)
+    cx.rectangle(0, 0, width, height)
+    cx.fill()
+  }
+}
+
+class CursorsComponent extends Gtk.DrawingArea {
+  props = {
+    element: null,
+    width: 0,
+    height: 0,
+  }
+
+  constructor(props) {
+    super()
+    this.update(props)
+    this.on('draw', this.onDraw.bind(this))
+  }
+
+  update(newProps) {
+    this.props = Object.assign({}, this.props, newProps)
+    this.queueDraw()
+  }
+
+  onDraw(cx) {
+    const { element } = this.props
+    const blinkOff = element.cursorsBlinkedOff
+    const hasFocus = element.hasFocus()
+    const model = element.getModel()
+    const cursors = model.getCursors()
+    const { measurements } = element
+
+    if (blinkOff)
+      return
+
+    cx.translate(
+      measurements.horizontalPadding + 0.5,
+      measurements.verticalPadding   + 0.5 - element.getScrollTop()
+    )
+
+    for (let i = 0; i < cursors.length; i++) {
+      const cursor = cursors[i]
+      const position = cursor.getScreenPosition()
+      const coords = element.pixelPositionForScreenPosition(position)
+
+      cx.rectangle(
+        coords.left,
+        coords.top,
+        measurements.baseCharacterWidth,
+        measurements.lineHeight
+      )
+      if (hasFocus) {
+        cx.setColor(theme.cursorColorFocus)
+        cx.fill()
+      }
+      else {
+        cx.setColor(theme.cursorColor)
+        cx.setLineWidth(1)
+        cx.stroke()
+      }
+    }
+  }
+}
 
 module.exports = TextEditor
 
@@ -3964,9 +4055,10 @@ function debounce(fn, wait) {
 }
 
 function roundToPhysicalPixelBoundary(virtualPixelPosition) {
-  const virtualPixelsPerPhysicalPixel = 1 / window.devicePixelRatio;
-  return (
-    Math.round(virtualPixelPosition / virtualPixelsPerPhysicalPixel) *
-    virtualPixelsPerPhysicalPixel
-  );
+  return virtualPixelPosition
+  /* const virtualPixelsPerPhysicalPixel = 1 / window.devicePixelRatio;
+   * return (
+   *   Math.round(virtualPixelPosition / virtualPixelsPerPhysicalPixel) *
+   *   virtualPixelsPerPhysicalPixel
+   * ); */
 }
