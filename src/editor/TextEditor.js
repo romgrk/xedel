@@ -28,7 +28,7 @@ const ZERO_WIDTH_NBSP_CHARACTER = '\ufeff';
 const MOUSE_DRAG_AUTOSCROLL_MARGIN = 40;
 
 const CURSOR_BLINK_RESUME_DELAY = 300;
-const CURSOR_BLINK_PERIOD = 800;
+const CURSOR_BLINK_PERIOD = 900;
 
 const DEFAULT_FONT_FAMILY = 'monospace'
 const DEFAULT_FONT_SIZE = 16
@@ -67,9 +67,9 @@ class TextEditor extends Gtk.HBox {
       buffer,
       softWrapped: true,
       showLineNumbers: true,
-      width: 691,
-      editorWidthInChars: 67,
     })
+    model.setVerticalScrollMargin(0)
+    model.setHorizontalScrollMargin(2)
     return model.getElement()
   }
 
@@ -100,6 +100,7 @@ class TextEditor extends Gtk.HBox {
 
     this.textContainer = new Gtk.Fixed()
     this.textContainer.canFocus = true
+    this.textContainer.focusOnClick = true
     this.textContainer.addEvents(Gdk.EventMask.ALL_EVENTS_MASK)
     this.textContainer.put(this.cursorArea, 0, 0)
 
@@ -307,29 +308,6 @@ class TextEditor extends Gtk.HBox {
    * Rendering
    */
 
-  onDrawGutter = (cx) => {
-    console.time('onDrawGutter')
-
-    /* Surface not ready yet */
-    if (this.gutterSurface === undefined)
-      return
-
-    const { measurements } = this
-
-    /* Draw tokens */
-    cx.translate(0, this.verticalPadding - this.getVerticalOffset())
-    this.gutterSurface.flush()
-    cx.save()
-    cx.rectangle(0, 0, measurements.gutterContainerWidth, measurements.gutterSurfaceHeight)
-    cx.clip()
-    cx.setSourceSurface(this.gutterSurface, 0, 0)
-    cx.paint()
-    cx.restore()
-
-    console.timeEnd('onDrawGutter')
-    return true
-  }
-
   render() {
     this.renderGutter()
     this.renderText()
@@ -418,6 +396,7 @@ class TextEditor extends Gtk.HBox {
       let tile
       const props = {
         key: tileId,
+        element: this,
         measuredContent: this.measuredContent,
         height: tileHeight,
         width: tileWidth,
@@ -484,8 +463,8 @@ class TextEditor extends Gtk.HBox {
   /* copied functions below */
 
   update(props) {
-    if (props.model !== this.props.model) {
-      this.props.model.component = null;
+    if (props.model !== this.model) {
+      this.model.component = null;
       props.model.component = this;
     }
     this.props = props;
@@ -580,7 +559,7 @@ class TextEditor extends Gtk.HBox {
     if (this.remeasureAllBlockDecorations) {
       this.remeasureAllBlockDecorations = false;
 
-      const decorations = this.props.model.getDecorations();
+      const decorations = this.model.getDecorations();
       for (var i = 0; i < decorations.length; i++) {
         const decoration = decorations[i];
         const marker = decoration.getMarker();
@@ -1464,8 +1443,8 @@ class TextEditor extends Gtk.HBox {
 
   didDetach() {
     if (this.attached) {
-      this.intersectionObserver.disconnect();
-      this.resizeObserver.disconnect();
+      // this.intersectionObserver.disconnect();
+      // this.resizeObserver.disconnect();
       if (this.gutterContainerResizeObserver)
         this.gutterContainerResizeObserver.disconnect();
       this.overlayComponents.forEach(component => component.didDetach());
@@ -2156,7 +2135,7 @@ class TextEditor extends Gtk.HBox {
           desiredScrollCenter + this.getScrollContainerClientHeight() / 2;
       }
     } else {
-      desiredScrollTop = screenRangeTop - verticalScrollMargin;
+      desiredScrollTop    = screenRangeTop - verticalScrollMargin;
       desiredScrollBottom = screenRangeBottom + verticalScrollMargin;
     }
 
@@ -3899,12 +3878,12 @@ class CursorsComponent extends Gtk.DrawingArea {
   onDraw(cx) {
     const { element } = this.props
     const blinkOff = element.cursorsBlinkedOff
-    const hasFocus = element.hasFocus()
+    const hasFocus = element.hasFocus() && workspace.mainWindow.isActive()
     const model = element.getModel()
     const cursors = model.getCursors()
     const { measurements } = element
 
-    if (blinkOff)
+    if (blinkOff && hasFocus)
       return
 
     cx.translate(
@@ -3920,7 +3899,7 @@ class CursorsComponent extends Gtk.DrawingArea {
       cx.rectangle(
         coords.left - 1,
         coords.top,
-        measurements.baseCharacterWidth,
+        measurements.baseCharacterWidth + 1,
         measurements.lineHeight
       )
       if (hasFocus) {
