@@ -36,8 +36,7 @@ const DEFAULT_FONT_SIZE = 16
 const theme = parseTheme({
   lineNumber:       '#888888',
   backgroundColor:  '#1e1e1e',
-  cursorColor:      '#599eff',
-  cursorColorFocus: 'rgba(89, 158, 255, 0.6)',
+  cursorColor:      '#f0f0f0',
   cursorLineColor:  'rgba(255, 255, 255, 0.1)',
 })
 
@@ -102,12 +101,15 @@ class TextEditor extends Gtk.HBox {
     this.textContainer.canFocus = true
     this.textContainer.focusOnClick = true
     this.textContainer.addEvents(Gdk.EventMask.ALL_EVENTS_MASK)
-    this.textContainer.put(this.cursorArea, 0, 0)
+
+    this.textOverlay = new Gtk.Overlay()
+    this.textOverlay.add(this.textContainer)
+    this.textOverlay.addOverlay(this.cursorArea)
 
     this.textWindow = new Gtk.ScrolledWindow()
     this.textWindow.hexpand = true
     this.textWindow.vexpand = true
-    this.textWindow.add(this.textContainer)
+    this.textWindow.add(this.textOverlay)
 
     this.textWindowContainer = new Gtk.Fixed()
     this.textWindowContainer.put(this.backgroundArea, 0, 0)
@@ -132,6 +134,7 @@ class TextEditor extends Gtk.HBox {
     this.didCompositionUpdate = this.didCompositionUpdate.bind(this);
     this.didCompositionEnd = this.didCompositionEnd.bind(this);
 
+    this.didGetChildPosition = this.didGetChildPosition.bind(this);
     this.didChangeCursorPosition = this.didChangeCursorPosition.bind(this);
     this.didScrollDummyScrollbar = this.didScrollDummyScrollbar.bind(this);
     this.didMouseDownOnContent = this.didMouseDownOnContent.bind(this);
@@ -145,6 +148,7 @@ class TextEditor extends Gtk.HBox {
     this.textContainer.on('key-press-event', this.onKeyPressEvent)
     this.textContainer.on('focus-in-event', this.didFocus)
     this.textContainer.on('focus-out-event', this.didBlur)
+    this.textOverlay.on('get-child-position', this.didGetChildPosition)
 
     this.textWindow.getVadjustment().on('value-changed', this.didScrollDummyScrollbar)
     this.textWindow.getHadjustment().on('value-changed', this.didScrollDummyScrollbar)
@@ -1570,6 +1574,14 @@ class TextEditor extends Gtk.HBox {
     }
   }
 
+  didGetChildPosition(_, rect) {
+    // For now, the target is always the cursor area
+    rect.x = this.getScrollLeft()
+    rect.y = this.getScrollTop()
+    rect.width = this.measurements.textContainerWidth
+    rect.height = this.measurements.textContainerHeight
+  }
+
   didChangeCursorPosition() {
     this.cursorArea.queueDraw()
   }
@@ -1578,7 +1590,6 @@ class TextEditor extends Gtk.HBox {
     // this.updateSync()
     // this.renderGutter()
     this.derivedDimensionsCache = {};
-    this.textContainer.move(this.cursorArea, 0, this.getScrollTop())
   }
 
   didUpdateStyles() {
@@ -3887,26 +3898,42 @@ class CursorsComponent extends Gtk.DrawingArea {
       return
 
     cx.translate(
-      measurements.horizontalPadding + 0.5,
-      measurements.verticalPadding   + 0.5 - element.getScrollTop()
+      measurements.horizontalPadding,
+      measurements.verticalPadding
     )
 
     for (let i = 0; i < cursors.length; i++) {
       const cursor = cursors[i]
       const position = cursor.getScreenPosition()
+      const screenLine = model.screenLineForScreenRow(position.row)
+      const character =
+        position.column < screenLine.lineText.length ?
+          screenLine.lineText[position.column] :
+        position.column === screenLine.lineText.length ?
+          ' ' : 'X'
       const coords = element.pixelPositionForScreenPosition(position)
 
-      cx.rectangle(
-        coords.left - 1,
-        coords.top,
-        measurements.baseCharacterWidth + 1,
-        measurements.lineHeight
-      )
+
       if (hasFocus) {
-        cx.setColor(theme.cursorColorFocus)
+        cx.rectangle(
+          coords.left,
+          coords.top,
+          measurements.baseCharacterWidth,
+          measurements.lineHeight
+        )
+        cx.setColor(theme.cursorColor)
         cx.fill()
+        cx.setColor(theme.backgroundColor)
+        cx.moveTo(coords.left, coords.top)
+        Font.draw(element.font.description, cx, character)
       }
       else {
+        cx.rectangle(
+          coords.left + 0.5 - 1,
+          coords.top  + 0.5,
+          measurements.baseCharacterWidth + 1,
+          measurements.lineHeight
+        )
         cx.setColor(theme.cursorColor)
         cx.setLineWidth(1)
         cx.stroke()
