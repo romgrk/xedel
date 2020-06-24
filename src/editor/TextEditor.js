@@ -30,15 +30,16 @@ const MOUSE_DRAG_AUTOSCROLL_MARGIN = 40;
 const CURSOR_BLINK_RESUME_DELAY = 300;
 const CURSOR_BLINK_PERIOD = 800;
 
+const DEFAULT_FONT_FAMILY = 'monospace'
 const DEFAULT_FONT_SIZE = 16
 
-const theme = {
+const theme = parseTheme({
   lineNumber:       '#888888',
   backgroundColor:  '#1e1e1e',
   cursorColor:      '#599eff',
   cursorColorFocus: 'rgba(89, 158, 255, 0.6)',
   cursorLineColor:  'rgba(255, 255, 255, 0.1)',
-}
+})
 
 class TextEditor extends Gtk.HBox {
 
@@ -250,7 +251,7 @@ class TextEditor extends Gtk.HBox {
     this.observeBlockDecorations();
     // this.updateClassList();
     // etch.updateSync(this);
-    this.redraw()
+    this.render()
   }
 
   destroy() {
@@ -329,12 +330,12 @@ class TextEditor extends Gtk.HBox {
     return true
   }
 
-  redraw() {
-    this.redrawGutter()
-    this.redrawText()
+  render() {
+    this.renderGutter()
+    this.renderText()
   }
 
-  redrawGutter() {
+  renderGutter() {
     this.gutterContainer.setSizeRequest(
       this.measurements.gutterContainerWidth,
       this.getAllocatedHeight()
@@ -368,7 +369,7 @@ class TextEditor extends Gtk.HBox {
     })
   }
 
-  redrawText() {
+  renderText() {
     const { measurements } = this
     const {
       textContainerWidth: width,
@@ -377,12 +378,10 @@ class TextEditor extends Gtk.HBox {
 
     const textContentWidth = this.getScrollWidth()
 
-    this.backgroundArea.setSizeRequest(width, height)
     this.backgroundArea.update({ width, height })
 
     this.textWindow.setSizeRequest(width, height)
 
-    this.cursorArea.setSizeRequest(textContentWidth, height)
     this.cursorArea.update({ width: textContentWidth, height })
 
     this.textContainer.setSizeRequest(
@@ -565,7 +564,7 @@ class TextEditor extends Gtk.HBox {
     this.measureBlockDecorations();
 
     this.updateSyncBeforeMeasuringContent();
-    this.redraw()
+    this.render()
 
     const restartFrame = this.measureContentDuringUpdateSync();
     if (restartFrame) {
@@ -1598,7 +1597,7 @@ class TextEditor extends Gtk.HBox {
 
   didScrollDummyScrollbar() {
     // this.updateSync()
-    // this.redrawGutter()
+    // this.renderGutter()
     this.derivedDimensionsCache = {};
     this.textContainer.move(this.cursorArea, 0, this.getScrollTop())
   }
@@ -2305,8 +2304,9 @@ class TextEditor extends Gtk.HBox {
   }
 
   measureCharacterDimensions() {
-    this.fontSize = DEFAULT_FONT_SIZE
-    this.font = Font.parse(`Hasklug Nerd Font ${this.fontSize}px`)
+    this.fontSize   = DEFAULT_FONT_SIZE
+    this.fontFamily = DEFAULT_FONT_FAMILY
+    this.font = Font.parse(`${this.fontFamily} ${this.fontSize}px`)
 
     this.measurements.lineHeight = this.font.charHeight;
     this.measurements.baseCharacterWidth = this.font.charWidth;
@@ -3772,7 +3772,7 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
       const x = 0
       const y = ((row - tileStartRow) * measurements.lineHeight) + marginTop
 
-      const markup = `<span foreground="${rootComponent.theme.lineNumber}">${number}</span>`
+      const markup = `<span foreground="${rootComponent.theme.lineNumber.string}">${number}</span>`
 
       tile.context.moveTo(x, y)
       tile.layout.setMarkup(markup)
@@ -3858,7 +3858,10 @@ class BackgroundComponent extends Gtk.DrawingArea {
   }
 
   update(newProps) {
+    const oldProps = this.props
     this.props = Object.assign({}, this.props, newProps)
+    if (this.props.width !== oldProps.width || this.props.height !== oldProps.height)
+      this.setSizeRequest(newProps.width, newProps.height)
     this.queueDraw()
   }
 
@@ -3886,7 +3889,10 @@ class CursorsComponent extends Gtk.DrawingArea {
   }
 
   update(newProps) {
+    const oldProps = this.props
     this.props = Object.assign({}, this.props, newProps)
+    if (this.props.width !== oldProps.width || this.props.height !== oldProps.height)
+      this.setSizeRequest(newProps.width, newProps.height)
     this.queueDraw()
   }
 
@@ -3912,7 +3918,7 @@ class CursorsComponent extends Gtk.DrawingArea {
       const coords = element.pixelPositionForScreenPosition(position)
 
       cx.rectangle(
-        coords.left,
+        coords.left - 1,
         coords.top,
         measurements.baseCharacterWidth,
         measurements.lineHeight
@@ -4041,4 +4047,18 @@ function roundToPhysicalPixelBoundary(virtualPixelPosition) {
    *   Math.round(virtualPixelPosition / virtualPixelsPerPhysicalPixel) *
    *   virtualPixelsPerPhysicalPixel
    * ); */
+}
+
+function parseTheme(theme) {
+  return Object.fromEntries(
+    Object.entries(theme).map(([key, value]) => [key, parseColor(value)]))
+}
+
+function parseColor(color) {
+  const c = new Gdk.RGBA()
+  const success = c.parse(color)
+  if (!success)
+    throw new Error(`GdkRGBA.parse: invalid color: ${color}`) 
+  c.string = color
+  return c
 }
