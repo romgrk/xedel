@@ -16,10 +16,12 @@ const KOREAN_CHARACTER = '세';
 module.exports = {
   parse,
   measure,
+  draw,
 }
 
 const measureContext = new Cairo.Context(new Cairo.ImageSurface(Cairo.Format.RGB24, 800, 100))
 const measureLayout = PangoCairo.createLayout(measureContext)
+measureLayout.setAlignment(Pango.Alignment.LEFT)
 
 function parse(string) {
   const description = Pango.fontDescriptionFromString(string)
@@ -51,8 +53,14 @@ function parse(string) {
 
 function measure(description, text) {
   measureLayout.setFontDescription(description)
-  measureLayout.setAlignment(Pango.Alignment.LEFT)
   return measureSize(measureLayout, text)
+}
+
+function draw(description, cx, text) {
+  measureLayout.setFontDescription(description)
+  measureLayout.setMarkup(text)
+  PangoCairo.updateLayout(cx, measureLayout)
+  PangoCairo.showLayout(cx, measureLayout)
 }
 
 // Helpers
