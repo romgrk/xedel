@@ -30,15 +30,30 @@ const MOUSE_DRAG_AUTOSCROLL_MARGIN = 40;
 const CURSOR_BLINK_RESUME_DELAY = 300;
 const CURSOR_BLINK_PERIOD = 900;
 
-const DEFAULT_FONT_FAMILY = 'monospace'
+const DEFAULT_FONT_FAMILY = 'SauceCodePro Nerd Font'
 const DEFAULT_FONT_SIZE = 16
 
-const theme = parseTheme({
+const theme = parseColors({
   lineNumber:       '#888888',
   backgroundColor:  '#1e1e1e',
   cursorColor:      '#f0f0f0',
   cursorLineColor:  'rgba(255, 255, 255, 0.1)',
 })
+
+const decorationStyleByClass = {
+  'cursor-line': parseColors({
+    fill: 'rgba(255, 255, 255, 0.15)',
+  }),
+  'diff-added-line': parseColors({
+    fill: 'rgba(100, 255, 130, 0.2)',
+  }),
+
+  'highlight': parseColors({
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    fill: 'rgba(255, 255, 255, 0.1)',
+  }),
+}
 
 class TextEditor extends Gtk.HBox {
 
@@ -69,6 +84,16 @@ class TextEditor extends Gtk.HBox {
     })
     model.setVerticalScrollMargin(0)
     model.setHorizontalScrollMargin(2)
+
+    const lineDecorationOptions = { type: 'line', class: 'diff-added-line' }
+    model.decorateMarker(model.markBufferRange([[6, 0], [6, "const path = require('path')".length]]), lineDecorationOptions)
+    model.decorateMarker(model.markBufferRange([[7, 0], [7, "const isEqual = require('lodash.isequal')".length]]), lineDecorationOptions)
+
+    const textDecorationOptions = { type: 'highlight', class: 'highlight' }
+    model.scanInBufferRange(/require/g, [[0, 0], [22, 0]], ({ range }) => {
+      model.decorateMarker(model.markBufferRange(range), textDecorationOptions)
+    })
+
     return model.getElement()
   }
 
@@ -85,6 +110,7 @@ class TextEditor extends Gtk.HBox {
     this.hexpand = true
 
     this.backgroundArea = new BackgroundComponent({ element: this })
+    this.highlightsArea = new HighlightsComponent({ element: this })
     this.cursorArea     = new CursorsComponent({ element: this })
 
     this.lineNumberGutterArea =
@@ -113,6 +139,7 @@ class TextEditor extends Gtk.HBox {
 
     this.textWindowContainer = new Gtk.Fixed()
     this.textWindowContainer.put(this.backgroundArea, 0, 0)
+    this.textWindowContainer.put(this.highlightsArea, 0, 0)
     this.textWindowContainer.put(this.textWindow,     0, 0)
 
     this.packStart(this.gutterContainer,     false, false, 0)
@@ -352,24 +379,23 @@ class TextEditor extends Gtk.HBox {
   }
 
   renderText() {
-    const { measurements } = this
     const {
       textContainerWidth: width,
       textContainerHeight: height,
-    } = measurements
+    } = this.measurements
 
     const textContentWidth = this.getScrollWidth()
 
     this.backgroundArea.update({ width, height })
-
-    this.textWindow.setSizeRequest(width, height)
-
     this.cursorArea.update({ width: textContentWidth, height })
 
+    this.textWindow.setSizeRequest(width, height)
     this.textContainer.setSizeRequest(
       this.getScrollWidth(),
       this.getScrollHeight()
     )
+
+    this.renderHighlightDecorations()
     this.renderLineTiles()
     this.queueDraw()
   }
@@ -422,6 +448,10 @@ class TextEditor extends Gtk.HBox {
           tileStartRow - startRow,
           tileEndRow - startRow
         ),
+        highlightDecorations: this.decorationsToRender.highlights.slice(
+          tileStartRow - startRow,
+          tileEndRow - startRow
+        ),
         blockDecorations: this.decorationsToRender.blocks.get(tileStartRow),
         displayLayer: this.model.displayLayer,
         lineComponentsByScreenLineId
@@ -441,6 +471,24 @@ class TextEditor extends Gtk.HBox {
       }
     }
     this.textContainer.showAll()
+  }
+
+  renderHighlightDecorations() {
+    const { measurements } = this
+    const {
+      textContainerWidth: width,
+      textContainerHeight: height,
+    } = measurements
+    const lineDecorations = this.decorationsToRender.lines
+    const highlightDecorations = this.decorationsToRender.highlights
+
+    this.highlightsArea.update({
+      width,
+      height,
+      lineDecorations,
+      highlightDecorations,
+      measurements,
+    })
   }
 
 
@@ -2282,15 +2330,16 @@ class TextEditor extends Gtk.HBox {
 
     const usableTextWidth = textContainerWidth - horizontalPadding
     const editorWidthInChars = Math.floor(usableTextWidth / baseCharacterWidth) - 1
+
     this.model.update({
-      width: textContainerWidth,
+      width: usableTextWidth,
       editorWidthInChars,
     })
-    console.log('TODO: handle this')
-    console.log({
-      width: textContainerWidth,
-      editorWidthInChars,
-    })
+    // console.log('TODO: handle this')
+    /* console.log({
+     *   width: usableTextWidth,
+     *   editorWidthInChars,
+     * }) */
   }
 
   measureCharacterDimensions() {
@@ -3288,10 +3337,12 @@ class LinesTileComponent extends Gtk.DrawingArea {
       width,
       top,
       font,
+      measurements,
       screenLines,
       tileStartRow,
       lineDecorations,
       textDecorations,
+      highlightDecorations,
       displayLayer,
       lineComponentsByScreenLineId,
     } = this.props;
@@ -3310,10 +3361,16 @@ class LinesTileComponent extends Gtk.DrawingArea {
 
     for (let i = 0, length = screenLines.length; i < length; i++) {
       const component = new LineComponent({
+        tile: this,
+        width,
+        height,
+        measurements,
+        index: i,
         screenLine: screenLines[i],
         screenRow: tileStartRow + i,
         lineDecoration: lineDecorations[i],
         textDecorations: textDecorations[i],
+        highlightDecorations: highlightDecorations[i],
         displayLayer,
         lineComponentsByScreenLineId
       });
@@ -3322,11 +3379,7 @@ class LinesTileComponent extends Gtk.DrawingArea {
   }
 
   onDraw(cx) {
-    const {
-      width,
-      height,
-      measurements,
-    } = this.props;
+    const { measurements, } = this.props;
 
     /* cx.setColor('#ff0000')
      * cx.rectangle(0, 0, width, height)
@@ -3335,14 +3388,7 @@ class LinesTileComponent extends Gtk.DrawingArea {
     /* Draw lines */
     for (let i = 0; i < this.children.length; i++) {
       const lineComponent = this.children[i]
-
-      const x = measurements.horizontalPadding
-      const y = i * measurements.lineHeight
-
-      cx.moveTo(x, y)
-      this.textLayout.setMarkup(lineComponent.getMarkup())
-      PangoCairo.updateLayout(cx, this.textLayout)
-      PangoCairo.showLayout(cx, this.textLayout)
+      lineComponent.onDraw(cx, this.textLayout)
     }
   }
 
@@ -3463,7 +3509,7 @@ class LineComponent {
   update(newProps) {
     if (this.props.lineDecoration !== newProps.lineDecoration) {
       this.props.lineDecoration = newProps.lineDecoration;
-      this.element.className = this.buildClassName();
+      // this.element.className = this.buildClassName();
     }
 
     if (this.props.screenRow !== newProps.screenRow) {
@@ -3490,7 +3536,26 @@ class LineComponent {
       lineComponentsByScreenLineId.delete(screenLine.id);
     }
 
-    this.element.remove();
+    // this.element.remove();
+  }
+
+  onDraw(cx, layout) {
+    const {
+      width,
+      index,
+      measurements,
+      textDecorations,
+    } = this.props
+
+    const x = measurements.horizontalPadding
+    const y = index * measurements.lineHeight
+
+    cx.moveTo(x, y)
+
+    /* Draw text */
+    layout.setMarkup(this.getMarkup())
+    PangoCairo.updateLayout(cx, layout)
+    PangoCairo.showLayout(cx, layout)
   }
 
   appendContents() {
@@ -3942,6 +4007,107 @@ class CursorsComponent extends Gtk.DrawingArea {
   }
 }
 
+class HighlightsComponent extends Gtk.DrawingArea {
+  props = {
+    element: null,
+    width: 0,
+    height: 0,
+    lineDecorations: [],
+    highlightDecorations: [],
+  }
+
+  constructor(props) {
+    super()
+    this.update(props)
+    this.on('draw', this.onDraw.bind(this))
+  }
+
+  update(newProps) {
+    const oldProps = this.props
+    this.props = Object.assign({}, this.props, newProps)
+    if (this.props.width !== oldProps.width || this.props.height !== oldProps.height)
+      this.setSizeRequest(newProps.width, newProps.height)
+    this.queueDraw()
+  }
+
+  onDraw(cx) {
+    const {
+      element,
+      width,
+      lineDecorations,
+      highlightDecorations,
+      measurements
+    } = this.props
+
+    const scrollTop  = element.getScrollTop()
+    const scrollLeft = element.getScrollLeft()
+
+    /* Line decorations */
+    for (let i = 0; i < lineDecorations.length; i++) {
+      const decoration = lineDecorations[i]
+      if (!decoration)
+        continue
+
+      const classNames = decoration.split(' ')
+
+      for (let j = 0; j < classNames.length; j++) {
+        const className = classNames[j]
+
+        const x = 0 - scrollLeft
+        const y = i * measurements.lineHeight - scrollTop
+
+        const style = decorationStyleByClass[className]
+
+        if (style.fill) {
+          cx.rectangle(x, y, width, measurements.lineHeight)
+          cx.setColor(style.fill)
+          cx.fill()
+        }
+
+        if (style.borderWidth && style.borderColor) {
+          const isBorderWidthOdd = style.borderWidth % 2 === 1
+          if (isBorderWidthOdd)
+            cx.translate(0, 0.5)
+          cx.rectangle(x, y, width, measurements.lineHeight - (isBorderWidthOdd ? 1 : 0))
+          cx.setLineWidth(style.borderWidth)
+          cx.setColor(style.borderColor)
+          cx.stroke()
+          if (isBorderWidthOdd)
+            cx.translate(0, -0.5)
+        }
+      }
+    }
+
+    /* Highlight decorations */
+    for (let i = 0; i < highlightDecorations.length; i++) {
+      const decoration = highlightDecorations[i]
+      const x = decoration.startPixelLeft + measurements.horizontalPadding - scrollLeft
+      const y = decoration.startPixelTop  + measurements.verticalPadding - scrollTop
+      const width = decoration.endPixelLeft - decoration.startPixelLeft
+      const height = decoration.endPixelTop - decoration.startPixelTop
+
+      const style = decorationStyleByClass['highlight']
+
+      if (style.fill) {
+        cx.roundedRectangle(x, y, width, height, 5)
+        cx.setColor(style.fill)
+        cx.fill()
+      }
+      if (style.borderWidth && style.borderColor) {
+        const isBorderWidthOdd = style.borderWidth % 2 === 1
+        if (isBorderWidthOdd)
+          cx.translate(0, 0.5)
+        cx.roundedRectangle(x, y, width, height - (isBorderWidthOdd ? 1 : 0), 5)
+        cx.setLineWidth(style.borderWidth)
+        cx.setColor(style.borderColor)
+        cx.stroke()
+        if (isBorderWidthOdd)
+          cx.translate(0, -0.5)
+      }
+    }
+  }
+}
+
 module.exports = TextEditor
 
 function escapeMarkup(text) {
@@ -4055,9 +4221,10 @@ function roundToPhysicalPixelBoundary(virtualPixelPosition) {
    * ); */
 }
 
-function parseTheme(theme) {
+function parseColors(theme) {
   return Object.fromEntries(
-    Object.entries(theme).map(([key, value]) => [key, parseColor(value)]))
+    Object.entries(theme).map(([key, value]) =>
+      [key, typeof value === 'string' ? parseColor(value) : value]))
 }
 
 function parseColor(color) {
