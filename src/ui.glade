@@ -61,32 +61,6 @@
               </packing>
             </child>
 
-            <!-- closeButton -->
-            <child>
-              <object class="GtkButton" id="closeButton">
-                <property name="label" translatable="yes">Close</property>
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">True</property>
-              </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-              </packing>
-            </child>
-
-            <!-- statusbar -->
-            <child>
-              <object class="GtkLabel" id="statusbar">
-                <property name="visible">True</property>
-                <property name="can_focus">False</property>
-              </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-              </packing>
-            </child>
-
           </object>
           <packing>
             <property name="expand">True</property>

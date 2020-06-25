@@ -120,10 +120,6 @@ class KeymapManager {
       this.queuedKeystrokes = []
     }
 
-    workspace.statusbar.setText(
-      `[${this.queuedKeystrokes.join(', ')}]\t\t(${key.toString()})`
-    )
-
     return (
       didCapture && shouldStopPropagation ?
         STOP_PROPAGATION :

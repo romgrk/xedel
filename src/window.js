@@ -37,7 +37,6 @@ class MainWindow extends Gtk.Window {
     const mainBox = workspace.mainGrid = builder.getObject('mainBox')
     const mainGrid = workspace.mainGrid = builder.getObject('mainGrid')
     const toolbar = workspace.toolbar = builder.getObject('toolbar')
-    const statusbar = workspace.statusbar = builder.getObject('statusbar')
 
     toolbar.getStyleContext().addClass('main-toolbar')
 
@@ -60,7 +59,6 @@ class MainWindow extends Gtk.Window {
     workspace.set({
       mainWindow: this,
       toolbar,
-      statusbar,
       mainGrid,
     })
   }
