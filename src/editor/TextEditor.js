@@ -28,16 +28,17 @@ const ZERO_WIDTH_NBSP_CHARACTER = '\ufeff';
 const MOUSE_DRAG_AUTOSCROLL_MARGIN = 40;
 
 const CURSOR_BLINK_RESUME_DELAY = 300;
-const CURSOR_BLINK_PERIOD = 900;
+const CURSOR_BLINK_PERIOD = 1200;
 
 const DEFAULT_FONT_FAMILY = 'SauceCodePro Nerd Font'
 const DEFAULT_FONT_SIZE = 16
 
 const theme = parseColors({
-  lineNumber:       '#888888',
-  backgroundColor:  '#1e1e1e',
-  cursorColor:      '#f0f0f0',
-  cursorLineColor:  'rgba(255, 255, 255, 0.1)',
+  lineNumber:          '#888888',
+  backgroundColor:     '#1e1e1e',
+  cursorColor:         '#f0f0f0',
+  cursorColorInactive: 'rgba(255, 255, 255, 0.6)',
+  cursorLineColor:     'rgba(255, 255, 255, 0.1)',
 })
 
 const decorationStyleByClass = {
@@ -170,6 +171,10 @@ class TextEditor extends Gtk.HBox {
       CURSOR_BLINK_RESUME_DELAY
     );
 
+    this.didResize = this.didResize.bind(this);
+    this.didSizeAllocate = this.didSizeAllocate.bind(this);
+
+    this.on('size-allocate', this.didSizeAllocate)
     this.textContainer.on('realize', this.onRealize)
     this.textContainer.on('button-press-event', this.didMouseDownOnContent)
     this.textContainer.on('key-press-event', this.onKeyPressEvent)
@@ -464,6 +469,8 @@ class TextEditor extends Gtk.HBox {
         // console.log('UPDATE TILE', tileId)
       }
       else {
+        /* if (tileStartRow === 0)
+         *   debugger */
         tile = new LinesTileComponent(props)
         this.tilesById.set(tileId, tile)
         this.textContainer.put(tile, 0, top)
@@ -1588,23 +1595,44 @@ class TextEditor extends Gtk.HBox {
     }
   }
 
+  didSizeAllocate() {
+    if (!this.attached)
+      return
+
+    let changed = false
+    if (this.previousWidth !== this.getAllocatedWidth())
+      changed = true
+    if (this.previousHeight !== this.getAllocatedHeight())
+      changed = true
+
+    this.previousWidth = this.getAllocatedWidth()
+    this.previousHeight = this.getAllocatedHeight()
+
+    if (changed)
+      this.didResize()
+  }
+
   didResize() {
     // Prevent the component from measuring the client container dimensions when
     // getting spurious resize events.
-    if (this.isVisible()) {
-      const clientContainerWidthChanged = this.measureClientContainerWidth();
-      const clientContainerHeightChanged = this.measureClientContainerHeight();
-      if (clientContainerWidthChanged || clientContainerHeightChanged) {
-        if (clientContainerWidthChanged) {
-          this.remeasureAllBlockDecorations = true;
-        }
+    if (!this.isVisible())
+      return
 
-        this.resizeObserver.disconnect();
-        this.scheduleUpdate();
-        process.nextTick(() => {
-          this.resizeObserver.observe(this.element);
-        });
+    const clientContainerWidthChanged  = this.measureClientContainerWidth();
+    const clientContainerHeightChanged = this.measureClientContainerHeight();
+
+    if (clientContainerWidthChanged || clientContainerHeightChanged) {
+      if (clientContainerWidthChanged) {
+        this.remeasureAllBlockDecorations = true;
       }
+
+      this.measureDimensions()
+
+      // this.resizeObserver.disconnect();
+      this.scheduleUpdate();
+      /* process.nextTick(() => {
+        *   this.resizeObserver.observe(this.element);
+        * }); */
     }
   }
 
@@ -3996,10 +4024,10 @@ class CursorsComponent extends Gtk.DrawingArea {
         cx.rectangle(
           coords.left + 0.5 - 1,
           coords.top  + 0.5,
-          measurements.baseCharacterWidth + 1,
+          measurements.baseCharacterWidth,
           measurements.lineHeight
         )
-        cx.setColor(theme.cursorColor)
+        cx.setColor(theme.cursorColorInactive)
         cx.setLineWidth(1)
         cx.stroke()
       }
