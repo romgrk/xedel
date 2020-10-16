@@ -1660,7 +1660,6 @@ class TextEditor extends Gtk.HBox {
 
   didChangeCursorPosition() {
     this.updateSync()
-    this.cursorArea.queueDraw()
   }
 
   didScrollDummyScrollbar() {
