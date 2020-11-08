@@ -370,11 +370,11 @@ module.exports = class TextEditorModel {
       }),
       this.decorateMarkerLayer(this.selectionsMarkerLayer, {
         type: 'line-number',
-        class: 'cursor-line'
+        class: 'cursor-line-number'
       }),
       this.decorateMarkerLayer(this.selectionsMarkerLayer, {
         type: 'line-number',
-        class: 'cursor-line-no-selection',
+        class: 'cursor-line-number-no-selection',
         onlyHead: true,
         onlyEmpty: true
       })
@@ -5087,7 +5087,7 @@ module.exports = class TextEditorModel {
        *   TextEditorComponent = require('./text-editor-component');
        */
       if (!TextEditorElement)
-        TextEditorElement = require('./TextEditor');
+        TextEditorElement = require('./TextEditorComponent');
 
       this._element = new TextEditorElement({
         model: this,

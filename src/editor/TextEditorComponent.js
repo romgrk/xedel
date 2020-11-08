@@ -17,18 +17,20 @@ const workspace = require('../workspace')
 const Font = require('../utils/font')
 
 const { isPairedCharacter } = require('./text-utils');
-const TextEditorModel = require('./TextEditorModel')
+const TextEditor = require('./TextEditorModel')
 const TextBuffer = require('./buffer')
 
 const DEFAULT_ROWS_PER_TILE = 6;
-
+const NORMAL_WIDTH_CHARACTER = 'x';
+const DOUBLE_WIDTH_CHARACTER = '我';
+const HALF_WIDTH_CHARACTER = 'ﾊ';
+const KOREAN_CHARACTER = '세';
 const SPACE_CHARACTER = ' ';
 const NBSP_CHARACTER = '\u00a0';
 const ZERO_WIDTH_NBSP_CHARACTER = '\ufeff';
 const MOUSE_DRAG_AUTOSCROLL_MARGIN = 40;
-
 const CURSOR_BLINK_RESUME_DELAY = 300;
-const CURSOR_BLINK_PERIOD = 1200;
+const CURSOR_BLINK_PERIOD = 1400;
 
 const DEFAULT_FONT_FAMILY = 'SauceCodePro Nerd Font'
 const DEFAULT_FONT_SIZE = 16
@@ -41,27 +43,47 @@ const theme = parseColors({
   cursorLineColor:     'rgba(255, 255, 255, 0.1)',
 })
 
-const decorationStyleByClass = {
-  'cursor-line': parseColors({
-    fill: 'rgba(255, 255, 255, 0.15)',
-  }),
-  'diff-added-line': parseColors({
-    fill: 'rgba(100, 255, 130, 0.2)',
-  }),
+/*
+ * Tasks:
+ * [ ] decorations
+ *     [x] lines
+ *     [x] highlights
+ *     [ ] lineNumbers
+ *     [ ] cursors
+ *     [ ] overlays
+ *     [ ] customGutter
+ *     [ ] blocks
+ *     [ ] text
+ */
 
-  'highlight': parseColors({
+const decorationStyleByClass = {
+  'cursor-line': {
+    background: parseColor('rgba(255, 255, 255, 0.15)'),
+  },
+  'cursor-line-number': {
+    foreground: parseColor('#599eff'),
+  },
+  'diff-added-line': {
+    background: parseColor('rgba(100, 255, 130, 0.2)'),
+  },
+  'diff-added-line-number': {
+    foreground: parseColor('#4EC849'),
+    fontWeight: 'bold',
+  },
+
+  'highlight': {
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    fill: 'rgba(255, 255, 255, 0.1)',
-  }),
+    borderColor: parseColor('rgba(255, 255, 255, 0.4)'),
+    background: parseColor('rgba(255, 255, 255, 0.1)'),
+  },
 }
 
-class TextEditor extends Gtk.HBox {
+class TextEditorComponent extends Gtk.HBox {
 
   theme = theme
 
   /**
-   * @type {TextEditorModel}
+   * @type {TextEditor}
    */
   model = null
 
@@ -78,7 +100,7 @@ class TextEditor extends Gtk.HBox {
       if (filepath)
         buffer.setPath(filepath)
     }
-    const model = new TextEditorModel({
+    const model = new TextEditor({
       buffer,
       softWrapped: true,
       showLineNumbers: true,
@@ -90,6 +112,10 @@ class TextEditor extends Gtk.HBox {
     model.decorateMarker(model.markBufferRange([[6, 0], [6, "const path = require('path')".length]]), lineDecorationOptions)
     model.decorateMarker(model.markBufferRange([[7, 0], [7, "const isEqual = require('lodash.isequal')".length]]), lineDecorationOptions)
 
+    const gutterDecorationOptions = { type: 'gutter', class: 'diff-added-line-number' }
+    model.decorateMarker(model.markBufferRange([[6, 0], [6, 1]]), gutterDecorationOptions)
+    model.decorateMarker(model.markBufferRange([[7, 0], [7, 1]]), gutterDecorationOptions)
+
     const textDecorationOptions = { type: 'highlight', class: 'highlight' }
     model.scanInBufferRange(/require/g, [[0, 0], [22, 0]], ({ range }) => {
       model.decorateMarker(model.markBufferRange(range), textDecorationOptions)
@@ -100,7 +126,7 @@ class TextEditor extends Gtk.HBox {
 
   /**
    * @param {Object} props
-   * @param {TextEditorModel} props.model
+   * @param {TextEditor} props.model
    */
   constructor(props) {
     super()
@@ -1177,7 +1203,7 @@ class TextEditor extends Gtk.HBox {
     decorations.push({
       className:
         'decoration' + (decoration.class ? ' ' + decoration.class : ''),
-      element: TextEditor.viewForItem(decoration.item),
+      element: TextEditor.viewForItem(decoration),
       top,
       height
     });
@@ -2799,7 +2825,7 @@ class TextEditor extends Gtk.HBox {
   addBlockDecoration(decoration, subscribeToChanges = true) {
     const marker = decoration.getMarker();
     const { item, position } = decoration.getProperties();
-    const element = TextEditorModel.viewForItem(item);
+    const element = TextEditor.viewForItem(item);
 
     if (marker.isValid()) {
       const row = marker.getHeadScreenPosition().row;
@@ -3331,6 +3357,10 @@ class TextEditor extends Gtk.HBox {
   }
 }
 
+/*
+ * Subcomponents of TextEditor
+ */
+
 class LinesTileComponent extends Gtk.DrawingArea {
   constructor(props) {
     super()
@@ -3819,9 +3849,12 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
       /* let className = 'line-number';
         * if (foldable) className = className + ' foldable'; */
 
-      /* const decorationsForRow = decorations[j];
-        * if (decorationsForRow)
-        *   className = className + ' ' + decorationsForRow; */
+      const decorationsForRow = decorations[j];
+      const style = getStyle({
+        foreground: rootComponent.theme.lineNumber,
+      }, decorationsForRow)
+      if (decorationsForRow)
+        debugger
 
       let number = null;
       {
@@ -3855,7 +3888,8 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
       const x = 0
       const y = ((row - tileStartRow) * measurements.lineHeight) + marginTop
 
-      const markup = `<span foreground="${rootComponent.theme.lineNumber.string}">${number}</span>`
+      const markup =
+        renderText(style, number)
 
       tile.context.moveTo(x, y)
       tile.layout.setMarkup(markup)
@@ -4086,9 +4120,9 @@ class HighlightsComponent extends Gtk.DrawingArea {
 
         const style = decorationStyleByClass[className]
 
-        if (style.fill) {
+        if (style.background) {
           cx.rectangle(x, y, width, measurements.lineHeight)
-          cx.setColor(style.fill)
+          cx.setColor(style.background)
           cx.fill()
         }
 
@@ -4116,9 +4150,9 @@ class HighlightsComponent extends Gtk.DrawingArea {
 
       const style = decorationStyleByClass['highlight']
 
-      if (style.fill) {
+      if (style.background) {
         cx.roundedRectangle(x, y, width, height, 5)
-        cx.setColor(style.fill)
+        cx.setColor(style.background)
         cx.fill()
       }
       if (style.borderWidth && style.borderColor) {
@@ -4136,7 +4170,24 @@ class HighlightsComponent extends Gtk.DrawingArea {
   }
 }
 
-module.exports = TextEditor
+module.exports = TextEditorComponent
+
+function renderText(style, text) {
+  let result = '<span '
+  for (let key in style) {
+    const value = style[key]
+    switch (key) {
+      case 'foreground': result += `foreground="${colorToString(value)}" `; break
+      case 'background': result += `background="${colorToString(value)}" `; break
+      case 'fontWeight': result += `weight="${value}" `; break
+      case 'fontFamily': result += `font_family="${value}" `; break
+      case 'size': result += `size="${value}" `; break
+      case 'style': result += `style="${value}" `; break
+    }
+  }
+  result += `>${escapeMarkup(text)}</span>`
+  return result
+}
 
 function escapeMarkup(text) {
   return text.replace(/<|>|&/g, m => {
@@ -4262,4 +4313,30 @@ function parseColor(color) {
     throw new Error(`GdkRGBA.parse: invalid color: ${color}`) 
   c.string = color
   return c
+}
+
+function colorToString(c) {
+  return c.string.startsWith('#') ? c.string :
+    ('#'
+    + (c.red * 255).toString(16)
+    + (c.green * 255).toString(16)
+    + (c.blue * 255).toString(16)
+    )
+}
+
+function getStyle(baseStyle, classNames) {
+  if (!classNames)
+    return baseStyle
+
+  const names = classNames.split(' ')
+  for (let name of names) {
+    const style = decorationStyleByClass[name]
+    if (!style)
+      continue
+    for (let prop in style) {
+      baseStyle[prop] = style[prop]
+    }
+  }
+
+  return baseStyle
 }

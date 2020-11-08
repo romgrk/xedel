@@ -42,7 +42,7 @@ class MainWindow extends Gtk.Window {
 
 
     // TODO: temporary, for testing purposes
-    const filepath = getAbsolutePath('./src/editor/TextEditor.js', workspace.cwd)
+    const filepath = getAbsolutePath('./src/editor/TextEditorComponent.js', workspace.cwd)
     // const filepath = getAbsolutePath('./README.md', workspace.cwd)
     const text = require('fs').readFileSync(filepath).toString()
     workspace.currentView = new EditorView({ text, filepath })

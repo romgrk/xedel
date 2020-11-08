@@ -3,7 +3,7 @@
  */
 
 const workspace = require('../workspace')
-const TextEditor = require('./TextEditor')
+const TextEditorComponent = require('./TextEditorComponent')
 
 
 const callWithModel = fn => element => element.model[fn]()
@@ -37,7 +37,7 @@ const editorKeymap = {
 
 workspace.loaded.then(() => {
   workspace.commands.registerCommands('editor', editorCommands)
-  workspace.keymaps.addKeymap(TextEditor, editorKeymap)
+  workspace.keymaps.addKeymap(TextEditorComponent, editorKeymap)
 })
 
 

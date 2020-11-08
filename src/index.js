@@ -70,7 +70,7 @@ function main() {
   const commands = workspace.commands = new CommandsManager()
   const keymaps = workspace.keymaps = new KeymapManager()
   keymaps.addListener((key, element, elements) => {
-    console.log(chalk.grey('key-press'), key.toString())
+    // console.log(chalk.grey('key-press'), key.toString())
     // elements.forEach(e => console.log('-> ', e.constructor.name))
   })
 
