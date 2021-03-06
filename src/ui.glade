@@ -17,29 +17,19 @@
 
         <!-- toolbar -->
         <child>
-          <object class="GtkToolbar" id="toolbar">
+          <object class="GtkBox" id="toolbar">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="orientation">vertical</property>
-            <property name="toolbar_style">icons</property>
 
             <child>
-              <object class="GtkToolButton">
+              <object class="GtkButton">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="icon_name">folder-documents-symbolic</property>
               </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="homogeneous">True</property>
-              </packing>
             </child>
           </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">0</property>
-          </packing>
         </child>
 
         <!-- mainPanel -->
@@ -55,18 +45,9 @@
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
               </object>
-              <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
-              </packing>
             </child>
 
           </object>
-          <packing>
-            <property name="expand">True</property>
-            <property name="fill">True</property>
-            <property name="position">1</property>
-          </packing>
         </child>
 
       </object>
