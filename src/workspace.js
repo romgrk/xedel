@@ -2,9 +2,11 @@
  * workspace.js
  */
 
-const createControllablePromise = require('./utils/create-controllable-promise')
+const { EventEmitter } = require('events')
 
-const workspace = {
+const workspace = new EventEmitter()
+
+Object.assign(workspace, {
   mainWindow: null,
   toolbar: null,
   statusbar: null,
@@ -23,7 +25,11 @@ const workspace = {
   /*
    * Resolved after the application is initialized
    */
-  loaded: createControllablePromise(),
+  loaded: {
+    then: fn => {
+      workspace.on('loaded', fn)
+    }
+  },
 
   currentView: null,
   buffers: null,
@@ -32,6 +38,6 @@ const workspace = {
   set: (fields) => {
     Object.assign(workspace, fields)
   }
-}
+})
 
 module.exports = workspace
