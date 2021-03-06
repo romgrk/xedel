@@ -7,8 +7,8 @@ const isEqual = require('lodash.isequal')
 const LineTopIndex = require('line-top-index');
 const { CompositeDisposable, Disposable, Emitter } = require('event-kit');
 const gi = require('node-gtk')
-const Gtk = gi.require('Gtk', '3.0')
-const Gdk = gi.require('Gdk', '3.0')
+const Gtk = gi.require('Gtk', '4.0')
+const Gdk = gi.require('Gdk', '4.0')
 const Cairo = gi.require('cairo')
 const Pango = gi.require('Pango')
 const PangoCairo = gi.require('PangoCairo')
@@ -78,7 +78,7 @@ const decorationStyleByClass = {
   },
 }
 
-class TextEditorComponent extends Gtk.HBox {
+class TextEditorComponent extends Gtk.Box {
 
   theme = theme
 
@@ -129,7 +129,7 @@ class TextEditorComponent extends Gtk.HBox {
    * @param {TextEditor} props.model
    */
   constructor(props) {
-    super()
+    super(Gtk.Orientation.HORIZONTAL)
 
     this.model = props.model
 

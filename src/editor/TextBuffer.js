@@ -5,7 +5,7 @@
 
 const path = require('path')
 const gi = require('node-gtk')
-const Gtk = gi.require('Gtk', '3.0')
+const Gtk = gi.require('Gtk', '4.0')
 
 const grammars = require('../grammars')
 const workspace = require('../workspace')

@@ -5,8 +5,8 @@
 const KeySymbols = require('./key-symbols')
 const nativeKeymap = require('native-keymap').getKeyMap()
 const gi = require('node-gtk')
-const Gtk = gi.require('Gtk', '3.0')
-const Gdk = gi.require('Gdk', '3.0')
+const Gtk = gi.require('Gtk', '4.0')
+const Gdk = gi.require('Gdk', '4.0')
 
 const keymap =
   Object.entries(nativeKeymap)

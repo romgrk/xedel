@@ -4,8 +4,8 @@
 
 const path = require('path')
 const gi = require('node-gtk')
-const Gtk = gi.require('Gtk', '3.0')
-const Gdk = gi.require('Gdk', '3.0')
+const Gtk = gi.require('Gtk', '4.0')
+const Gdk = gi.require('Gdk', '4.0')
 // const GtkSource = gi.require('GtkSource', '4')
 
 const workspace = require('../workspace')

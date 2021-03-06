@@ -3,7 +3,7 @@
  */
 
 const gi = require('node-gtk')
-const Gdk = gi.require('Gdk', '3.0')
+const Gdk = gi.require('Gdk', '4.0')
 const { ModifierType, keyvalFromName } = Gdk
 
 const Key = require('./key')
