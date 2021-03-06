@@ -36,6 +36,39 @@ class Key {
   string = undefined
   event = undefined
 
+  static fromArgs = (keyval, keycode, state) => {
+    let shift = false
+    let name = Gdk.keyvalName(keyval)
+    let string = String.fromCharCode(Gdk.keyvalToUnicode(keyval))
+
+    if (name in KeySymbols.CORRECTIONS)
+      name = KeySymbols.CORRECTIONS[name]
+
+    const keymapEntry =
+      string.charCodeAt(0) >= 0x20 ?
+        keymap.find(k => k.withShift === string) : undefined
+
+    if (keymapEntry) {
+      name = keymapEntry.value
+      shift = true
+    }
+    // eg "Escape", "BackSpace"
+    else {
+      name = name.toLowerCase()
+    }
+
+    const key  = new Key()
+    key.ctrl   = Boolean(state & Gdk.ModifierType.CONTROL_MASK)
+    key.shift  = shift || Boolean(state & Gdk.ModifierType.SHIFT_MASK)
+    key.alt    = Boolean(state & Gdk.ModifierType.ALT_MASK)
+    key.super  = Boolean(state & Gdk.ModifierType.SUPER_MASK)
+    key.name   = name
+    key.string = string
+    key.event  = { keyval, keycode, state }
+
+    return key
+  }
+
   static fromEvent = (event) => {
     let shift = false
     let name = Gdk.keyvalName(event.keyval)
