@@ -55,7 +55,6 @@ class MainWindow extends Gtk.ApplicationWindow {
     this.setChild(mainBox)
     this.setDefaultSize(800, 800)
 
-    this.on('show', () => this.onShow())
     this.on('destroy', () => this.onDestroy())
 
     workspace.set({
