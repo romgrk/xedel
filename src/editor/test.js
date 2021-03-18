@@ -3,9 +3,6 @@
  */
 
 const fs = require('fs')
-const path = require('path')
-const chalk = require('chalk')
-const chokidar = require('chokidar')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
 const Gdk = gi.require('Gdk', '4.0')
@@ -16,9 +13,6 @@ const TextEditor = require('./index.js')
 
 const grammars = require('../grammars')
 require('../utils/cairo-prototype-extend')
-const getAbsolutePath = require('../utils/get-absolute-path')
-
-const readFile = fs.promises.readFile
 
 // Initialize
 
