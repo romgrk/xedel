@@ -37,15 +37,13 @@ const langManager = GtkSource.LanguageManager.getDefault()
 let styleFileWatcher
 
 workspace.set({
+  app: null,
   mainWindow: null,
   toolbar: null,
   statusbar: null,
   mainGrid: null,
 
   cssProvider: new Gtk.CssProvider(),
-  schemeManager: schemeManager,
-  langManager: langManager,
-  scheme: schemeManager.getScheme('builder-dark'),
 
   commands: null,
   keymaps: null,
@@ -58,17 +56,32 @@ workspace.set({
 })
 
 workspace.loaded.then(() => {
-  console.log('Loaded')
+  console.log('Workspace loaded')
 })
 
 function main() {
-  Gtk.StyleContext.addProviderForScreen(
-    Gdk.Screen.getDefault(), workspace.cssProvider, 9999)
+  const loop = GLib.MainLoop.new(null, false)
+  const app = workspace.app = new Gtk.Application('com.github.romgrk.xedel', 0)
 
-  const mainWindow = workspace.mainWindow = new MainWindow()
+  app.on('activate', () => {
+    const mainWindow = workspace.mainWindow = new MainWindow(app)
+    const styleContext = mainWindow.getStyleContext()
+    styleContext.addProvider(workspace.cssProvider, 9999)
+    mainWindow.on('close-request', () => {
+      loop.quit()
+      process.exit(0)
+    })
+    mainWindow.on('show', () => {
+      workspace.emit('loaded')
+    })
+    mainWindow.show()
+    loop.run()
+  })
+
 
   const commands = workspace.commands = new CommandsManager()
   const keymaps = workspace.keymaps = new KeymapManager()
+
   keymaps.addListener((key, element, elements) => {
     // console.log(chalk.grey('key-press'), key.toString())
     // elements.forEach(e => console.log('-> ', e.constructor.name))
@@ -78,10 +91,7 @@ function main() {
     initializeStyle(),
     grammars.loaded/*.then(() => loadFile('./src/editor/TextEditor.js'))*/,
   ])
-  .then(() => {
-    setImmediate(() => workspace.loaded.resolve())
-    mainWindow.showAll()
-  })
+  .then(() => { app.run() })
 }
 
 function loadFile(filepath) {

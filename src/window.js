@@ -28,9 +28,11 @@ workspace.loaded.then(() => {
   workspace.keymaps.addKeymap(MainWindow, windowKeymap)
 })
 
-class MainWindow extends Gtk.Window {
-  constructor(args) {
-    super(args)
+class MainWindow extends Gtk.ApplicationWindow {
+  constructor(app) {
+    super(app)
+
+    this.focusable = true
 
     const builder = Gtk.Builder.newFromFile(UI_FILE)
 
@@ -38,7 +40,7 @@ class MainWindow extends Gtk.Window {
     const mainGrid = workspace.mainGrid = builder.getObject('mainGrid')
     const toolbar = workspace.toolbar = builder.getObject('toolbar')
 
-    toolbar.getStyleContext().addClass('main-toolbar')
+    toolbar.addCssClass('main-toolbar')
 
 
     // TODO: temporary, for testing purposes
@@ -50,7 +52,7 @@ class MainWindow extends Gtk.Window {
 
     mainGrid.attach(workspace.currentView, 0, 0, 1, 1)
 
-    this.add(mainBox)
+    this.setChild(mainBox)
     this.setDefaultSize(800, 800)
 
     this.on('show', () => this.onShow())
@@ -63,12 +65,7 @@ class MainWindow extends Gtk.Window {
     })
   }
 
-  onShow() {
-    Gtk.main()
-  }
-
   onDestroy() {
-    Gtk.mainQuit()
     process.exit(0)
   }
 }

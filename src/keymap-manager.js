@@ -22,14 +22,15 @@ const MATCH = {
 class KeymapManager {
   listeners = []
 
-  queuedEvents = []
   queuedKeystrokes = []
 
   keymapsByName = {}
 
   constructor() {
     workspace.loaded.then(() => {
-      workspace.mainWindow.on('key-press-event', this.onWindowKeyPressEvent.bind(this))
+      this.controller = new Gtk.EventControllerKey()
+      this.controller.on('key-pressed', this.onWindowKeyPressEvent)
+      workspace.mainWindow.addController(this.controller)
     })
   }
 
@@ -60,9 +61,9 @@ class KeymapManager {
       this.keymapsByName[name].filter(k => k !== keymap)
   }
 
-  onWindowKeyPressEvent(event) {
-    const keyname = Gdk.keyvalName(event.keyval)
-    const key = Key.fromEvent(event)
+  onWindowKeyPressEvent = (keyval, keycode, state) => {
+    const keyname = Gdk.keyvalName(keyval)
+    const key = Key.fromArgs(keyval, keycode, state)
 
     const elements = getElementsStack()
 
@@ -100,7 +101,6 @@ class KeymapManager {
       console.log(`${element.constructor.name}.${source}: [${keybinding}]: ${effect}`)
 
       this.runEffect(effect, element)
-      this.queuedEvents = []
       this.queuedKeystrokes = []
 
       didCapture = true
@@ -109,13 +109,11 @@ class KeymapManager {
           keymap.options.preventPropagation : true
     }
     else if (matches.length > 0) {
-      this.queuedEvents = this.queuedEvents.concat(event)
       this.queuedKeystrokes = keystrokes
 
       didCapture = true
     }
     else {
-      this.queuedEvents = []
       this.queuedKeystrokes = []
     }
 
@@ -155,9 +153,11 @@ module.exports = KeymapManager
 
 function getElementsStack() {
   const activeElement = workspace.mainWindow.getFocus()
+  if (!activeElement)
+    return []
   const elements = [activeElement]
   let current = activeElement
-  while ((current = current.getParent()) !== null) {
+  while (current && (current = current.getParent()) !== null) {
     elements.push(current)
   }
 
@@ -168,8 +168,6 @@ function matchKeybinding(queuedKeystrokes, keymap, element) {
   const { name, keys } = keymap
   const keybindingKeys = Object.keys(keys)
   const results = []
-
-  let match
 
   outer: for (let keybinding of keybindingKeys) {
     const keyStack = keybinding.split(/\s+/).map(d => Key.fromDescription(d))
