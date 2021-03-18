@@ -74,4 +74,6 @@ class Clipboard {
   }
 }
 
-module.exports = Clipboard
+const clipboard = new Clipboard()
+
+module.exports = clipboard

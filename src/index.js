@@ -10,6 +10,7 @@ const GLib = gi.require('GLib', '2.0')
 
 const workspace = require('./workspace')
 
+const clipboard = require('./editor/clipboard')
 const grammars = require('./grammars')
 const MainWindow = require('./window')
 const CommandsManager = require('./commands-manager')
@@ -42,6 +43,7 @@ workspace.set({
   toolbar: null,
   statusbar: null,
   mainGrid: null,
+  clipboard: clipboard,
 
   cssProvider: new Gtk.CssProvider(),
 

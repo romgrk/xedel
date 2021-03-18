@@ -6,11 +6,10 @@ const workspace = require('../workspace')
 
 const TextEditorComponent = require('./TextEditorComponent')
 const TextEditorModel = require('./TextEditorModel')
-const Clipboard = require('./clipboard')
+const clipboard = require('./clipboard')
 
 require('./keymap')
 
-workspace.clipboard = new Clipboard()
-TextEditorModel.setClipboard(workspace.clipboard)
+TextEditorModel.setClipboard(clipboard)
 
 module.exports = TextEditorComponent
