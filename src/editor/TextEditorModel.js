@@ -9,12 +9,12 @@ const Grim = require('grim');
 const dedent = require('dedent');
 const { CompositeDisposable, Disposable, Emitter } = require('event-kit');
 
-const TextBuffer = require('./buffer');
+const TextBuffer = require('./text-buffer');
 const { Point, Range } = TextBuffer;
 const DecorationManager = require('./decoration-manager');
 const Cursor = require('./cursor');
 const Selection = require('./selection');
-// const NullGrammar = require('./null-grammar');
+const NullGrammar = require('./null-grammar');
 // const TextMateLanguageMode = require('./text-mate-language-mode');
 // const ScopeDescriptor = require('./scope-descriptor');
 
