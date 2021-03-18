@@ -18,9 +18,10 @@ const Font = require('../utils/font')
 
 const { isPairedCharacter } = require('./text-utils');
 const TextEditor = require('./TextEditorModel')
-const TextBuffer = require('./buffer')
+const TextBuffer = require('text-buffer')
 
 const DEFAULT_ROWS_PER_TILE = 6;
+
 const NORMAL_WIDTH_CHARACTER = 'x';
 const DOUBLE_WIDTH_CHARACTER = '我';
 const HALF_WIDTH_CHARACTER = 'ﾊ';
@@ -28,6 +29,7 @@ const KOREAN_CHARACTER = '세';
 const SPACE_CHARACTER = ' ';
 const NBSP_CHARACTER = '\u00a0';
 const ZERO_WIDTH_NBSP_CHARACTER = '\ufeff';
+
 const MOUSE_DRAG_AUTOSCROLL_MARGIN = 40;
 const CURSOR_BLINK_RESUME_DELAY = 300;
 const CURSOR_BLINK_PERIOD = 1400;
@@ -78,7 +80,7 @@ const decorationStyleByClass = {
   },
 }
 
-class TextEditorComponent extends Gtk.Box {
+class TextEditorComponent extends Gtk.Widget {
 
   theme = theme
 
@@ -129,7 +131,7 @@ class TextEditorComponent extends Gtk.Box {
    * @param {TextEditor} props.model
    */
   constructor(props) {
-    super(Gtk.Orientation.HORIZONTAL)
+    super()
 
     this.model = props.model
 
@@ -147,30 +149,36 @@ class TextEditorComponent extends Gtk.Box {
         name: 'line-number',
       })
 
-    this.gutterContainer = new Gtk.Fixed()
-    this.gutterContainer.put(this.lineNumberGutterArea, 0, 0)
+    this.gutterContainer = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0)
+    this.gutterContainer.append(this.lineNumberGutterArea)
 
     this.textContainer = new Gtk.Fixed()
-    this.textContainer.canFocus = true
+    this.textContainer.focusable = true
     this.textContainer.focusOnClick = true
-    this.textContainer.addEvents(Gdk.EventMask.ALL_EVENTS_MASK)
+
+    this.resizeElement = new Gtk.DrawingArea()
+    this.resizeElement.hexpand = true
+    this.resizeElement.vexpand = true
+    this.textContainer.put(this.resizeElement, 0, 0)
 
     this.textOverlay = new Gtk.Overlay()
-    this.textOverlay.add(this.textContainer)
+    this.textOverlay.setChild(this.textContainer)
     this.textOverlay.addOverlay(this.cursorArea)
 
     this.textWindow = new Gtk.ScrolledWindow()
     this.textWindow.hexpand = true
     this.textWindow.vexpand = true
-    this.textWindow.add(this.textOverlay)
+    this.textWindow.setChild(this.textOverlay)
 
     this.textWindowContainer = new Gtk.Fixed()
     this.textWindowContainer.put(this.backgroundArea, 0, 0)
     this.textWindowContainer.put(this.highlightsArea, 0, 0)
     this.textWindowContainer.put(this.textWindow,     0, 0)
 
-    this.packStart(this.gutterContainer,     false, false, 0)
-    this.packStart(this.textWindowContainer, true,  true,  0)
+    this.box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0)
+    this.box.append(this.gutterContainer)
+    this.box.append(this.textWindowContainer)
+    this.box.insertBefore(this)
 
 
     /*
@@ -179,7 +187,6 @@ class TextEditorComponent extends Gtk.Box {
 
     this.didBlur = this.didBlur.bind(this);
     this.didFocus = this.didFocus.bind(this);
-    this.didPaste = this.didPaste.bind(this);
     this.didTextInput = this.didTextInput.bind(this);
     this.didKeydown = this.didKeydown.bind(this);
     this.didKeyup = this.didKeyup.bind(this);
@@ -200,12 +207,16 @@ class TextEditorComponent extends Gtk.Box {
     this.didResize = this.didResize.bind(this);
     this.didSizeAllocate = this.didSizeAllocate.bind(this);
 
-    this.on('size-allocate', this.didSizeAllocate)
-    this.textContainer.on('realize', this.onRealize)
-    this.textContainer.on('button-press-event', this.didMouseDownOnContent)
-    this.textContainer.on('key-press-event', this.onKeyPressEvent)
-    this.textContainer.on('focus-in-event', this.didFocus)
-    this.textContainer.on('focus-out-event', this.didBlur)
+    // TODO fix this
+    // this.resizeElement.on('resize', this.didSizeAllocate)
+    // this.controller = new Gtk.EventControllerKey()
+    // this.controller.on('key-pressed', this.onKeyPressEvent)
+    // this.addController(this.controller)
+
+    // this.textContainer.on('realize', this.onRealize)
+    // this.textContainer.on('button-press-event', this.didMouseDownOnContent)
+    // this.textContainer.on('focus-in-event', this.didFocus)
+    // this.textContainer.on('focus-out-event', this.didBlur)
     this.textOverlay.on('get-child-position', this.didGetChildPosition)
 
     this.textWindow.getVadjustment().on('value-changed', this.didScrollDummyScrollbar)
@@ -314,7 +325,7 @@ class TextEditorComponent extends Gtk.Box {
     this.observeBlockDecorations();
     // this.updateClassList();
     // etch.updateSync(this);
-    this.render()
+    // this.render()
   }
 
   destroy() {
@@ -325,7 +336,7 @@ class TextEditorComponent extends Gtk.Box {
   }
 
   get buffer() {
-    return this.model.getBuffer()
+    return this.model?.getBuffer()
   }
 
   setBuffer(buffer) {
@@ -349,21 +360,34 @@ class TextEditorComponent extends Gtk.Box {
   }
 
   /*
+   * Virtual functions
+   */
+
+  sizeAllocate(width, height, baseline) {
+    /* ignore return value, this is just so that GTK doesn't complain */
+    this.box.measure(Gtk.Orientation.HORIZONTAL, width)
+    this.box.sizeAllocate(
+      new Gdk.Rectangle({ x: 0, y: 0, width, height }),
+      baseline
+    )
+
+    setImmediate(() => {
+      if (this.attached)
+        this.didSizeAllocate()
+      else
+        this.didAttach()
+    })
+  }
+
+  /*
    * Event handlers
    */
 
-  onKeyPressEvent = (event) => {
-    if (!event)
-      return
+  onKeyPressEvent = (keyval, keycode, state) => {
+    console.log(keyval, keycode, state)
     // TODO: handle this
     this.pauseCursorBlinking()
-    return true
-  }
-
-  onRealize = () => {
-    // this.measureDimensions()
-    // this.updateSync();
-    this.didAttach()
+    return false
   }
 
   /*
@@ -503,7 +527,7 @@ class TextEditorComponent extends Gtk.Box {
         // console.log('CREATE TILE', tileId)
       }
     }
-    this.textContainer.showAll()
+    this.textContainer.show()
   }
 
   renderHighlightDecorations() {
@@ -1524,6 +1548,8 @@ class TextEditorComponent extends Gtk.Box {
       this.constructor.attachedComponents = new Set();
     }
     this.constructor.attachedComponents.add(this);
+
+    this.didSizeAllocate()
   }
 
   didDetach() {
@@ -1689,7 +1715,7 @@ class TextEditorComponent extends Gtk.Box {
   }
 
   didScrollDummyScrollbar() {
-    // this.updateSync()
+    this.updateSync()
     // this.renderGutter()
     this.derivedDimensionsCache = {};
   }
@@ -1698,16 +1724,6 @@ class TextEditorComponent extends Gtk.Box {
     this.remeasureCharacterDimensions = true;
     this.horizontalPixelPositionsByScreenLineId.clear();
     this.scheduleUpdate();
-  }
-
-  didPaste(event) {
-    // On Linux, Chromium translates a middle-button mouse click into a
-    // mousedown event *and* a paste event. Since Atom supports the middle mouse
-    // click as a way of closing a tab, we only want the mousedown event, not
-    // the paste event. And since we don't use the `paste` event for any
-    // behavior in Atom, we can no-op the event to eliminate this issue.
-    // See https://github.com/atom/atom/pull/15183#issue-248432413.
-    if (this.getPlatform() === 'linux') event.preventDefault();
   }
 
   didTextInput(event) {
@@ -3368,7 +3384,7 @@ class LinesTileComponent extends Gtk.DrawingArea {
     this.onDraw = this.onDraw.bind(this)
     this.createLines();
     // this.updateBlockDecorations({}, props);
-    this.on('draw', this.onDraw)
+    this.setDrawFunc(this.onDraw)
   }
 
   update(newProps) {
@@ -3436,7 +3452,7 @@ class LinesTileComponent extends Gtk.DrawingArea {
     }
   }
 
-  onDraw(cx) {
+  onDraw(self, cx) {
     const { measurements, } = this.props;
 
     /* cx.setColor('#ff0000')
@@ -3732,7 +3748,7 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
     this.onDraw = this.onDraw.bind(this)
     this.tilesById = new Map()
     this.init()
-    this.on('draw', this.onDraw)
+    this.setDrawFunc(this.onDraw)
   }
 
   init() {
@@ -3908,11 +3924,15 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
     this.queueDraw()
   }
 
-  onDraw(cx) {
+  onDraw(self, cx) {
     const { rootComponent, model } = this.props;
 
     if (!rootComponent.hasInitialMeasurements)
       return
+
+    /* cx.setColor(Gdk.RGBA.create('#ff0000'))
+     * cx.rectangle(0, 0, this.getAllocatedWidth(), this.getAllocatedHeight())
+     * cx.stroke() */
 
     const endRow = rootComponent.model.getScreenLineCount()
     const rowsPerTile = rootComponent.getRowsPerTile()
@@ -3971,7 +3991,7 @@ class BackgroundComponent extends Gtk.DrawingArea {
   constructor(props) {
     super()
     this.update(props)
-    this.on('draw', this.onDraw.bind(this))
+    this.setDrawFunc(this.onDraw.bind(this))
   }
 
   update(newProps) {
@@ -3982,7 +4002,7 @@ class BackgroundComponent extends Gtk.DrawingArea {
     this.queueDraw()
   }
 
-  onDraw(cx) {
+  onDraw(self, cx) {
     const { width, height } = this.props
 
     /* Draw background */
@@ -4002,7 +4022,7 @@ class CursorsComponent extends Gtk.DrawingArea {
   constructor(props) {
     super()
     this.update(props)
-    this.on('draw', this.onDraw.bind(this))
+    this.setDrawFunc(this.onDraw.bind(this))
   }
 
   update(newProps) {
@@ -4013,13 +4033,17 @@ class CursorsComponent extends Gtk.DrawingArea {
     this.queueDraw()
   }
 
-  onDraw(cx) {
+  onDraw(self, cx) {
     const { element } = this.props
     const blinkOff = element.cursorsBlinkedOff
-    const hasFocus = element.hasFocus() && workspace.mainWindow.isActive()
+    const hasFocus = element.hasFocus() &&
+      (workspace.mainWindow ? workspace.mainWindow.isActive() : true)
     const model = element.getModel()
     const cursors = model.getCursors()
     const { measurements } = element
+
+    if (!element.hasInitialMeasurements)
+      return
 
     if (blinkOff && hasFocus)
       return
@@ -4081,7 +4105,7 @@ class HighlightsComponent extends Gtk.DrawingArea {
   constructor(props) {
     super()
     this.update(props)
-    this.on('draw', this.onDraw.bind(this))
+    this.setDrawFunc(this.onDraw.bind(this))
   }
 
   update(newProps) {
@@ -4092,7 +4116,7 @@ class HighlightsComponent extends Gtk.DrawingArea {
     this.queueDraw()
   }
 
-  onDraw(cx) {
+  onDraw(self, cx) {
     const {
       element,
       width,
@@ -4169,6 +4193,15 @@ class HighlightsComponent extends Gtk.DrawingArea {
     }
   }
 }
+
+
+
+gi.registerClass(TextEditorComponent)
+// gi.registerClass(LineComponent)
+gi.registerClass(LineNumberGutterComponent)
+gi.registerClass(BackgroundComponent)
+gi.registerClass(CursorsComponent)
+gi.registerClass(HighlightsComponent)
 
 module.exports = TextEditorComponent
 
