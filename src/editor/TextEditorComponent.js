@@ -15,6 +15,7 @@ const PangoCairo = gi.require('PangoCairo')
 
 const workspace = require('../workspace')
 const Font = require('../utils/font')
+const Key = require('../key')
 
 const { isPairedCharacter } = require('./text-utils');
 const TextEditor = require('./TextEditorModel')
@@ -201,12 +202,11 @@ class TextEditorComponent extends Gtk.Widget {
     this.didResize = this.didResize.bind(this);
     this.didSizeAllocate = this.didSizeAllocate.bind(this);
 
-    // TODO fix this
-    // this.controller = new Gtk.EventControllerKey()
-    // this.controller.on('key-pressed', this.onKeyPressEvent)
-    // this.addController(this.controller)
+    this.controller = new Gtk.EventControllerKey()
+    this.controller.on('key-pressed', this.onKeyPressEvent)
+    this.addController(this.controller)
 
-    // this.textContainer.on('realize', this.onRealize)
+    // TODO: implement these
     // this.textContainer.on('button-press-event', this.didMouseDownOnContent)
     // this.textContainer.on('focus-in-event', this.didFocus)
     // this.textContainer.on('focus-out-event', this.didBlur)
@@ -365,10 +365,16 @@ class TextEditorComponent extends Gtk.Widget {
     )
 
     setImmediate(() => {
-      if (this.attached)
-        this.didSizeAllocate()
-      else
-        this.didAttach()
+      // TODO: clean this when node-gtk handles setImmediate correctly
+      try {
+        if (this.attached)
+          this.didSizeAllocate()
+        else
+          this.didAttach()
+      } catch (err) {
+        console.error(err)
+        process.exit(1)
+      }
     })
   }
 
@@ -377,8 +383,24 @@ class TextEditorComponent extends Gtk.Widget {
    */
 
   onKeyPressEvent = (keyval, keycode, state) => {
-    console.log(keyval, keycode, state)
-    // TODO: handle this
+    // TODO: clean this
+    console.log(keyval, Gdk.keyvalName(keyval), keycode, state)
+    switch (keyval) {
+      case Gdk.KEY_g: this.model.moveToTop(); break
+      case Gdk.KEY_G: this.model.moveToBottom(); break
+      case Gdk.KEY_j: this.model.moveDown(); break
+      case Gdk.KEY_k: this.model.moveUp(); break
+      case Gdk.KEY_h: this.model.moveLeft(); break
+      case Gdk.KEY_l: this.model.moveRight(); break
+      case Gdk.KEY_BackSpace: this.model.backspace(); break
+      default: {
+        const key = Key.fromArgs(keyval, keycode, state)
+        console.log('inserting', JSON.stringify(key.string))
+        if (key.string && key.string !== '\u0000') {
+          this.model.insertText(key.string)
+        }
+      }
+    }
     this.pauseCursorBlinking()
     return false
   }
@@ -506,21 +528,16 @@ class TextEditorComponent extends Gtk.Widget {
       }
 
       if (this.tilesById.has(tileId)) {
-        // tile = this.tilesById.get(tileId)
-        // tile.update(props)
-        // this.textContainer.move(tile, 0, top)
-        // console.log('UPDATE TILE', tileId)
+        tile = this.tilesById.get(tileId)
+        tile.update(props)
+        this.textContainer.move(tile, 0, top)
       }
       else {
-        /* if (tileStartRow === 0)
-         *   debugger */
         tile = new LinesTileComponent(props)
         this.tilesById.set(tileId, tile)
         this.textContainer.put(tile, 0, top)
-        // console.log('CREATE TILE', tileId)
       }
     }
-    this.textContainer.show()
   }
 
   renderHighlightDecorations() {
@@ -3375,6 +3392,7 @@ class LinesTileComponent extends Gtk.DrawingArea {
     super()
     this.props = props;
     this.onDraw = this.onDraw.bind(this)
+    this.lineComponents = []
     this.createLines();
     // this.updateBlockDecorations({}, props);
     this.setDrawFunc(this.onDraw)
@@ -3386,7 +3404,7 @@ class LinesTileComponent extends Gtk.DrawingArea {
       this.props = newProps;
       if (!newProps.measuredContent) {
         this.updateLines(oldProps, newProps);
-        this.updateBlockDecorations(oldProps, newProps);
+        // this.updateBlockDecorations(oldProps, newProps);
       }
     }
   }
@@ -3424,8 +3442,6 @@ class LinesTileComponent extends Gtk.DrawingArea {
     this.textLayout.setAlignment(Pango.Alignment.LEFT)
     this.textLayout.setFontDescription(font.description)
 
-    this.children = []
-
     for (let i = 0, length = screenLines.length; i < length; i++) {
       const component = new LineComponent({
         tile: this,
@@ -3441,22 +3457,161 @@ class LinesTileComponent extends Gtk.DrawingArea {
         displayLayer,
         lineComponentsByScreenLineId
       });
-      this.children.push(component)
+      this.lineComponents.push(component)
     }
   }
 
-  onDraw(self, cx) {
-    const { measurements, } = this.props;
+  updateLines(oldProps, newProps) {
+    const {
+      height,
+      width,
+      measurements,
+      screenLines,
+      tileStartRow,
+      lineDecorations,
+      textDecorations,
+      highlightDecorations,
+      displayLayer,
+      lineComponentsByScreenLineId,
+    } = newProps;
 
-    /* cx.setColor('#ff0000')
-     * cx.rectangle(0, 0, width, height)
-     * cx.stroke() */
+    const oldScreenLines = oldProps.screenLines;
+    const newScreenLines = screenLines;
+    const oldScreenLinesEndIndex = oldScreenLines.length;
+    const newScreenLinesEndIndex = newScreenLines.length;
+    let oldScreenLineIndex = 0;
+    let newScreenLineIndex = 0;
+    let lineComponentIndex = 0;
 
-    /* Draw lines */
-    for (let i = 0; i < this.children.length; i++) {
-      const lineComponent = this.children[i]
-      lineComponent.onDraw(cx, this.textLayout)
+    while (
+      oldScreenLineIndex < oldScreenLinesEndIndex ||
+      newScreenLineIndex < newScreenLinesEndIndex
+    ) {
+      const oldScreenLine = oldScreenLines[oldScreenLineIndex];
+      const newScreenLine = newScreenLines[newScreenLineIndex];
+
+      if (oldScreenLineIndex >= oldScreenLinesEndIndex) {
+        const newScreenLineComponent = new LineComponent({
+          tile: this,
+          width,
+          height,
+          measurements,
+          index: newScreenLineIndex,
+          screenLine: newScreenLine,
+          screenRow: tileStartRow + newScreenLineIndex,
+          lineDecoration: lineDecorations[newScreenLineIndex],
+          textDecorations: textDecorations[newScreenLineIndex],
+          highlightDecorations: highlightDecorations[newScreenLineIndex],
+          displayLayer,
+          lineComponentsByScreenLineId
+        });
+
+        this.lineComponents.push(newScreenLineComponent);
+
+        newScreenLineIndex++;
+        lineComponentIndex++;
+      } else if (newScreenLineIndex >= newScreenLinesEndIndex) {
+        this.lineComponents[lineComponentIndex].destroy();
+        this.lineComponents.splice(lineComponentIndex, 1);
+
+        oldScreenLineIndex++;
+      } else if (oldScreenLine === newScreenLine) {
+        const lineComponent = this.lineComponents[lineComponentIndex];
+        lineComponent.update({
+          screenRow: tileStartRow + newScreenLineIndex,
+          lineDecoration: lineDecorations[newScreenLineIndex],
+          textDecorations: textDecorations[newScreenLineIndex]
+        });
+
+        oldScreenLineIndex++;
+        newScreenLineIndex++;
+        lineComponentIndex++;
+      } else {
+        const oldScreenLineIndexInNewScreenLines = newScreenLines.indexOf(
+          oldScreenLine
+        );
+        const newScreenLineIndexInOldScreenLines = oldScreenLines.indexOf(
+          newScreenLine
+        );
+        if (
+          newScreenLineIndex < oldScreenLineIndexInNewScreenLines &&
+          oldScreenLineIndexInNewScreenLines < newScreenLinesEndIndex
+        ) {
+          const newScreenLineComponents = [];
+          while (newScreenLineIndex < oldScreenLineIndexInNewScreenLines) {
+            // eslint-disable-next-line no-redeclare
+            const newScreenLineComponent = new LineComponent({
+              tile: this,
+              width,
+              height,
+              measurements,
+              index: newScreenLineIndex,
+              screenLine: newScreenLine,
+              screenRow: tileStartRow + newScreenLineIndex,
+              lineDecoration: lineDecorations[newScreenLineIndex],
+              textDecorations: textDecorations[newScreenLineIndex],
+              highlightDecorations: highlightDecorations[newScreenLineIndex],
+              displayLayer,
+              lineComponentsByScreenLineId
+            });
+            // FIXME: delete this
+            // this.element.insertBefore(
+            //   newScreenLineComponent.element,
+            //   this.getFirstElementForScreenLine(oldProps, oldScreenLine)
+            // );
+            newScreenLineComponents.push(newScreenLineComponent);
+
+            newScreenLineIndex++;
+          }
+
+          this.lineComponents.splice(
+            lineComponentIndex,
+            0,
+            ...newScreenLineComponents
+          );
+          lineComponentIndex =
+            lineComponentIndex + newScreenLineComponents.length;
+        } else if (
+          oldScreenLineIndex < newScreenLineIndexInOldScreenLines &&
+          newScreenLineIndexInOldScreenLines < oldScreenLinesEndIndex
+        ) {
+          while (oldScreenLineIndex < newScreenLineIndexInOldScreenLines) {
+            this.lineComponents[lineComponentIndex].destroy();
+            this.lineComponents.splice(lineComponentIndex, 1);
+
+            oldScreenLineIndex++;
+          }
+        } else {
+          const oldScreenLineComponent = this.lineComponents[lineComponentIndex];
+          // eslint-disable-next-line no-redeclare
+          const newScreenLineComponent = new LineComponent({
+            tile: this,
+            width,
+            height,
+            measurements,
+            index: newScreenLineIndex,
+            screenLine: newScreenLine,
+            screenRow: tileStartRow + newScreenLineIndex,
+            lineDecoration: lineDecorations[newScreenLineIndex],
+            textDecorations: textDecorations[newScreenLineIndex],
+            highlightDecorations: highlightDecorations[newScreenLineIndex],
+            displayLayer,
+            lineComponentsByScreenLineId
+          });
+          // this.element.insertBefore(
+          //   newScreenLineComponent.element,
+          //   oldScreenLineComponent.element
+          // );
+          oldScreenLineComponent.destroy();
+          this.lineComponents[lineComponentIndex] = newScreenLineComponent;
+
+          oldScreenLineIndex++;
+          newScreenLineIndex++;
+          lineComponentIndex++;
+        }
+      }
     }
+    this.queueDraw()
   }
 
   getFirstElementForScreenLine(oldProps, screenLine) {
@@ -3548,6 +3703,19 @@ class LinesTileComponent extends Gtk.DrawingArea {
   shouldUpdate(newProps) {
     return !isEqual(newProps, this.props)
   }
+
+  onDraw(self, cx) {
+    const { measurements, } = this.props;
+
+    if (!cx)
+      return
+
+    /* Draw lines */
+    for (let i = 0; i < this.lineComponents.length; i++) {
+      const lineComponent = this.lineComponents[i]
+      lineComponent.onDraw(cx, this.textLayout)
+    }
+  }
 }
 
 class LineComponent {
@@ -3574,26 +3742,31 @@ class LineComponent {
   }
 
   update(newProps) {
+    // IIURC, line content never changes, if it does it's a new line,
+    // thus we never update the content.
+
     if (this.props.lineDecoration !== newProps.lineDecoration) {
       this.props.lineDecoration = newProps.lineDecoration;
       // this.element.className = this.buildClassName();
+      // FIXME make line decoration work
     }
 
     if (this.props.screenRow !== newProps.screenRow) {
       this.props.screenRow = newProps.screenRow;
-      this.element.dataset.screenRow = newProps.screenRow;
+      // this.element.dataset.screenRow = newProps.screenRow;
     }
 
-    if (
-      !textDecorationsEqual(
-        this.props.textDecorations,
-        newProps.textDecorations
-      )
-    ) {
-      this.props.textDecorations = newProps.textDecorations;
-      this.element.firstChild.remove();
-      this.appendContents();
-    }
+    // FIXME: uncomment this when this.appendContents() does text decoration
+    // if (
+    //   !textDecorationsEqual(
+    //     this.props.textDecorations,
+    //     newProps.textDecorations
+    //   )
+    // ) {
+    //   this.props.textDecorations = newProps.textDecorations;
+    //   this.appendContents();
+    // }
+    this.props = Object.assign({}, this.props, newProps)
   }
 
   destroy() {
@@ -3602,27 +3775,6 @@ class LineComponent {
     if (lineComponentsByScreenLineId.get(screenLine.id) === this) {
       lineComponentsByScreenLineId.delete(screenLine.id);
     }
-
-    // this.element.remove();
-  }
-
-  onDraw(cx, layout) {
-    const {
-      width,
-      index,
-      measurements,
-      textDecorations,
-    } = this.props
-
-    const x = measurements.horizontalPadding
-    const y = index * measurements.lineHeight
-
-    cx.moveTo(x, y)
-
-    /* Draw text */
-    layout.setMarkup(this.getMarkup())
-    PangoCairo.updateLayout(cx, layout)
-    PangoCairo.showLayout(cx, layout)
   }
 
   appendContents() {
@@ -3631,6 +3783,7 @@ class LineComponent {
       { textContent: escapeMarkup(screenLine.lineText) }
     ];
     return
+    // FIXME: uncomment section in .update() when we do text decoration
 
     this.textNodes.length = 0;
 
@@ -3731,6 +3884,25 @@ class LineComponent {
     let className = 'line';
     if (lineDecoration != null) className = className + ' ' + lineDecoration;
     return className;
+  }
+
+  onDraw(cx, layout) {
+    const {
+      width,
+      index,
+      measurements,
+      textDecorations,
+    } = this.props
+
+    const x = measurements.horizontalPadding
+    const y = index * measurements.lineHeight
+
+    cx.moveTo(x, y)
+
+    /* Draw text */
+    layout.setMarkup(this.getMarkup())
+    PangoCairo.updateLayout(cx, layout)
+    PangoCairo.showLayout(cx, layout)
   }
 }
 
@@ -3862,8 +4034,6 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
       const style = getStyle({
         foreground: rootComponent.theme.lineNumber,
       }, decorationsForRow)
-      if (decorationsForRow)
-        debugger
 
       let number = null;
       {
