@@ -75,8 +75,7 @@ const decorationStyleByClass = {
 
   'highlight': {
     borderWidth: 1,
-    borderColor: parseColor('rgba(255, 255, 255, 0.4)'),
-    background: parseColor('rgba(255, 255, 255, 0.1)'),
+    background: parseColor('rgba(255, 255, 255, 0.3)'),
   },
 }
 
