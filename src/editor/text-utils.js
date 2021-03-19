@@ -1,3 +1,6 @@
+const isPrintable = charCode =>
+  charCode >= 0x20
+
 const isHighSurrogate = charCode => charCode >= 0xd800 && charCode <= 0xdbff;
 
 const isLowSurrogate = charCode => charCode >= 0xdc00 && charCode <= 0xdfff;
@@ -132,6 +135,7 @@ const hasPairedCharacter = string => {
 };
 
 module.exports = {
+  isPrintable,
   isPairedCharacter,
   hasPairedCharacter,
   isDoubleWidthCharacter,

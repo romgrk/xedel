@@ -16,6 +16,7 @@ const PangoCairo = gi.require('PangoCairo')
 const workspace = require('../workspace')
 const Font = require('../utils/font')
 const Key = require('../key')
+const Text = require('./text-utils')
 
 const { isPairedCharacter } = require('./text-utils');
 const TextEditor = require('./TextEditorModel')
@@ -395,8 +396,8 @@ class TextEditorComponent extends Gtk.Widget {
       case Gdk.KEY_BackSpace: this.model.backspace(); break
       default: {
         const key = Key.fromArgs(keyval, keycode, state)
-        console.log('inserting', JSON.stringify(key.string))
-        if (key.string && key.string !== '\u0000') {
+        if (key.string && Text.isPrintable(key.string.charCodeAt(0))) {
+          console.log('inserting', JSON.stringify(key.string))
           this.model.insertText(key.string)
         }
       }
@@ -556,23 +557,6 @@ class TextEditorComponent extends Gtk.Widget {
       highlightDecorations,
       measurements,
     })
-  }
-
-
-  getVerticalOffset() {
-    return this.textWindow.getVadjustment().getValue()
-  }
-
-  setVerticalOffset(offset) {
-    this.textWindow.getVadjustment().setValue(offset)
-  }
-
-  getHorizontalOffset() {
-    return this.textWindow.getHadjustment().getValue()
-  }
-
-  setHorizontalOffset(offset) {
-    this.textWindow.getHadjustment().setValue(offset)
   }
 
   etchUpdateSync() {
@@ -3191,7 +3175,7 @@ class TextEditorComponent extends Gtk.Widget {
     if (scrollTop !== this.getScrollTop()) {
       this.derivedDimensionsCache = {};
       this.scrollTopPending = true;
-      this.textWindow.getVadjustment().setValue(scrollTop)
+      this.textWindow.scrollTo(scrollTop, true)
       this.emitter.emit('did-change-scroll-top', scrollTop);
       return true;
     } else {
@@ -3230,7 +3214,7 @@ class TextEditorComponent extends Gtk.Widget {
     );
     if (scrollLeft !== this.getScrollLeft()) {
       this.scrollLeftPending = true;
-      this.textWindow.setHadjustment().getValue(scrollLeft)
+      this.textWindow.scrollTo(scrollTop, false)
       this.emitter.emit('did-change-scroll-left', scrollLeft);
       return true;
     } else {
