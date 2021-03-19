@@ -24,12 +24,7 @@ const TextBuffer = require('text-buffer')
 
 const DEFAULT_ROWS_PER_TILE = 6;
 
-const NORMAL_WIDTH_CHARACTER = 'x';
-const DOUBLE_WIDTH_CHARACTER = '我';
-const HALF_WIDTH_CHARACTER = 'ﾊ';
-const KOREAN_CHARACTER = '세';
 const SPACE_CHARACTER = ' ';
-const NBSP_CHARACTER = '\u00a0';
 const ZERO_WIDTH_NBSP_CHARACTER = '\ufeff';
 
 const MOUSE_DRAG_AUTOSCROLL_MARGIN = 40;
