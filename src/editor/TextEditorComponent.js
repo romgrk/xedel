@@ -20,7 +20,7 @@ const Text = require('./text-utils')
 
 const { isPairedCharacter } = require('./text-utils');
 const TextEditor = require('./TextEditorModel')
-const TextBuffer = require('text-buffer')
+const TextBuffer = require('./text-buffer')
 
 const DEFAULT_ROWS_PER_TILE = 6;
 
@@ -106,13 +106,13 @@ class TextEditorComponent extends Gtk.Widget {
     model.setVerticalScrollMargin(0)
     model.setHorizontalScrollMargin(2)
 
-    const lineDecorationOptions = { type: 'line', class: 'diff-added-line' }
-    model.decorateMarker(model.markBufferRange([[6, 0], [6, "const path = require('path')".length]]), lineDecorationOptions)
-    model.decorateMarker(model.markBufferRange([[7, 0], [7, "const isEqual = require('lodash.isequal')".length]]), lineDecorationOptions)
+    // const lineDecorationOptions = { type: 'line', class: 'diff-added-line' }
+    // model.decorateMarker(model.markBufferRange([[6, 0], [6, "const path = require('path')".length]]), lineDecorationOptions)
+    // model.decorateMarker(model.markBufferRange([[7, 0], [7, "const isEqual = require('lodash.isequal')".length]]), lineDecorationOptions)
 
-    const gutterDecorationOptions = { type: 'gutter', class: 'diff-added-line-number' }
-    model.decorateMarker(model.markBufferRange([[6, 0], [6, 1]]), gutterDecorationOptions)
-    model.decorateMarker(model.markBufferRange([[7, 0], [7, 1]]), gutterDecorationOptions)
+    // const gutterDecorationOptions = { type: 'gutter', class: 'diff-added-line-number' }
+    // model.decorateMarker(model.markBufferRange([[6, 0], [6, 1]]), gutterDecorationOptions)
+    // model.decorateMarker(model.markBufferRange([[7, 0], [7, 1]]), gutterDecorationOptions)
 
     const textDecorationOptions = { type: 'highlight', class: 'highlight' }
     model.scanInBufferRange(/require/g, [[0, 0], [22, 0]], ({ range }) => {
