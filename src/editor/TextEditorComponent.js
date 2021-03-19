@@ -148,6 +148,7 @@ class TextEditorComponent extends Gtk.Widget {
         rootComponent: this,
         model: this.model,
         name: 'line-number',
+        measurements: {},
       })
 
     this.gutterContainer = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0)
@@ -394,6 +395,7 @@ class TextEditorComponent extends Gtk.Widget {
       case Gdk.KEY_h: this.model.moveLeft(); break
       case Gdk.KEY_l: this.model.moveRight(); break
       case Gdk.KEY_BackSpace: this.model.backspace(); break
+      case Gdk.KEY_Return: this.model.insertText('\n'); break
       default: {
         const key = Key.fromArgs(keyval, keycode, state)
         if (key.string && Text.isPrintable(key.string.charCodeAt(0))) {
@@ -428,6 +430,8 @@ class TextEditorComponent extends Gtk.Widget {
     this.lineNumberGutterArea.update({
       rootComponent: this,
       model: this.model,
+      measurements: this.measurements,
+      font: this.font,
       // onMouseDown: gutter.onMouseDown,
       // onMouseMove: gutter.onMouseMove,
       // startRow: renderedStartRow,
@@ -3890,24 +3894,43 @@ class LineComponent {
   }
 }
 
-class LineNumberGutterComponent extends Gtk.DrawingArea {
+class LineNumberGutterComponent extends Gtk.Widget {
   constructor(props) {
     super()
     this.props = props;
-    this.onDraw = this.onDraw.bind(this)
-    this.tilesById = new Map()
-    this.init()
-    this.setDrawFunc(this.onDraw)
+    // TODO: implement mousedown handlers
+    // TODO: render decorations
   }
 
-  init() {
-    const { rootComponent } = this.props;
-
-    if (!rootComponent.hasInitialMeasurements)
+  setupLayout(props) {
+    if (!props.measurements.lineNumberGutterWidth || !props.measurements.lineHeight)
       return
 
-    const { measurements, font } = rootComponent
+    this.surface = new Cairo.ImageSurface(
+      Cairo.Format.ARGB32,
+      props.measurements.lineNumberGutterWidth,
+      props.measurements.lineHeight
+    )
+    this.context = new Cairo.Context(this.surface)
+    this.layout = PangoCairo.createLayout(this.context)
+    this.layout.setFontDescription(props.font.description)
+  }
 
+  update(newProps) {
+    if (
+      this.props.measurements.lineHeight !== newProps.measurements.lineHeight ||
+      this.props.measurements.lineNumberGutterWidth !== newProps.measurements.lineNumberGutterWidth
+    )
+      this.setupLayout(newProps)
+    this.queueDraw()
+    this.props = newProps;
+  }
+
+  snapshot(snapshot) {
+    if (!this.layout)
+      return
+
+    const { rootComponent } = this.props
 
     const startRow = rootComponent.getRenderedStartRow();
     const endRow = rootComponent.getRenderedEndRow();
@@ -3921,13 +3944,7 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
         rootComponent.pixelPositionBeforeBlocksForRow(tileEndRow) -
         rootComponent.pixelPositionBeforeBlocksForRow(tileStartRow);
 
-
-      const tileId = rootComponent.idsByTileStartRow.get(tileStartRow)
-      let tile
       const props = {
-        key: tileId,
-        rootComponent,
-        model: rootComponent.model,
         tileStartRow,
         tileEndRow,
         tileWidth,
@@ -3946,42 +3963,22 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
         ),
         blockDecorations: rootComponent.decorationsToRender.blocks.get(tileStartRow),
         displayLayer: rootComponent.model.displayLayer,
-      } 
-
-      if (this.tilesById.has(tileId)) {
-        // tile = this.tilesById.get(tileId)
-        // tile.update(props)
-        // rootComponent.textContainer.move(tile, 0, top)
-        // console.log('UPDATE TILE', tileId)
       }
-      else {
 
-        tile = this.createTile(props)
-
-        this.tilesById.set(tileId, tile)
-        // rootComponent.textContainer.put(tile, 0, top)
-        // console.log('CREATE TILE', tileId)
-      }
+      this.snapshotTile(snapshot, props)
     }
   }
 
-  createTile(props) {
-    const {
-      rootComponent,
-      model,
-      tileStartRow,
-      tileEndRow,
-      tileWidth,
-      tileHeight,
-    } = props;
+  snapshotTile(snapshot, tile) {
+    const { rootComponent, model } = this.props
+    const { tileStartRow, tileEndRow } = tile
 
-    const tile = { props }
+    const renderedStartRow = rootComponent.getRenderedStartRow();
 
     const startRow = Math.max(rootComponent.getFirstVisibleRow() - 1, 0)
     const endRow   = Math.min(rootComponent.getLastVisibleRow(), model.getScreenLineCount())
 
-    const rowsPerTile = rootComponent.getRowsPerTile()
-    const { measurements, lineNumbersToRender, font } = rootComponent
+    const { measurements, lineNumbersToRender } = rootComponent
     const {
       maxDigits,
       keys,
@@ -3996,15 +3993,16 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
     if (!bufferRows)
       return
 
-    tile.surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, tileWidth, tileHeight)
-    tile.context = new Cairo.Context(tile.surface)
-    tile.layout = PangoCairo.createLayout(tile.context)
-    tile.layout.setAlignment(Pango.Alignment.LEFT)
-    tile.layout.setFontDescription(font.description)
+    const tileOffsetTop = rootComponent.pixelPositionBeforeBlocksForRow(tileStartRow)
+    const scrollTop = rootComponent.getScrollTop()
 
     for (let row = tileStartRow; row < tileEndRow; row++) {
+      if (row < startRow)
+        continue
+      if (row > endRow)
+        return
       const indexInTile = row - tileStartRow;
-      const j = row - startRow;
+      const j = row - renderedStartRow;
       const key = keys[j];
       const softWrapped = softWrappedFlags[j];
       const foldable = foldableFlags[j];
@@ -4049,58 +4047,16 @@ class LineNumberGutterComponent extends Gtk.DrawingArea {
         * }); */
 
       const x = 0
-      const y = ((row - tileStartRow) * measurements.lineHeight) + marginTop
+      const y =
+        ((row - tileStartRow) * measurements.lineHeight)
+        + marginTop
+        + tileOffsetTop
+        - scrollTop
 
-      const markup =
-        renderText(style, number)
+      const markup = renderText(style, number)
 
-      tile.context.moveTo(x, y)
-      tile.layout.setMarkup(markup)
-      PangoCairo.updateLayout(tile.context, tile.layout)
-      PangoCairo.showLayout(tile.context, tile.layout)
-    }
-
-    tile.surface.flush()
-
-    return tile
-  }
-
-  update(newProps) {
-    this.props = newProps;
-    this.init()
-    this.queueDraw()
-  }
-
-  onDraw(self, cx) {
-    const { rootComponent, model } = this.props;
-
-    if (!rootComponent.hasInitialMeasurements)
-      return
-
-    /* cx.setColor(Gdk.RGBA.create('#ff0000'))
-     * cx.rectangle(0, 0, this.getAllocatedWidth(), this.getAllocatedHeight())
-     * cx.stroke() */
-
-    const endRow = rootComponent.model.getScreenLineCount()
-    const rowsPerTile = rootComponent.getRowsPerTile()
-    const firstVisibleRow = Math.min(rootComponent.getFirstVisibleRow() - rowsPerTile, 0)
-    const lastVisibleRow = rootComponent.getLastVisibleRow()
-    const scrollTop = rootComponent.getScrollTop()
-
-    for (let i = 0; i < rootComponent.renderedTileStartRows.length; i++) {
-      const tileStartRow = rootComponent.renderedTileStartRows[i]
-      if (tileStartRow < firstVisibleRow)
-        continue
-      if (tileStartRow > lastVisibleRow)
-        break
-      const tileEndRow = Math.min(endRow, tileStartRow + rowsPerTile);
-      const top = rootComponent.pixelPositionBeforeBlocksForRow(tileStartRow)
-
-      const tileId = rootComponent.idsByTileStartRow.get(tileStartRow)
-      const tile = this.tilesById.get(tileId)
-
-      cx.setSourceSurface(tile.surface, 0, top - scrollTop)
-      cx.paint()
+      this.layout.setMarkup(markup)
+      snapshot.renderLayout(this.getStyleContext(), x, y, this.layout)
     }
   }
 
@@ -4151,6 +4107,9 @@ class BackgroundComponent extends Gtk.DrawingArea {
 
   onDraw(self, cx) {
     const { width, height } = this.props
+
+    if (!cx)
+      return
 
     /* Draw background */
     cx.setColor(theme.backgroundColor)
