@@ -156,11 +156,6 @@ class TextEditorComponent extends Gtk.Widget {
     this.textContainer.focusable = true
     this.textContainer.focusOnClick = true
 
-    this.resizeElement = new Gtk.DrawingArea()
-    this.resizeElement.hexpand = true
-    this.resizeElement.vexpand = true
-    this.textContainer.put(this.resizeElement, 0, 0)
-
     this.textOverlay = new Gtk.Overlay()
     this.textOverlay.setChild(this.textContainer)
     this.textOverlay.addOverlay(this.cursorArea)
@@ -208,7 +203,6 @@ class TextEditorComponent extends Gtk.Widget {
     this.didSizeAllocate = this.didSizeAllocate.bind(this);
 
     // TODO fix this
-    // this.resizeElement.on('resize', this.didSizeAllocate)
     // this.controller = new Gtk.EventControllerKey()
     // this.controller.on('key-pressed', this.onKeyPressEvent)
     // this.addController(this.controller)
