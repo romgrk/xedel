@@ -841,8 +841,6 @@ class TextEditorComponent extends Gtk.Widget {
 
   /* render functions */
 
-  /* render functions */
-
   queryScreenLinesToRender() {
     const { model } = this;
 
@@ -3324,6 +3322,8 @@ class TextEditorComponent extends Gtk.Widget {
       if (tileStartRow < startRow || tileStartRow >= endRow) {
         const tileId = this.idsByTileStartRow.get(tileStartRow);
         freeTileIds.push(tileId);
+        this.tilesById.get(tileId).destroy()
+        this.tilesById.delete(tileId)
         this.idsByTileStartRow.delete(tileStartRow);
       }
     }
@@ -3409,6 +3409,7 @@ class LinesTileComponent extends Gtk.Widget {
       this.lineComponents[i].destroy();
     }
     this.lineComponents.length = 0;
+    this.getParent().remove(this)
   }
 
   createLines() {
