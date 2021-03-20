@@ -188,6 +188,7 @@ class TextEditorComponent extends Gtk.Widget {
     this.didCompositionEnd = this.didCompositionEnd.bind(this);
 
     this.didGetChildPosition = this.didGetChildPosition.bind(this);
+    this.didChange = this.didChange.bind(this);
     this.didChangeCursorPosition = this.didChangeCursorPosition.bind(this);
     this.didScrollDummyScrollbar = this.didScrollDummyScrollbar.bind(this);
     this.didMouseDownOnContent = this.didMouseDownOnContent.bind(this);
@@ -217,6 +218,8 @@ class TextEditorComponent extends Gtk.Widget {
     this.disposables = new CompositeDisposable();
     this.disposables.add(
       this.model.onDidChangeCursorPosition(this.didChangeCursorPosition))
+    this.disposables.add(
+      this.model.onDidChange(this.didChange))
 
     /*
      * Class members
@@ -1703,7 +1706,13 @@ class TextEditorComponent extends Gtk.Widget {
     rect.height = this.measurements.textContainerHeight
   }
 
+  didChange() {
+    // FIXME: granularize updates
+    this.updateSync()
+  }
+
   didChangeCursorPosition() {
+    // FIXME: granularize updates
     this.updateSync()
   }
 
