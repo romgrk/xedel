@@ -12,6 +12,7 @@ const Gdk = gi.require('Gdk', '4.0')
 const Cairo = gi.require('cairo')
 const Pango = gi.require('Pango')
 const PangoCairo = gi.require('PangoCairo')
+const Graphene = gi.require('Graphene', '1.0')
 
 const workspace = require('../workspace')
 const Font = require('../utils/font')
@@ -33,6 +34,9 @@ const CURSOR_BLINK_PERIOD = 1400;
 
 const DEFAULT_FONT_FAMILY = 'SauceCodePro Nerd Font'
 const DEFAULT_FONT_SIZE = 16
+
+// Colors, for debugging
+const RED = Gdk.RGBA.create('#ff0000')
 
 const theme = parseColors({
   lineNumber:          '#888888',
@@ -3379,15 +3383,14 @@ class TextEditorComponent extends Gtk.Widget {
  * Subcomponents of TextEditor
  */
 
-class LinesTileComponent extends Gtk.DrawingArea {
+class LinesTileComponent extends Gtk.Widget {
   constructor(props) {
     super()
     this.props = props;
-    this.onDraw = this.onDraw.bind(this)
     this.lineComponents = []
+    this.styleContext = this.getStyleContext()
     this.createLines();
     // this.updateBlockDecorations({}, props);
-    this.setDrawFunc(this.onDraw)
   }
 
   update(newProps) {
@@ -3697,16 +3700,14 @@ class LinesTileComponent extends Gtk.DrawingArea {
     return !isEqual(newProps, this.props)
   }
 
-  onDraw(self, cx) {
-    const { measurements, } = this.props;
-
-    if (!cx)
-      return
+  snapshot(snapshot) {
+    // snapshot.appendColor(RED, Graphene.Rect.create(0, 0, 1, this.getAllocatedHeight()))
+    // snapshot.appendColor(RED, Graphene.Rect.create(0, 0, this.getAllocatedWidth(), 1))
 
     /* Draw lines */
     for (let i = 0; i < this.lineComponents.length; i++) {
       const lineComponent = this.lineComponents[i]
-      lineComponent.onDraw(cx, this.textLayout)
+      lineComponent.snapshot(snapshot, this.styleContext, this.textLayout)
     }
   }
 }
@@ -3729,7 +3730,7 @@ class LineComponent {
   }
 
   getMarkup() {
-    return `<span foreground="#ffffff">${
+    return `<span foreground="#ff88ff">${
       this.textNodes.map(n => n.textContent).join('')
     }</span>`
   }
@@ -3879,7 +3880,7 @@ class LineComponent {
     return className;
   }
 
-  onDraw(cx, layout) {
+  snapshot(snapshot, context, layout) {
     const {
       width,
       index,
@@ -3890,12 +3891,9 @@ class LineComponent {
     const x = measurements.horizontalPadding
     const y = index * measurements.lineHeight
 
-    cx.moveTo(x, y)
-
     /* Draw text */
     layout.setMarkup(this.getMarkup())
-    PangoCairo.updateLayout(cx, layout)
-    PangoCairo.showLayout(cx, layout)
+    snapshot.renderLayout(context, x, y, layout)
   }
 }
 
