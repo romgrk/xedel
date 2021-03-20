@@ -3501,6 +3501,7 @@ class LinesTileComponent extends Gtk.DrawingArea {
       } else if (oldScreenLine === newScreenLine) {
         const lineComponent = this.lineComponents[lineComponentIndex];
         lineComponent.update({
+          index: newScreenLineIndex,
           screenRow: tileStartRow + newScreenLineIndex,
           lineDecoration: lineDecorations[newScreenLineIndex],
           textDecorations: textDecorations[newScreenLineIndex]
