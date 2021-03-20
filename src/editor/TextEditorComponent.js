@@ -4300,6 +4300,7 @@ class HighlightsComponent extends Gtk.DrawingArea {
 
 gi.registerClass(TextEditorComponent)
 // gi.registerClass(LineComponent)
+gi.registerClass(LinesTileComponent)
 gi.registerClass(LineNumberGutterComponent)
 gi.registerClass(BackgroundComponent)
 gi.registerClass(CursorsComponent)
