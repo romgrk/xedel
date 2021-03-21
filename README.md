@@ -12,7 +12,12 @@ this is to inspire people to help me make this come true.
  - Batteries-included, as in VSCode-equivalent
  - Extendable, using a decent scripting language
 
-![Demo](./static/demo.png)
+<p align="center">
+  <img
+    src="./static/demo.png"
+    style="width: 500px; height: auto"
+  />
+</p>
 
 ### Current technological choices
  - Node.js
