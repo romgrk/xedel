@@ -32,7 +32,8 @@ const MOUSE_DRAG_AUTOSCROLL_MARGIN = 40;
 const CURSOR_BLINK_RESUME_DELAY = 300;
 const CURSOR_BLINK_PERIOD = 1400;
 
-const DEFAULT_FONT_FAMILY = 'SauceCodePro Nerd Font'
+// const DEFAULT_FONT_FAMILY = 'SauceCodePro Nerd Font'
+const DEFAULT_FONT_FAMILY = 'DejaVu Sans Mono for Powerline'
 const DEFAULT_FONT_SIZE = 16
 
 // Colors, for debugging
@@ -166,6 +167,8 @@ class TextEditorComponent extends Gtk.Widget {
 
     this.vexpand = true
     this.hexpand = true
+    this.focusable = true
+    this.focusOnClick = true
 
     this.backgroundArea = new BackgroundComponent({ element: this })
     this.highlightsArea = new HighlightsComponent({ element: this })
@@ -229,14 +232,17 @@ class TextEditorComponent extends Gtk.Widget {
     this.didResize = this.didResize.bind(this);
     this.didSizeAllocate = this.didSizeAllocate.bind(this);
 
-    this.controller = new Gtk.EventControllerKey()
-    this.controller.on('key-pressed', this.onKeyPressEvent)
-    this.addController(this.controller)
+    this.keyController = new Gtk.EventControllerKey()
+    this.keyController.on('key-pressed', this.onKeyPressEvent)
+    this.addController(this.keyController)
+
+    this.focusController = new Gtk.EventControllerFocus()
+    this.focusController.on('enter', this.didFocus)
+    this.focusController.on('leave', this.didBlur)
+    this.addController(this.focusController)
 
     // TODO: implement these
     // this.textContainer.on('button-press-event', this.didMouseDownOnContent)
-    // this.textContainer.on('focus-in-event', this.didFocus)
-    // this.textContainer.on('focus-out-event', this.didBlur)
 
     this.textWindow.getVadjustment().on('value-changed', this.didScrollDummyScrollbar)
     this.textWindow.getHadjustment().on('value-changed', this.didScrollDummyScrollbar)
@@ -1576,14 +1582,12 @@ class TextEditorComponent extends Gtk.Widget {
       this.startCursorBlinking();
       this.scheduleUpdate();
     }
-
-    // this.getHiddenInput().focus();
   }
 
   // Called by TextEditorElement so that this function is always the first
   // listener to be fired, even if other listeners are bound before creating
   // the component.
-  didBlur(event) {
+  didBlur() {
     this.focused = false;
     this.stopCursorBlinking();
     this.scheduleUpdate();
@@ -4079,11 +4083,11 @@ class CursorsComponent extends Gtk.DrawingArea {
     this.queueDraw()
   }
 
-  onDraw(self, cx) {
+  onDraw(_, cx) {
     const { element } = this.props
     const blinkOff = element.cursorsBlinkedOff
-    const hasFocus = element.hasFocus() &&
-      (workspace.mainWindow ? workspace.mainWindow.isActive() : true)
+    const hasFocus = element.hasFocus()
+    const isActive = workspace.mainWindow ? workspace.mainWindow.isActive() : true
     const model = element.getModel()
     const cursors = model.getCursors()
     const { measurements } = element
@@ -4091,7 +4095,10 @@ class CursorsComponent extends Gtk.DrawingArea {
     if (!element.hasInitialMeasurements)
       return
 
-    if (blinkOff && hasFocus)
+    if (!hasFocus)
+      return
+
+    if (isActive && blinkOff)
       return
 
     const scrollTop  = element.getScrollTop()
@@ -4114,7 +4121,7 @@ class CursorsComponent extends Gtk.DrawingArea {
       const coords = element.pixelPositionForScreenPosition(position)
 
 
-      if (hasFocus) {
+      if (hasFocus && isActive) {
         cx.rectangle(
           coords.left,
           coords.top,
