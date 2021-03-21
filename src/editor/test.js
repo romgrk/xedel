@@ -3,6 +3,7 @@
  */
 
 const fs = require('fs')
+const path = require('path')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
 const Gdk = gi.require('Gdk', '4.0')
@@ -28,10 +29,14 @@ function main() {
   const app = new Gtk.Application('com.github.romgrk.xedel', 0)
 
   app.on('activate', () => {
+    // const filename = __filename
+    // const filename = path.join(__dirname, 'content.js')
+    const filename = path.join(__dirname, 'TextEditorComponent.js')
+
     const mainWindow = new Gtk.ApplicationWindow(app)
     const editor = TextEditor.create({
-      text: fs.readFileSync(__filename).toString(),
-      filepath: __filename,
+      text: fs.readFileSync(filename).toString(),
+      filepath: filename,
     })
     mainWindow.setChild(editor)
     mainWindow.setDefaultSize(800, 800)
