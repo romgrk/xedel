@@ -616,8 +616,8 @@ class TextEditorComponent extends Gtk.Widget {
 
     const onlyBlinkingCursors = this.nextUpdateOnlyBlinksCursors;
     this.nextUpdateOnlyBlinksCursors = null;
-    if (useScheduler && onlyBlinkingCursors) {
-      this.refs.cursorsAndInput.updateCursorBlinkSync(this.cursorsBlinkedOff);
+    if (/* useScheduler && */ onlyBlinkingCursors) {
+      this.cursorArea.queueDraw()
       if (this.resolveNextUpdatePromise) this.resolveNextUpdatePromise();
       this.updateScheduled = false;
       return;
