@@ -8,15 +8,26 @@ const Gtk = gi.require('Gtk', '4.0')
 const workspace = require('../workspace')
 
 module.exports = function openFileDialog(callback) {
-  const dialog = new Gtk.FileChooserDialog(
-    'Open File', workspace.mainWindow, Gtk.FileChooserAction.OPEN)
-  dialog.addButton('Cancel', 0)
-  dialog.addButton('Accept', 1)
+  // FIXME: dialog.getFile() returns a GLocalFile that doesn't
+  // have any useful method -.-
+  console.warn('openFileDialog not implemented')
+  // const dialog = new Gtk.FileChooserDialog(
+  //   'Open File',
+  //   workspace.mainWindow,
+  //   Gtk.FileChooserAction.OPEN,
+  //   Gtk.ResponseType.ACCEPT
+  // )
+  // dialog.addButton('Cancel', 0)
+  // dialog.addButton('Accept', 1)
 
-  if (dialog.show() == Gtk.ResponseType.ACCEPT) {
-    const filename = dialog.getFilename()
-    setImmediate(() => callback(filename))
-  }
+  // dialog.on('response', id => {
+  //   if (id === Gtk.ResponseType.ACCEPT) {
+  //     const filename = dialog.getFile().path
+  //     setImmediate(() => callback(filename))
+  //   }
 
-  dialog.destroy()
+  //   dialog.destroy()
+  // })
+
+  // dialog.show()
 }
