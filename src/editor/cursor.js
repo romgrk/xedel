@@ -763,7 +763,8 @@ module.exports = class Cursor extends Model {
       segments.push(`\\s*[${_.escapeRegExp(nonWordCharacters)}]+`);
     }
     segments.push('_+');
-    return new RegExp(segments.join('|'), 'g');
+    const pattern = `(${segments.join('|')})\\s*`
+    return new RegExp(pattern, 'g');
   }
 
   /*
