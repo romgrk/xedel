@@ -51,11 +51,11 @@ const theme = parseColors({
  * [ ] decorations
  *     [x] lines
  *     [x] highlights
- *     [ ] lineNumbers
- *     [ ] cursors
+ *     [x] lineNumbers
+ *     [x] cursors
  *     [ ] overlays
  *     [ ] customGutter
- *     [ ] blocks
+ *     [x] blocks
  *     [ ] text
  */
 
@@ -118,10 +118,28 @@ class TextEditorComponent extends Gtk.Widget {
     // model.decorateMarker(model.markBufferRange([[6, 0], [6, 1]]), gutterDecorationOptions)
     // model.decorateMarker(model.markBufferRange([[7, 0], [7, 1]]), gutterDecorationOptions)
 
-    const textDecorationOptions = { type: 'highlight', class: 'highlight' }
     model.scanInBufferRange(/require/g, [[0, 0], [22, 0]], ({ range }) => {
-      model.decorateMarker(model.markBufferRange(range), textDecorationOptions)
+      model.decorateMarker(
+        model.markBufferRange(range),
+        { type: 'highlight', class: 'highlight' }
+      )
     })
+
+    const image = Gtk.Image.newFromFile(path.join(__dirname, '../../static/demo.png'))
+    image.setSizeRequest(200, 200)
+    model.decorateMarker(
+      model.markScreenPosition([0, 0]),
+      { type: 'block', position: 'after', item: image })
+
+    const label = new Gtk.Label({ label: 'This is a test' })
+    label.addCssClass('dim-label title')
+    model.decorateMarker(
+      model.markScreenPosition([6, 0]),
+      { type: 'block', position: 'before', item: label })
+
+    model.decorateMarker(
+      model.markScreenPosition([9, 0]),
+      { type: 'block', position: 'before', item: Gtk.Button.newFromIconName('starred') })
 
     return model.getElement()
   }
@@ -442,7 +460,7 @@ class TextEditorComponent extends Gtk.Widget {
       // foldableFlags: foldableFlags,
       // decorations: decorationsToRender.lineNumbers.get(gutter.name) || [],
       // blockDecorations: decorationsToRender.blocks,
-      // didMeasureVisibleBlockDecoration: didMeasureVisibleBlockDecoration,
+      didMeasureVisibleBlockDecoration: this.didMeasureVisibleBlockDecoration,
       // height: scrollHeight,
       // width,
       // lineHeight: lineHeight,
@@ -661,7 +679,7 @@ class TextEditorComponent extends Gtk.Widget {
       this.remeasureAllBlockDecorations = false;
 
       const decorations = this.model.getDecorations();
-      for (var i = 0; i < decorations.length; i++) {
+      for (let i = 0; i < decorations.length; i++) {
         const decoration = decorations[i];
         const marker = decoration.getMarker();
         if (marker.isValid() && decoration.getProperties().type === 'block') {
@@ -677,62 +695,15 @@ class TextEditorComponent extends Gtk.Widget {
     }
 
     if (this.blockDecorationsToMeasure.size > 0) {
-      const { blockDecorationMeasurementArea } = this.refs;
-      const sentinelElements = new Set();
-
-      blockDecorationMeasurementArea.appendChild(document.createElement('div'));
       this.blockDecorationsToMeasure.forEach(decoration => {
         const { item } = decoration.getProperties();
-        const decorationElement = TextEditor.viewForItem(item);
-        if (document.contains(decorationElement)) {
-          const parentElement = decorationElement.parentElement;
-
-          if (!decorationElement.previousSibling) {
-            const sentinelElement = this.blockDecorationSentinel.cloneNode();
-            parentElement.insertBefore(sentinelElement, decorationElement);
-            sentinelElements.add(sentinelElement);
-          }
-
-          if (!decorationElement.nextSibling) {
-            const sentinelElement = this.blockDecorationSentinel.cloneNode();
-            parentElement.appendChild(sentinelElement);
-            sentinelElements.add(sentinelElement);
-          }
-
-          this.didMeasureVisibleBlockDecoration = true;
-        } else {
-          blockDecorationMeasurementArea.appendChild(
-            this.blockDecorationSentinel.cloneNode()
-          );
-          blockDecorationMeasurementArea.appendChild(decorationElement);
-          blockDecorationMeasurementArea.appendChild(
-            this.blockDecorationSentinel.cloneNode()
-          );
-        }
-      });
-
-      if (this.resizeBlockDecorationMeasurementsArea) {
-        this.resizeBlockDecorationMeasurementsArea = false;
-        this.refs.blockDecorationMeasurementArea.style.width =
-          this.getScrollWidth() + 'px';
-      }
-
-      this.blockDecorationsToMeasure.forEach(decoration => {
-        const { item } = decoration.getProperties();
-        const decorationElement = TextEditor.viewForItem(item);
-        const { previousSibling, nextSibling } = decorationElement;
-        const height =
-          nextSibling.getBoundingClientRect().top -
-          previousSibling.getBoundingClientRect().bottom;
+        const [_, natural] = item.getPreferredSize()
+        const height = natural.height
         this.heightsByBlockDecoration.set(decoration, height);
         this.lineTopIndex.resizeBlock(decoration, height);
       });
-
-      sentinelElements.forEach(sentinelElement => sentinelElement.remove());
-      while (blockDecorationMeasurementArea.firstChild) {
-        blockDecorationMeasurementArea.firstChild.remove();
-      }
       this.blockDecorationsToMeasure.clear();
+      this.didMeasureVisibleBlockDecoration = true;
     }
   }
 
@@ -1527,6 +1498,7 @@ class TextEditorComponent extends Gtk.Widget {
     //     this.refs.gutterContainer.element
     //   );
     // }
+    this.remeasureAllBlockDecorations = true;
 
     this.overlayComponents.forEach(component => component.didAttach());
 
@@ -1562,7 +1534,6 @@ class TextEditorComponent extends Gtk.Widget {
       if (!this.hasInitialMeasurements) this.measureDimensions();
       this._visible = true;
       this.model.setVisible(true);
-      this.resizeBlockDecorationMeasurementsArea = true;
       this.updateSync();
       this.flushPendingLogicalScrollPosition();
     }
@@ -1642,14 +1613,17 @@ class TextEditorComponent extends Gtk.Widget {
     if (!this.attached)
       return
 
+    const width = this.getAllocatedWidth()
+    const height = this.getAllocatedHeight()
+
     let changed = false
-    if (this.previousWidth !== this.getAllocatedWidth())
+    if (this.previousWidth !== width)
       changed = true
-    if (this.previousHeight !== this.getAllocatedHeight())
+    if (this.previousHeight !== height)
       changed = true
 
-    this.previousWidth = this.getAllocatedWidth()
-    this.previousHeight = this.getAllocatedHeight()
+    this.previousWidth = width
+    this.previousHeight = height
 
     if (changed)
       this.didResize()
@@ -2837,7 +2811,6 @@ class TextEditorComponent extends Gtk.Widget {
       this.lineTopIndex.insertBlock(decoration, row, 0, position === 'after');
       this.blockDecorationsToMeasure.add(decoration);
       this.blockDecorationsByElement.set(element, decoration);
-      this.blockDecorationResizeObserver.observe(element);
 
       this.scheduleUpdate();
     }
@@ -2853,7 +2826,6 @@ class TextEditorComponent extends Gtk.Widget {
             this.blockDecorationsToMeasure.delete(decoration);
             this.heightsByBlockDecoration.delete(decoration);
             this.blockDecorationsByElement.delete(element);
-            this.blockDecorationResizeObserver.unobserve(element);
             this.lineTopIndex.removeBlock(decoration);
             this.scheduleUpdate();
           } else if (!wasValid && isValid) {
@@ -2885,7 +2857,7 @@ class TextEditorComponent extends Gtk.Widget {
     }
   }
 
-  /* didResizeBlockDecorations(entries) {
+  didResizeBlockDecorations(entries) {
     if (!this._visible) return;
 
     for (let i = 0; i < entries.length; i++) {
@@ -2899,7 +2871,7 @@ class TextEditorComponent extends Gtk.Widget {
         this.invalidateBlockDecorationDimensions(decoration);
       }
     }
-  } */
+  }
 
   invalidateBlockDecorationDimensions(decoration) {
     this.blockDecorationsToMeasure.add(decoration);
@@ -3372,7 +3344,7 @@ class LinesTileComponent extends Gtk.Widget {
     this.lineComponents = []
     this.styleContext = this.getStyleContext()
     this.createLines();
-    // this.updateBlockDecorations({}, props);
+    this.updateBlockDecorations({}, props);
     this.props.parent.put(this, 0, this.props.top)
   }
 
@@ -3382,7 +3354,7 @@ class LinesTileComponent extends Gtk.Widget {
       this.props = newProps;
       if (!newProps.measuredContent) {
         this.updateLines(oldProps, newProps);
-        // this.updateBlockDecorations(oldProps, newProps);
+        this.updateBlockDecorations(oldProps, newProps);
       }
       if (oldProps.top !== newProps.top) {
         this.props.parent.move(tile, 0, top)
@@ -3395,6 +3367,11 @@ class LinesTileComponent extends Gtk.Widget {
       this.lineComponents[i].destroy();
     }
     this.lineComponents.length = 0;
+    this.props.blockDecorations?.forEach(decorations => {
+      decorations.forEach(decoration => {
+        decoration.item.getParent()?.remove(decoration.item)
+      })
+    })
     this.getParent().remove(this)
   }
 
@@ -3633,53 +3610,56 @@ class LinesTileComponent extends Gtk.Widget {
   }
 
   updateBlockDecorations(oldProps, newProps) {
-    var { blockDecorations, lineComponentsByScreenLineId } = newProps;
+    const { parent, blockDecorations, lineComponentsByScreenLineId } = newProps;
+    const rootComponent = newProps.element
+
+    if (!rootComponent.hasInitialMeasurements)
+      return
 
     if (oldProps.blockDecorations) {
       oldProps.blockDecorations.forEach((oldDecorations, screenLineId) => {
-        var newDecorations = newProps.blockDecorations
+        const newDecorations = newProps.blockDecorations
           ? newProps.blockDecorations.get(screenLineId)
           : null;
-        for (var i = 0; i < oldDecorations.length; i++) {
-          var oldDecoration = oldDecorations[i];
+        for (let i = 0; i < oldDecorations.length; i++) {
+          const oldDecoration = oldDecorations[i];
           if (newDecorations && newDecorations.includes(oldDecoration))
             continue;
 
-          var element = TextEditor.viewForItem(oldDecoration.item);
-          if (element.parentElement !== this.element) continue;
-
-          element.remove();
+          const element = TextEditor.viewForItem(oldDecoration.item);
+          element.getParent()?.remove(element)
         }
-      });
+      })
     }
 
     if (blockDecorations) {
+      const horizontalPadding = rootComponent.measurements.horizontalPadding
       blockDecorations.forEach((newDecorations, screenLineId) => {
         const oldDecorations = oldProps.blockDecorations
           ? oldProps.blockDecorations.get(screenLineId)
           : null;
-        const lineNode = lineComponentsByScreenLineId.get(screenLineId).element;
-        let lastAfter = lineNode;
+        const line = lineComponentsByScreenLineId.get(screenLineId)
 
         for (let i = 0; i < newDecorations.length; i++) {
           const newDecoration = newDecorations[i];
           const element = TextEditor.viewForItem(newDecoration.item);
 
           if (oldDecorations && oldDecorations.includes(newDecoration)) {
-            if (newDecoration.position === 'after') {
-              lastAfter = element;
-            }
             continue;
           }
 
           if (newDecoration.position === 'after') {
-            this.element.insertBefore(element, lastAfter.nextSibling);
-            lastAfter = element;
+            const top =
+                rootComponent.pixelPositionAfterBlocksForRow(line.props.screenRow)
+              + rootComponent.measurements.lineHeight
+            parent.put(element, horizontalPadding, top)
           } else {
-            this.element.insertBefore(element, lineNode);
+            const top =
+                rootComponent.pixelPositionBeforeBlocksForRow(line.props.screenRow)
+            parent.put(element, horizontalPadding, top)
           }
         }
-      });
+      })
     }
   }
 
@@ -3688,13 +3668,22 @@ class LinesTileComponent extends Gtk.Widget {
   }
 
   snapshot(snapshot) {
+    const { element, tileStartRow } = this.props
+
     // snapshot.appendColor(RED, Graphene.Rect.create(0, 0, 1, this.getAllocatedHeight()))
     // snapshot.appendColor(RED, Graphene.Rect.create(0, 0, this.getAllocatedWidth(), 1))
 
     /* Draw lines */
+    let marginTop = 0
     for (let i = 0; i < this.lineComponents.length; i++) {
+      const row = tileStartRow + i
+
+      marginTop += element.heightForBlockDecorationsBeforeRow(row)
+
       const lineComponent = this.lineComponents[i]
-      lineComponent.snapshot(snapshot, this.styleContext, this.textLayout)
+      lineComponent.snapshot(snapshot, this.styleContext, this.textLayout, marginTop)
+
+      marginTop += element.heightForBlockDecorationsAfterRow(row)
     }
   }
 }
@@ -3867,16 +3856,14 @@ class LineComponent {
     return className;
   }
 
-  snapshot(snapshot, context, layout) {
+  snapshot(snapshot, context, layout, marginTop) {
     const {
-      width,
       index,
       measurements,
-      textDecorations,
     } = this.props
 
     const x = measurements.horizontalPadding
-    const y = index * measurements.lineHeight
+    const y = index * measurements.lineHeight + marginTop
 
     /* Draw text */
     layout.setMarkup(this.getMarkup())
@@ -3985,6 +3972,7 @@ class LineNumberGutterComponent extends Gtk.Widget {
 
     const tileOffsetTop = rootComponent.pixelPositionBeforeBlocksForRow(tileStartRow)
     const scrollTop = rootComponent.getScrollTop()
+    let marginTop = 0
 
     for (let row = tileStartRow; row < tileEndRow; row++) {
       if (row < startRow)
@@ -4020,21 +4008,7 @@ class LineNumberGutterComponent extends Gtk.Widget {
       // the beginning of the tile, because the tile will already be
       // positioned to take into account block decorations added after the
       // last row of the previous tile.
-      let marginTop = rootComponent.heightForBlockDecorationsBeforeRow(row);
-      if (indexInTile > 0)
-        marginTop += rootComponent.heightForBlockDecorationsAfterRow(
-          row - 1
-        );
-
-      /* tileChildren[row - tileStartRow] = $(LineNumberComponent, {
-        *   key,
-        *   className,
-        *   width,
-        *   bufferRow,
-        *   screenRow,
-        *   number,
-        *   marginTop,
-        * }); */
+      marginTop += rootComponent.heightForBlockDecorationsBeforeRow(row);
 
       const x = 0
       const y =
@@ -4047,6 +4021,10 @@ class LineNumberGutterComponent extends Gtk.Widget {
 
       this.layout.setMarkup(markup)
       snapshot.renderLayout(this.getStyleContext(), x, y, this.layout)
+
+      marginTop += rootComponent.heightForBlockDecorationsAfterRow(
+        row
+      );
     }
   }
 
@@ -4112,6 +4090,10 @@ class CursorsComponent extends Gtk.DrawingArea {
 
   constructor(props) {
     super()
+    this.canFocus = false
+    this.focusable = false
+    this.focusOnClick = false
+    this.setCanTarget(false)
     this.update(props)
     this.setDrawFunc(this.onDraw.bind(this))
   }
@@ -4234,8 +4216,10 @@ class HighlightsComponent extends Gtk.DrawingArea {
       for (let j = 0; j < classNames.length; j++) {
         const className = classNames[j]
 
+        const row = startRow + i
+
         const x = 0 - scrollLeft
-        const y = (startRow + i) * measurements.lineHeight - scrollTop
+        const y = element.pixelPositionAfterBlocksForRow(row) - scrollTop
 
         const style = decorationStyleByClass[className]
 
