@@ -43,8 +43,17 @@
             <child>
               <object class="GtkGrid" id="mainGrid">
                 <property name="visible">True</property>
+                <property name="vexpand">True</property>
               </object>
             </child>
+
+            <!-- commandBar -->
+            <!-- <child>
+               -   <object class="GtkEntry" id="commandBar">
+               -     <property name="visible">True</property>
+               -     <property name="vexpand">False</property>
+               -   </object>
+               - </child> -->
 
           </object>
         </child>

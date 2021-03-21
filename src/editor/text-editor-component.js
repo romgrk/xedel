@@ -56,7 +56,7 @@ const theme = parseColors({
  *     [ ] overlays
  *     [ ] customGutter
  *     [x] blocks
- *     [ ] text
+ *     [~] text (finish indent guides)
  */
 
 const decorationStyleByClass = {
