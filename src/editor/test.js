@@ -10,7 +10,7 @@ const Gdk = gi.require('Gdk', '4.0')
 const GdkX11 = gi.require('GdkX11', '4.0')
 const GLib = gi.require('GLib', '2.0')
 
-const workspace = require('../workspace')
+const xedel = require('../globals')
 const TextEditor = require('./index.js')
 
 const grammars = require('../grammars')
@@ -40,7 +40,7 @@ function main() {
     // const filename = path.join(__dirname, 'content.js')
     const filename = path.join(__dirname, 'text-editor-component.js')
 
-    const mainWindow = workspace.mainWindow = new Gtk.ApplicationWindow(app)
+    const mainWindow = xedel.mainWindow = new Gtk.ApplicationWindow(app)
     const editor = TextEditor.create({
       text: fs.readFileSync(filename).toString(),
       filepath: filename,
@@ -61,7 +61,7 @@ function main() {
       process.exit(0)
     })
     mainWindow.on('show', () => {
-      // workspace.emit('loaded')
+      // xedel.emit('loaded')
     })
     mainWindow.show()
     loop.run()

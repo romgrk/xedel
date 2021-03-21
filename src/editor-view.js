@@ -7,11 +7,11 @@ const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
 const Gdk = gi.require('Gdk', '4.0')
 
-const workspace = require('./workspace')
+const xedel = require('./globals')
 const TextEditorElement = require('./editor/')
 
 
-workspace.loaded.then(() => {
+xedel.loaded.then(() => {
 
   const editorViewCommands = {
     'pane:next':     EditorView.prototype.nextBuffer,
@@ -28,8 +28,8 @@ workspace.loaded.then(() => {
     }
   }
 
-  workspace.commands.add('editor-view', editorViewCommands)
-  workspace.keymaps.addKeymap(EditorView, editorViewKeymap)
+  xedel.commands.add('editor-view', editorViewCommands)
+  xedel.keymaps.addKeymap(EditorView, editorViewKeymap)
 })
 
 class EditorView extends Gtk.Notebook {

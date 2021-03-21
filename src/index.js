@@ -8,7 +8,7 @@ const Gdk = gi.require('Gdk', '4.0')
 const GdkX11 = gi.require('GdkX11', '4.0')
 const GLib = gi.require('GLib', '2.0')
 
-const workspace = require('./workspace')
+const xedel = require('./globals')
 
 const clipboard = require('./editor/clipboard')
 const grammars = require('./grammars')
@@ -33,7 +33,7 @@ Gtk.init([])
 
 let styleFileWatcher
 
-workspace.set({
+xedel.set({
   app: null,
   mainWindow: null,
   toolbar: null,
@@ -53,19 +53,19 @@ workspace.set({
   loadFile: loadFile,
 })
 
-workspace.loaded.then(() => {
+xedel.loaded.then(() => {
   console.log('Workspace loaded')
 })
 
 function main() {
   const loop = GLib.MainLoop.new(null, false)
-  const app = workspace.app = new Gtk.Application('com.github.romgrk.xedel', 0)
+  const app = xedel.app = new Gtk.Application('com.github.romgrk.xedel', 0)
 
   app.on('activate', () => {
-    const mainWindow = workspace.mainWindow = new MainWindow(app)
+    const mainWindow = xedel.mainWindow = new MainWindow(app)
     Gtk.StyleContext.addProviderForDisplay(
       Gdk.Display.getDefault(),
-      workspace.cssProvider,
+      xedel.cssProvider,
       9999
     )
     mainWindow.on('close-request', () => {
@@ -73,15 +73,15 @@ function main() {
       process.exit(0)
     })
     mainWindow.on('show', () => {
-      workspace.emit('loaded')
+      xedel.emit('loaded')
     })
     mainWindow.show()
     loop.run()
   })
 
 
-  const commands = workspace.commands = new CommandsManager()
-  const keymaps = workspace.keymaps = new KeymapManager()
+  const commands = xedel.commands = new CommandsManager()
+  const keymaps = xedel.keymaps = new KeymapManager()
 
   keymaps.addListener((key, element, elements) => {
     // console.log(chalk.grey('key-press'), key.toString())
@@ -98,19 +98,19 @@ function main() {
 function loadFile(filepath) {
   console.log(`Loading "${filepath}"`)
 
-  const realpath = getAbsolutePath(filepath, workspace.cwd)
+  const realpath = getAbsolutePath(filepath, xedel.cwd)
 
   return readFile(realpath)
   .then(buffer => buffer.toString())
   .then(text => {
-    workspace.currentView.openBuffer({ text, filepath: realpath })
+    xedel.currentView.openBuffer({ text, filepath: realpath })
   })
 }
 
 function initializeStyle() {
   const reloadStyles = (filename, stats) => {
     return readFile(STYLE_FILE).then(buffer => {
-      workspace.cssProvider.loadFromData(buffer, buffer.length)
+      xedel.cssProvider.loadFromData(buffer, buffer.length)
       console.log('Styles loaded')
     })
   }

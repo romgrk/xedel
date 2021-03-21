@@ -5,7 +5,7 @@
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
 
-const workspace = require('../workspace')
+const xedel = require('../globals')
 
 module.exports = function openFileDialog(callback) {
   // FIXME: dialog.getFile() returns a GLocalFile that doesn't
@@ -13,7 +13,7 @@ module.exports = function openFileDialog(callback) {
   console.warn('openFileDialog not implemented')
   // const dialog = new Gtk.FileChooserDialog(
   //   'Open File',
-  //   workspace.mainWindow,
+  //   xedel.mainWindow,
   //   Gtk.FileChooserAction.OPEN,
   //   Gtk.ResponseType.ACCEPT
   // )
@@ -30,4 +30,5 @@ module.exports = function openFileDialog(callback) {
   // })
 
   // dialog.show()
+  setImmediate(() => callback(__filename))
 }

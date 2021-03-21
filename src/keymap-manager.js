@@ -2,7 +2,7 @@
  * keymap-manager.js
  */
 
-const workspace = require('./workspace')
+const xedel = require('./globals')
 
 const Key = require('./key')
 const { unreachable } = require('./utils/assert')
@@ -27,11 +27,11 @@ class KeymapManager {
   keymapsByName = {}
 
   constructor() {
-    workspace.loaded.then(() => {
+    xedel.loaded.then(() => {
       this.controller = new Gtk.EventControllerKey()
       this.controller.setPropagationPhase(Gtk.PropagationPhase.CAPTURE)
       this.controller.on('key-pressed', this.onWindowKeyPressEvent)
-      workspace.mainWindow.addController(this.controller)
+      xedel.mainWindow.addController(this.controller)
     })
   }
 
@@ -129,7 +129,7 @@ class KeymapManager {
     // console.log({ effect })
 
     if (typeof effect === 'string') {
-      const command = workspace.commands.get(effect)
+      const command = xedel.commands.get(effect)
       effect = command.effect
     }
 
@@ -153,7 +153,7 @@ KeymapManager.MATCH = MATCH
 module.exports = KeymapManager
 
 function getElementsStack() {
-  const activeElement = workspace.mainWindow.getFocus()
+  const activeElement = xedel.mainWindow.getFocus()
   if (!activeElement)
     return []
   const elements = [activeElement]

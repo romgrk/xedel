@@ -1251,7 +1251,7 @@ module.exports = class TextEditorModel {
 
       let myPathSegments;
       const openEditorPathSegmentsWithSameFilename = [];
-      for (const textEditor of atom.workspace.getTextEditors()) {
+      for (const textEditor of xedel.workspace.getTextEditors()) {
         if (textEditor.getFileName() === fileName) {
           const pathSegments = fs
             .tildify(textEditor.getDirectoryPath())

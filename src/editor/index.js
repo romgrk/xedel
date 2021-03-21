@@ -2,8 +2,6 @@
  * index.js
  */
 
-const workspace = require('../workspace')
-
 const TextEditorComponent = require('./text-editor-component')
 const TextEditorModel = require('./text-editor')
 const clipboard = require('./clipboard')

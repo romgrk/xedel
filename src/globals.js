@@ -1,12 +1,12 @@
 /*
- * workspace.js
+ * globals.js
  */
 
 const { EventEmitter } = require('events')
 
-const workspace = new EventEmitter()
+const xedel = new EventEmitter()
 
-Object.assign(workspace, {
+Object.assign(xedel, {
   mainWindow: null,
   toolbar: null,
   statusbar: null,
@@ -15,9 +15,6 @@ Object.assign(workspace, {
   clipboard: null,
 
   cssProvider: null,
-  schemeManager: null,
-  langManager: null,
-  scheme: null,
 
   commands: null,
   keymaps: null,
@@ -27,7 +24,7 @@ Object.assign(workspace, {
    */
   loaded: {
     then: fn => {
-      workspace.on('loaded', fn)
+      xedel.on('loaded', fn)
     }
   },
 
@@ -36,8 +33,8 @@ Object.assign(workspace, {
   cwd: null,
 
   set: (fields) => {
-    Object.assign(workspace, fields)
+    Object.assign(xedel, fields)
   }
 })
 
-module.exports = workspace
+module.exports = xedel
