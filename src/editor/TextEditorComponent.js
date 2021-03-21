@@ -157,19 +157,16 @@ class TextEditorComponent extends Gtk.Widget {
     this.textContainer.focusable = true
     this.textContainer.focusOnClick = true
 
-    this.textOverlay = new Gtk.Overlay()
-    this.textOverlay.setChild(this.textContainer)
-    this.textOverlay.addOverlay(this.cursorArea)
-
     this.textWindow = new Gtk.ScrolledWindow()
     this.textWindow.hexpand = true
     this.textWindow.vexpand = true
-    this.textWindow.setChild(this.textOverlay)
+    this.textWindow.setChild(this.textContainer)
 
     this.textWindowContainer = new Gtk.Fixed()
     this.textWindowContainer.put(this.backgroundArea, 0, 0)
     this.textWindowContainer.put(this.highlightsArea, 0, 0)
     this.textWindowContainer.put(this.textWindow,     0, 0)
+    this.textWindowContainer.put(this.cursorArea,     0, 0)
 
     this.box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0)
     this.box.append(this.gutterContainer)
@@ -191,7 +188,6 @@ class TextEditorComponent extends Gtk.Widget {
     this.didCompositionUpdate = this.didCompositionUpdate.bind(this);
     this.didCompositionEnd = this.didCompositionEnd.bind(this);
 
-    this.didGetChildPosition = this.didGetChildPosition.bind(this);
     this.didChange = this.didChange.bind(this);
     this.didChangeCursorPosition = this.didChangeCursorPosition.bind(this);
     this.didScrollDummyScrollbar = this.didScrollDummyScrollbar.bind(this);
@@ -212,7 +208,6 @@ class TextEditorComponent extends Gtk.Widget {
     // this.textContainer.on('button-press-event', this.didMouseDownOnContent)
     // this.textContainer.on('focus-in-event', this.didFocus)
     // this.textContainer.on('focus-out-event', this.didBlur)
-    this.textOverlay.on('get-child-position', this.didGetChildPosition)
 
     this.textWindow.getVadjustment().on('value-changed', this.didScrollDummyScrollbar)
     this.textWindow.getHadjustment().on('value-changed', this.didScrollDummyScrollbar)
@@ -461,10 +456,8 @@ class TextEditorComponent extends Gtk.Widget {
       textContainerHeight: height,
     } = this.measurements
 
-    const textContentWidth = this.getScrollWidth()
-
     this.backgroundArea.update({ width, height })
-    this.cursorArea.update({ width: textContentWidth, height })
+    this.cursorArea.update({ width, height })
 
     this.textWindow.setSizeRequest(width, height)
     this.textContainer.setSizeRequest(
@@ -1698,14 +1691,6 @@ class TextEditorComponent extends Gtk.Widget {
         );
       });
     }
-  }
-
-  didGetChildPosition(_, rect) {
-    // For now, the target is always the cursor area
-    rect.x = this.getScrollLeft()
-    rect.y = this.getScrollTop()
-    rect.width = this.measurements.textContainerWidth
-    rect.height = this.measurements.textContainerHeight
   }
 
   didChange() {
@@ -3731,7 +3716,7 @@ class LineComponent {
   }
 
   getMarkup() {
-    return `<span foreground="#ff88ff">${
+    return `<span foreground="#ffccff">${
       this.textNodes.map(n => n.textContent).join('')
     }</span>`
   }
@@ -4089,7 +4074,7 @@ class LineNumberGutterComponent extends Gtk.Widget {
   }
 }
 
-class BackgroundComponent extends Gtk.DrawingArea {
+class BackgroundComponent extends Gtk.Widget {
   props = {
     width: 0,
     height: 0,
@@ -4098,7 +4083,6 @@ class BackgroundComponent extends Gtk.DrawingArea {
   constructor(props) {
     super()
     this.update(props)
-    this.setDrawFunc(this.onDraw.bind(this))
   }
 
   update(newProps) {
@@ -4109,16 +4093,12 @@ class BackgroundComponent extends Gtk.DrawingArea {
     this.queueDraw()
   }
 
-  onDraw(self, cx) {
+  snapshot(snapshot) {
     const { width, height } = this.props
-
-    if (!cx)
-      return
-
-    /* Draw background */
-    cx.setColor(theme.backgroundColor)
-    cx.rectangle(0, 0, width, height)
-    cx.fill()
+    snapshot.appendColor(
+      theme.backgroundColor,
+      Graphene.Rect.create(0, 0, width, height)
+    )
   }
 }
 
@@ -4158,9 +4138,12 @@ class CursorsComponent extends Gtk.DrawingArea {
     if (blinkOff && hasFocus)
       return
 
+    const scrollTop  = element.getScrollTop()
+    const scrollLeft = element.getScrollLeft()
+
     cx.translate(
-      measurements.horizontalPadding,
-      measurements.verticalPadding
+      measurements.horizontalPadding - scrollLeft,
+      measurements.verticalPadding   - scrollTop
     )
 
     for (let i = 0; i < cursors.length; i++) {
