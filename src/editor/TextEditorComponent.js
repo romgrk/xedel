@@ -497,6 +497,7 @@ class TextEditorComponent extends Gtk.Widget {
       const props = {
         key: tileId,
         element: this,
+        parent: this.textContainer,
         measuredContent: this.measuredContent,
         height: tileHeight,
         width: tileWidth,
@@ -530,12 +531,10 @@ class TextEditorComponent extends Gtk.Widget {
       if (this.tilesById.has(tileId)) {
         tile = this.tilesById.get(tileId)
         tile.update(props)
-        this.textContainer.move(tile, 0, top)
       }
       else {
         tile = new LinesTileComponent(props)
         this.tilesById.set(tileId, tile)
-        this.textContainer.put(tile, 0, top)
       }
     }
   }
@@ -875,6 +874,7 @@ class TextEditorComponent extends Gtk.Widget {
       this.showLineNumbers = model.doesShowLineNumbers();
     }
 
+    // FIXME: uncomment this?
     // this.queryMaxLineNumberDigits();
 
     const startRow = this.getRenderedStartRow();
@@ -3376,6 +3376,7 @@ class LinesTileComponent extends Gtk.Widget {
     this.styleContext = this.getStyleContext()
     this.createLines();
     // this.updateBlockDecorations({}, props);
+    this.props.parent.put(this, 0, this.props.top)
   }
 
   update(newProps) {
@@ -3385,6 +3386,9 @@ class LinesTileComponent extends Gtk.Widget {
       if (!newProps.measuredContent) {
         this.updateLines(oldProps, newProps);
         // this.updateBlockDecorations(oldProps, newProps);
+      }
+      if (oldProps.top !== newProps.top) {
+        this.props.parent.move(tile, 0, top)
       }
     }
   }
