@@ -48,6 +48,8 @@ let nextId = 1
 function getSource() {
   // https://stackoverflow.com/a/19788257/6303229
 
+  const prepare = Error.prepareStackTrace
+
   try {
     const err = new Error()
 
@@ -63,6 +65,8 @@ function getSource() {
         return `${filename}:${callSite.getLineNumber()}`
     }
   } catch (err) {}
+
+  Error.prepareStackTrace = prepare
 
   return String(nextId++);
 }

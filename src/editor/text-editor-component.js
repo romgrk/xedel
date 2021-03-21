@@ -78,6 +78,10 @@ const decorationStyleByClass = {
     borderWidth: 1,
     background: parseColor('rgba(255, 255, 255, 0.3)'),
   },
+
+  'invisible-character': {
+    foreground: parseColor('#888888'),
+  }
 }
 
 class TextEditorComponent extends Gtk.Widget {
@@ -106,6 +110,13 @@ class TextEditorComponent extends Gtk.Widget {
       buffer,
       softWrapped: true,
       showLineNumbers: true,
+      showIndentGuide: true,
+      invisibles: {
+        tab: '',
+        cr: false,
+        eol: '$',
+        space: '·'
+      }
     })
     model.setVerticalScrollMargin(0)
     model.setHorizontalScrollMargin(2)
@@ -2506,8 +2517,6 @@ class TextEditorComponent extends Gtk.Widget {
         throw error;
       }
 
-      const lineNode = lineComponent.element;
-      const textNodes = lineComponent.textNodes;
       let positionsForLine = this.horizontalPixelPositionsByScreenLineId.get(
         screenLine.id
       );
@@ -2521,7 +2530,6 @@ class TextEditorComponent extends Gtk.Widget {
 
       this.measureHorizontalPositionsOnLine(
         lineComponent,
-        textNodes,
         columnsToMeasure,
         positionsForLine
       );
@@ -2531,10 +2539,10 @@ class TextEditorComponent extends Gtk.Widget {
 
   measureHorizontalPositionsOnLine(
     lineComponent,
-    textNodes,
     columnsToMeasure,
     positions
   ) {
+    // FIXME: handle this correctly (textNodes gone)
 
     for (let i = 0; i < columnsToMeasure.length; i++) {
       const column = columnsToMeasure[i]
@@ -2660,6 +2668,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   screenPositionForPixelPosition({ top, left }) {
+    // FIXME: not working anymore (textNodes gone)
     const { model } = this;
 
     const row = Math.min(
@@ -3695,20 +3704,18 @@ class LineComponent {
       lineComponentsByScreenLineId,
     } = props;
     this.props = props;
-    this.textNodes = [];
+    this.rootNode = new SpanNode();
 
     this.appendContents();
     lineComponentsByScreenLineId.set(screenLine.id, this);
   }
 
   getText() {
-    return this.textNodes.map(n => n.textContent).join('')
+    return this.rootNode.toString()
   }
 
   getMarkup() {
-    return `<span foreground="#ffccff">${
-      this.textNodes.map(n => n.textContent).join('')
-    }</span>`
+    return this.rootNode.toMarkup()
   }
 
   update(newProps) {
@@ -3726,16 +3733,15 @@ class LineComponent {
       // this.element.dataset.screenRow = newProps.screenRow;
     }
 
-    // FIXME: uncomment this when this.appendContents() does text decoration
-    // if (
-    //   !textDecorationsEqual(
-    //     this.props.textDecorations,
-    //     newProps.textDecorations
-    //   )
-    // ) {
-    //   this.props.textDecorations = newProps.textDecorations;
-    //   this.appendContents();
-    // }
+    if (
+      !textDecorationsEqual(
+        this.props.textDecorations,
+        newProps.textDecorations
+      )
+    ) {
+      this.props.textDecorations = newProps.textDecorations;
+      this.appendContents();
+    }
     this.props = Object.assign({}, this.props, newProps)
   }
 
@@ -3749,16 +3755,9 @@ class LineComponent {
 
   appendContents() {
     const { displayLayer, screenLine, textDecorations } = this.props;
-    this.textNodes = [
-      { textContent: escapeMarkup(screenLine.lineText) }
-    ];
-    return
-    // FIXME: uncomment section in .update() when we do text decoration
-
-    this.textNodes.length = 0;
 
     const { lineText, tags } = screenLine;
-    let openScopeNode = nodePool.getElement('SPAN', null, null);
+    let openScopeNode = new SpanNode()
 
     let decorationIndex = 0;
     let column = 0;
@@ -3774,79 +3773,53 @@ class LineComponent {
 
     for (let i = 0; i < tags.length; i++) {
       const tag = tags[i];
-      if (tag !== 0) {
-        if (displayLayer.isCloseTag(tag)) {
-          openScopeNode = openScopeNode.parentElement;
-        } else if (displayLayer.isOpenTag(tag)) {
-          const newScopeNode = nodePool.getElement(
-            'SPAN',
-            displayLayer.classNameForTag(tag),
-            null
-          );
-          openScopeNode.appendChild(newScopeNode);
-          openScopeNode = newScopeNode;
-        } else {
-          const nextTokenColumn = column + tag;
-          while (nextDecoration && nextDecoration.column <= nextTokenColumn) {
-            const text = lineText.substring(column, nextDecoration.column);
-            this.appendTextNode(
-              openScopeNode,
-              text,
-              activeClassName,
-              activeStyle
-            );
-            column = nextDecoration.column;
-            activeClassName = nextDecoration.className;
-            activeStyle = nextDecoration.style;
-            nextDecoration = textDecorations[++decorationIndex];
-          }
+      if (tag === 0)
+        continue
 
-          if (column < nextTokenColumn) {
-            const text = lineText.substring(column, nextTokenColumn);
-            this.appendTextNode(
-              openScopeNode,
-              text,
-              activeClassName,
-              activeStyle
-            );
-            column = nextTokenColumn;
-          }
+      if (displayLayer.isCloseTag(tag)) {
+        openScopeNode = openScopeNode.parentElement;
+      }
+      else if (displayLayer.isOpenTag(tag)) {
+        const className = displayLayer.classNameForTag(tag)
+        const newScopeNode = new SpanNode(className);
+        openScopeNode.appendChild(newScopeNode);
+        openScopeNode = newScopeNode;
+      }
+      else {
+        const nextTokenColumn = column + tag;
+        while (nextDecoration && nextDecoration.column <= nextTokenColumn) {
+          const text = lineText.substring(column, nextDecoration.column);
+          openScopeNode.appendTextNode(
+            text,
+            activeClassName,
+            activeStyle
+          );
+          column = nextDecoration.column;
+          activeClassName = nextDecoration.className;
+          activeStyle = nextDecoration.style;
+          nextDecoration = textDecorations[++decorationIndex];
+        }
+
+        if (column < nextTokenColumn) {
+          const text = lineText.substring(column, nextTokenColumn);
+          openScopeNode.appendTextNode(
+            text,
+            activeClassName,
+            activeStyle
+          );
+          column = nextTokenColumn;
         }
       }
-    }
-
-    if (column === 0) {
-      const textNode = nodePool.getTextNode(' ');
-      this.element.appendChild(textNode);
-      this.textNodes.push(textNode);
     }
 
     if (lineText.endsWith(displayLayer.foldCharacter)) {
       // Insert a zero-width non-breaking whitespace, so that LinesYardstick can
       // take the fold-marker::after pseudo-element into account during
       // measurements when such marker is the last character on the line.
-      const textNode = nodePool.getTextNode(ZERO_WIDTH_NBSP_CHARACTER);
-      this.element.appendChild(textNode);
-      this.textNodes.push(textNode);
-    }
-  }
-
-  appendTextNode(openScopeNode, text, activeClassName, activeStyle) {
-    const { nodePool } = this.props;
-
-    if (activeClassName || activeStyle) {
-      const decorationNode = nodePool.getElement(
-        'SPAN',
-        activeClassName,
-        activeStyle
-      );
-      openScopeNode.appendChild(decorationNode);
-      openScopeNode = decorationNode;
+      openScopeNode.appendTextNode(ZERO_WIDTH_NBSP_CHARACTER)
     }
 
-    const textNode = nodePool.getTextNode(text);
-    openScopeNode.appendChild(textNode);
-    this.textNodes.push(textNode);
+    this.rootNode = openScopeNode
   }
 
   buildClassName() {
@@ -4017,7 +3990,7 @@ class LineNumberGutterComponent extends Gtk.Widget {
         + tileOffsetTop
         - scrollTop
 
-      const markup = renderText(style, number)
+      const markup = renderMarkup(style, number)
 
       this.layout.setMarkup(markup)
       snapshot.renderLayout(this.getStyleContext(), x, y, this.layout)
@@ -4285,7 +4258,11 @@ gi.registerClass(HighlightsComponent)
 
 module.exports = TextEditorComponent
 
-function renderText(style, text) {
+function renderMarkup(style, text) {
+  return `${renderOpenTag(style)}${escapeMarkup(text)}</span>`
+}
+
+function renderOpenTag(style) {
   let result = '<span '
   for (let key in style) {
     const value = style[key]
@@ -4298,7 +4275,7 @@ function renderText(style, text) {
       case 'style': result += `style="${value}" `; break
     }
   }
-  result += `>${escapeMarkup(text)}</span>`
+  result += `>`
   return result
 }
 
@@ -4311,6 +4288,59 @@ function escapeMarkup(text) {
     }
     return m
   })
+}
+
+class SpanNode {
+  constructor(className, style) {
+    this.className = className
+    this.style = style
+  }
+
+  appendChild(e) {
+    this.children = this.children || []
+    this.children.push(e)
+    if (typeof e !== 'string')
+      e.parentElement = this
+  }
+
+  appendTextNode(text, className, style) {
+    let node = this
+    if (className || style) {
+      const decorationNode = new SpanNode(className, style)
+      node.appendChild(decorationNode);
+      node = decorationNode;
+    }
+    node.appendChild(text);
+  }
+
+  toMarkup() {
+    if (!this.children)
+      return ''
+    let result = renderOpenTag(getStyle(this.style, this.className))
+    for (let i = 0; i < this.children.length; i++) {
+      const child = this.children[i]
+      if (typeof child === 'string')
+        result += escapeMarkup(child)
+      else
+        result += child.toMarkup()
+    }
+    result += '</span>'
+    return result
+  }
+
+  toString() {
+    if (!this.children)
+      return ''
+    let result = ''
+    for (let i = 0; i < this.children.length; i++) {
+      const child = this.children[i]
+      if (typeof child === 'string')
+        result += child
+      else
+        result += child.toString()
+    }
+    return result
+  }
 }
 
 function ceilToPhysicalPixelBoundary(virtualPixelPosition) {
@@ -4424,22 +4454,27 @@ function parseColor(color) {
   const success = c.parse(color)
   if (!success)
     throw new Error(`GdkRGBA.parse: invalid color: ${color}`) 
-  c.string = color
+  c.original = color
+  c.string = colorToString(c)
   return c
 }
 
 function colorToString(c) {
-  return c.string.startsWith('#') ? c.string :
+  return c.string ??
     ('#'
-    + (c.red * 255).toString(16)
-    + (c.green * 255).toString(16)
-    + (c.blue * 255).toString(16)
+    + Math.round(c.red * 255).toString(16)
+    + Math.round(c.green * 255).toString(16)
+    + Math.round(c.blue * 255).toString(16)
+    + (c.alpha < 1 ? Math.round(c.alpha * 255).toString(16) : '')
     )
 }
 
 function getStyle(baseStyle, classNames) {
   if (!classNames)
     return baseStyle
+
+  if (!baseStyle)
+    baseStyle = {}
 
   const names = classNames.split(' ')
   for (let name of names) {
