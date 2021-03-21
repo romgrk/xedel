@@ -21,7 +21,7 @@ const editorCommands = {
 
 const editorKeymap = {
   name: 'editor',
-  options: { preventPropagation: false },
+  options: { preventPropagation: true },
   keys: {
     'j': 'core:down',
     'k': 'core:up',

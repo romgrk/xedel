@@ -29,6 +29,7 @@ class KeymapManager {
   constructor() {
     workspace.loaded.then(() => {
       this.controller = new Gtk.EventControllerKey()
+      this.controller.setPropagationPhase(Gtk.PropagationPhase.CAPTURE)
       this.controller.on('key-pressed', this.onWindowKeyPressEvent)
       workspace.mainWindow.addController(this.controller)
     })
