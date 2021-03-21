@@ -4,8 +4,8 @@
 
 const workspace = require('../workspace')
 
-const TextEditorComponent = require('./TextEditorComponent')
-const TextEditorModel = require('./TextEditorModel')
+const TextEditorComponent = require('./text-editor-component')
+const TextEditorModel = require('./text-editor')
 const clipboard = require('./clipboard')
 
 require('./keymap')

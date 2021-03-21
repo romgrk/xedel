@@ -5087,7 +5087,7 @@ module.exports = class TextEditorModel {
        *   TextEditorComponent = require('./text-editor-component');
        */
       if (!TextEditorElement)
-        TextEditorElement = require('./TextEditorComponent');
+        TextEditorElement = require('./text-editor-component');
 
       this._element = new TextEditorElement({
         model: this,

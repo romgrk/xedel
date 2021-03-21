@@ -3,7 +3,7 @@
  */
 
 const workspace = require('../workspace')
-const TextEditorComponent = require('./TextEditorComponent')
+const TextEditorComponent = require('./text-editor-component')
 
 
 const callWithModel = fn => element => element.model[fn]()

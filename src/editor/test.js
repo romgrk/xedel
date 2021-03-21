@@ -38,7 +38,7 @@ function main() {
   app.on('activate', () => {
     // const filename = __filename
     // const filename = path.join(__dirname, 'content.js')
-    const filename = path.join(__dirname, 'TextEditorComponent.js')
+    const filename = path.join(__dirname, 'text-editor-component.js')
 
     const mainWindow = workspace.mainWindow = new Gtk.ApplicationWindow(app)
     const editor = TextEditor.create({
