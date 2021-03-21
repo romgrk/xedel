@@ -5104,6 +5104,8 @@ module.exports = class TextEditorModel {
        *   initialScrollLeftColumn: this.initialScrollLeftColumn
        * });
        */
+      // We have merged both.
+      this.component = this._element;
     }
     return this._element;
   }
