@@ -30,7 +30,6 @@ const STYLE_FILE = path.join(__dirname, './style.css')
 
 gi.startLoop()
 Gtk.init([])
-Gdk.init([])
 
 const schemeManager = GtkSource.StyleSchemeManager.getDefault()
 const langManager = GtkSource.LanguageManager.getDefault()
