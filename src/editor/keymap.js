@@ -17,6 +17,11 @@ const editorCommands = {
   'editor:move-to-bottom': callWithModel('moveToBottom'),
   'editor:move-to-next-subword-boundary': callWithModel('moveToNextSubwordBoundary'),
   'editor:move-to-previous-subword-boundary': callWithModel('moveToPreviousSubwordBoundary'),
+  'editor:add-cursor-below': editor => {
+    const cursor = editor.model.getLastCursor()
+    const position = cursor.getScreenPosition()
+    editor.model.addCursorAtScreenPosition([position.row + 1, position.column])
+  },
 }
 
 const editorKeymap = {
@@ -32,6 +37,8 @@ const editorKeymap = {
 
     'w': 'editor:move-to-next-subword-boundary',
     'b': 'editor:move-to-previous-subword-boundary',
+
+    'ctrl-j': 'editor:add-cursor-below',
   }
 }
 
