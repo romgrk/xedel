@@ -28,7 +28,7 @@ workspace.loaded.then(() => {
     }
   }
 
-  workspace.commands.registerCommands('editor-view', editorViewCommands)
+  workspace.commands.add('editor-view', editorViewCommands)
   workspace.keymaps.addKeymap(EditorView, editorViewKeymap)
 })
 

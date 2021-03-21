@@ -12,25 +12,25 @@ class CommandsManager {
     return this.commands[command]
   }
 
-  registerCommands(source, commands) {
-    if (source in this.sources) {
-      console.error(new Error(`Source '${source}' already exists`))
-      return
-    }
+  add(element, commands) {
+    const source = getSource()
 
     for (let command in commands) {
       if (command in this.commands) {
-        console.error(new Error(`Command '${command}' already exists (from source ${source})`))
-        continue
+        console.warn(new Error(`Command '${command}' already exists`))
       }
       const effect = commands[command]
-      this.commands[command] = { source, effect }
+      this.commands[command] = { element, effect, source }
     }
 
     this.sources[source] = commands
+
+    return () => {
+      this.remove(source)
+    }
   }
 
-  unregisterCommands(source) {
+  remove(source) {
     const commands = this.sources[source]
 
     for (let command of commands) {
@@ -42,3 +42,27 @@ class CommandsManager {
 }
 
 module.exports = CommandsManager
+
+
+let nextId = 1
+function getSource() {
+  // https://stackoverflow.com/a/19788257/6303229
+
+  try {
+    const err = new Error()
+
+    Error.prepareStackTrace = (err, stack) => { return stack }
+
+    const currentfile = err.stack.shift().getFileName();
+
+    while (err.stack.length) {
+      const callSite = err.stack.shift()
+      const filename = callSite.getFileName();
+
+      if (filename !== currentfile)
+        return `${filename}:${callSite.getLineNumber()}`
+    }
+  } catch (err) {}
+
+  return String(nextId++);
+}

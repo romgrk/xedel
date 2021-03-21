@@ -24,7 +24,7 @@ const windowKeymap = {
 }
 
 workspace.loaded.then(() => {
-  // workspace.commands.registerCommands('editor', editorCommands)
+  // workspace.commands.add('editor', editorCommands)
   workspace.keymaps.addKeymap(MainWindow, windowKeymap)
 })
 
