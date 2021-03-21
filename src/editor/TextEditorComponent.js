@@ -3070,24 +3070,21 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   getRenderedStartRow() {
-    return 0
-    /* if (this.derivedDimensionsCache.renderedStartRow == null) {
-     *   this.derivedDimensionsCache.renderedStartRow = this.tileStartRowForRow(
-     *     this.getFirstVisibleRow()
-     *   );
-     * }
-     * return this.derivedDimensionsCache.renderedStartRow; */
+    if (this.derivedDimensionsCache.renderedStartRow == null) {
+      this.derivedDimensionsCache.renderedStartRow = this.tileStartRowForRow(
+        this.getFirstVisibleRow()
+      );
+    }
+    return this.derivedDimensionsCache.renderedStartRow; 
   }
 
   getRenderedEndRow() {
     if (this.derivedDimensionsCache.renderedEndRow == null) {
-      /* this.derivedDimensionsCache.renderedEndRow = Math.min(
-       *   this.model.getApproximateScreenLineCount(),
-       *   this.getRenderedStartRow() +
-       *     this.getVisibleTileCount() * this.getRowsPerTile()
-       * ); */
-      this.derivedDimensionsCache.renderedEndRow =
-        this.model.getApproximateScreenLineCount();
+      this.derivedDimensionsCache.renderedEndRow = Math.min(
+        this.model.getApproximateScreenLineCount(),
+        this.getRenderedStartRow() +
+          this.getVisibleTileCount() * this.getRowsPerTile()
+      ); 
     }
 
     return this.derivedDimensionsCache.renderedEndRow;
@@ -4222,6 +4219,7 @@ class HighlightsComponent extends Gtk.DrawingArea {
       measurements
     } = this.props
 
+    const startRow   = element.getRenderedStartRow()
     const scrollTop  = element.getScrollTop()
     const scrollLeft = element.getScrollLeft()
 
@@ -4237,7 +4235,7 @@ class HighlightsComponent extends Gtk.DrawingArea {
         const className = classNames[j]
 
         const x = 0 - scrollLeft
-        const y = i * measurements.lineHeight - scrollTop
+        const y = (startRow + i) * measurements.lineHeight - scrollTop
 
         const style = decorationStyleByClass[className]
 
