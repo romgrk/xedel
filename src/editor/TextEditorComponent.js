@@ -2171,7 +2171,7 @@ class TextEditorComponent extends Gtk.Widget {
       this.cursorsBlinking = false;
       clearInterval(this.cursorBlinkIntervalHandle);
       this.cursorBlinkIntervalHandle = null;
-      this.scheduleUpdate();
+      this.scheduleUpdate(true);
     }
   }
 

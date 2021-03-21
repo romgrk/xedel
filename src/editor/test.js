@@ -10,6 +10,7 @@ const Gdk = gi.require('Gdk', '4.0')
 const GdkX11 = gi.require('GdkX11', '4.0')
 const GLib = gi.require('GLib', '2.0')
 
+const workspace = require('../workspace')
 const TextEditor = require('./index.js')
 
 const grammars = require('../grammars')
@@ -33,7 +34,7 @@ function main() {
     // const filename = path.join(__dirname, 'content.js')
     const filename = path.join(__dirname, 'TextEditorComponent.js')
 
-    const mainWindow = new Gtk.ApplicationWindow(app)
+    const mainWindow = workspace.mainWindow = new Gtk.ApplicationWindow(app)
     const editor = TextEditor.create({
       text: fs.readFileSync(filename).toString(),
       filepath: filename,
