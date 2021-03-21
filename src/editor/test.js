@@ -23,6 +23,12 @@ Gtk.init([])
 
 const styles = `
   /* Style rules here */
+
+  label {
+    color: rgb(145, 145, 144);
+    font-weight: bold;
+    font-size: 14.666666666px
+  }
 `
 
 function main() {
@@ -42,9 +48,12 @@ function main() {
     mainWindow.setChild(editor)
     mainWindow.setDefaultSize(800, 800)
     const styleProvider = new Gtk.CssProvider()
-    const styleContext = mainWindow.getStyleContext()
-    styleContext.addProvider(styleProvider, 9999)
     styleProvider.loadFromData(styles, styles.length)
+    Gtk.StyleContext.addProviderForDisplay(
+      Gdk.Display.getDefault(),
+      styleProvider,
+      9999
+    )
 
     mainWindow.on('destroy', () => process.exit(0))
     mainWindow.on('close-request', () => {

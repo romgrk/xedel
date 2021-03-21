@@ -67,8 +67,11 @@ function main() {
 
   app.on('activate', () => {
     const mainWindow = workspace.mainWindow = new MainWindow(app)
-    const styleContext = mainWindow.getStyleContext()
-    styleContext.addProvider(workspace.cssProvider, 9999)
+    Gtk.StyleContext.addProviderForDisplay(
+      Gdk.Display.getDefault(),
+      workspace.cssProvider,
+      9999
+    )
     mainWindow.on('close-request', () => {
       loop.quit()
       process.exit(0)
