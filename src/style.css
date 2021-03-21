@@ -2,11 +2,6 @@
  * style.css
  */
 
-.sourceview {
-  font-family: "Source Code Pro", "Fantasque Sans Mono", monospace;
-  font-size: 16px;
-}
-
 notebook tab {
   margin: 0;
 }

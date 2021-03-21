@@ -31,9 +31,6 @@ const STYLE_FILE = path.join(__dirname, './style.css')
 gi.startLoop()
 Gtk.init([])
 
-const schemeManager = GtkSource.StyleSchemeManager.getDefault()
-const langManager = GtkSource.LanguageManager.getDefault()
-
 let styleFileWatcher
 
 workspace.set({

@@ -10,10 +10,10 @@ const workspace = require('../workspace')
 module.exports = function openFileDialog(callback) {
   const dialog = new Gtk.FileChooserDialog(
     'Open File', workspace.mainWindow, Gtk.FileChooserAction.OPEN)
-  dialog.addButton(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL)
-  dialog.addButton(Gtk.STOCK_OPEN, Gtk.ResponseType.ACCEPT)
+  dialog.addButton('Cancel', 0)
+  dialog.addButton('Accept', 1)
 
-  if (dialog.run() == Gtk.ResponseType.ACCEPT) {
+  if (dialog.show() == Gtk.ResponseType.ACCEPT) {
     const filename = dialog.getFilename()
     setImmediate(() => callback(filename))
   }
