@@ -48,6 +48,7 @@ let nextId = 1
 function getSource() {
   // https://stackoverflow.com/a/19788257/6303229
 
+  let result = undefined
   const prepare = Error.prepareStackTrace
 
   try {
@@ -61,12 +62,17 @@ function getSource() {
       const callSite = err.stack.shift()
       const filename = callSite.getFileName();
 
-      if (filename !== currentfile)
-        return `${filename}:${callSite.getLineNumber()}`
+      if (filename !== currentfile) {
+        result = `${filename}:${callSite.getLineNumber()}`
+        break
+      }
     }
-  } catch (err) {}
+  } catch (err) {
+  } finally {
+    result = String(nextId++)
+  }
 
   Error.prepareStackTrace = prepare
 
-  return String(nextId++);
+  return result
 }
