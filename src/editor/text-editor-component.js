@@ -16,6 +16,7 @@ const Graphene = gi.require('Graphene', '1.0')
 
 const xedel = require('../globals')
 const Font = require('../utils/font')
+const Color = require('../utils/color')
 const Key = require('../key')
 const Text = require('./text-utils')
 
@@ -39,7 +40,7 @@ const DEFAULT_FONT_SIZE = 16
 // Colors, for debugging
 const RED = Gdk.RGBA.create('#ff0000')
 
-const theme = parseColors({
+const theme = Color.parseObject({
   lineNumber:          '#888888',
   backgroundColor:     '#1e1e1e',
   cursorColor:         '#f0f0f0',
@@ -60,30 +61,33 @@ const theme = parseColors({
  *     [~] text (finish indent guides)
  */
 
-const decorationStyleByClass = {
+const decorationStyleByClass = Color.parseObject({
   'cursor-line': {
-    background: parseColor('rgba(255, 255, 255, 0.15)'),
+    background: 'rgba(255, 255, 255, 0.15)',
   },
   'cursor-line-number': {
-    foreground: parseColor('#599eff'),
+    foreground: '#599eff',
   },
   'diff-added-line': {
-    background: parseColor('rgba(100, 255, 130, 0.2)'),
+    background: 'rgba(100, 255, 130, 0.2)',
   },
   'diff-added-line-number': {
-    foreground: parseColor('#4EC849'),
+    foreground: '#4EC849',
     fontWeight: 'bold',
   },
 
   'highlight': {
     borderWidth: 1,
-    background: parseColor('rgba(255, 255, 255, 0.3)'),
+    background: 'rgba(255, 255, 255, 0.3)',
   },
 
   'invisible-character': {
-    foreground: parseColor('#888888'),
-  }
-}
+    foreground: '#888888',
+  },
+
+  ...doomOne,
+})
+
 
 class TextEditorComponent extends Gtk.Widget {
 
@@ -4270,16 +4274,16 @@ function renderMarkup(style, text) {
 }
 
 function renderOpenTag(style) {
-  let result = '<span '
+  let result = '<span'
   for (let key in style) {
     const value = style[key]
     switch (key) {
-      case 'foreground': result += `foreground="${colorToString(value)}" `; break
-      case 'background': result += `background="${colorToString(value)}" `; break
-      case 'fontWeight': result += `weight="${value}" `; break
-      case 'fontFamily': result += `font_family="${value}" `; break
-      case 'size': result += `size="${value}" `; break
-      case 'style': result += `style="${value}" `; break
+      case 'foreground': result += ` foreground="${Color.toString(value)}"`; break
+      case 'background': result += ` background="${Color.toString(value)}"`; break
+      case 'fontWeight': result += ` weight="${value}"`; break
+      case 'fontFamily': result += ` font_family="${value}"`; break
+      case 'size':       result += ` size="${value}"`; break
+      case 'style':      result += ` style="${value}"`; break
     }
   }
   result += `>`
@@ -4448,32 +4452,6 @@ function roundToPhysicalPixelBoundary(virtualPixelPosition) {
    *   Math.round(virtualPixelPosition / virtualPixelsPerPhysicalPixel) *
    *   virtualPixelsPerPhysicalPixel
    * ); */
-}
-
-function parseColors(theme) {
-  return Object.fromEntries(
-    Object.entries(theme).map(([key, value]) =>
-      [key, typeof value === 'string' ? parseColor(value) : value]))
-}
-
-function parseColor(color) {
-  const c = new Gdk.RGBA()
-  const success = c.parse(color)
-  if (!success)
-    throw new Error(`GdkRGBA.parse: invalid color: ${color}`) 
-  c.original = color
-  c.string = colorToString(c)
-  return c
-}
-
-function colorToString(c) {
-  return c.string ??
-    ('#'
-    + Math.round(c.red * 255).toString(16)
-    + Math.round(c.green * 255).toString(16)
-    + Math.round(c.blue * 255).toString(16)
-    + (c.alpha < 1 ? Math.round(c.alpha * 255).toString(16) : '')
-    )
 }
 
 function getStyle(baseStyle, classNames) {
