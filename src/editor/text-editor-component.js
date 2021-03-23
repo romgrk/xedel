@@ -3911,6 +3911,8 @@ class LineNumberGutterComponent extends Gtk.Widget {
     const rowsPerTile = rootComponent.getRowsPerTile();
     const tileWidth = rootComponent.getScrollWidth();
 
+    snapshot.pushClip(Graphene.Rect.create(0, 0, this.getAllocatedWidth(), this.getAllocatedHeight()))
+
     for (let i = 0; i < rootComponent.renderedTileStartRows.length; i++) {
       const tileStartRow = rootComponent.renderedTileStartRows[i];
       const tileEndRow = Math.min(endRow, tileStartRow + rowsPerTile);
@@ -3941,6 +3943,8 @@ class LineNumberGutterComponent extends Gtk.Widget {
 
       this.snapshotTile(snapshot, props)
     }
+
+    snapshot.pop()
   }
 
   snapshotTile(snapshot, tile) {
