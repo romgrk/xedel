@@ -14,7 +14,7 @@ this is to inspire people to help me make this come true.
 
 <p align="center">
   <img
-    src="./static/demo.png"
+    src="./static/demo.gif"
     style="width: 500px; height: auto"
   />
 </p>
