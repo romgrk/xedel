@@ -1,240 +1,83 @@
-/*
- * TextEditorDraw.js
- */
+/* global ResizeObserver */
 
-const fs = require('fs')
-const path = require('path')
-const isEqual = require('lodash.isequal')
-const CSON = require('season')
+const etch = require('etch');
+const { Point, Range } = require('text-buffer');
 const LineTopIndex = require('line-top-index');
-const { CompositeDisposable, Disposable, Emitter } = require('event-kit');
-const gi = require('node-gtk')
-const Gtk = gi.require('Gtk', '4.0')
-const Gdk = gi.require('Gdk', '4.0')
-const Cairo = gi.require('cairo')
-const Pango = gi.require('Pango')
-const PangoCairo = gi.require('PangoCairo')
-const Graphene = gi.require('Graphene', '1.0')
-
-const xedel = require('../globals')
-const Font = require('../utils/font')
-const Color = require('../utils/color')
-const Key = require('../key')
-const Text = require('./text-utils')
-
+const TextEditor = require('./text-editor');
 const { isPairedCharacter } = require('./text-utils');
-const TextEditor = require('./text-editor')
-const TextBuffer = require('./text-buffer')
+const electron = require('electron');
+const clipboard = electron.clipboard;
+const $ = etch.dom;
 
-const TreeSitterGrammar = require('./tree-sitter-grammar')
-const TreeSitterLanguageMode = require('./tree-sitter-language-mode')
-const doomOne = require('./theme-doom-one')
+let TextEditorElement;
 
 const DEFAULT_ROWS_PER_TILE = 6;
-
-const SPACE_CHARACTER = ' ';
+const NORMAL_WIDTH_CHARACTER = 'x';
+const DOUBLE_WIDTH_CHARACTER = '我';
+const HALF_WIDTH_CHARACTER = 'ﾊ';
+const KOREAN_CHARACTER = '세';
+const NBSP_CHARACTER = '\u00a0';
 const ZERO_WIDTH_NBSP_CHARACTER = '\ufeff';
-
 const MOUSE_DRAG_AUTOSCROLL_MARGIN = 40;
 const CURSOR_BLINK_RESUME_DELAY = 300;
-const CURSOR_BLINK_PERIOD = 1400;
+const CURSOR_BLINK_PERIOD = 800;
 
-// const DEFAULT_FONT_FAMILY = 'SauceCodePro Nerd Font'
-const DEFAULT_FONT_FAMILY = 'DejaVu Sans Mono for Powerline'
-const DEFAULT_FONT_SIZE = 16
+function scaleMouseDragAutoscrollDelta(delta) {
+  return Math.pow(delta / 3, 3) / 280;
+}
 
-// Colors, for debugging
-const RED = Gdk.RGBA.create('#ff0000')
-
-const theme = Color.parseObject({
-  lineNumber:          '#888888',
-  backgroundColor:     '#1e1e1e',
-  cursorColor:         '#f0f0f0',
-  cursorColorInactive: 'rgba(255, 255, 255, 0.6)',
-  cursorLineColor:     'rgba(255, 255, 255, 0.1)',
-})
-
-/*
- * Tasks:
- * [ ] decorations
- *     [x] lines
- *     [x] highlights
- *     [x] lineNumbers
- *     [x] cursors
- *     [ ] overlays
- *     [ ] customGutter
- *     [x] blocks
- *     [~] text (finish indent guides)
- */
-
-const decorationStyleByClass = Color.parseObject({
-  'cursor-line': {
-    background: 'rgba(255, 255, 255, 0.15)',
-  },
-  'cursor-line-number': {
-    foreground: '#599eff',
-  },
-  'diff-added-line': {
-    background: 'rgba(100, 255, 130, 0.2)',
-  },
-  'diff-added-line-number': {
-    foreground: '#4EC849',
-    fontWeight: 'bold',
-  },
-
-  'highlight': {
-    borderWidth: 1,
-    background: 'rgba(255, 255, 255, 0.3)',
-  },
-
-  'invisible-character': {
-    foreground: '#888888',
-  },
-
-  ...doomOne,
-})
-
-
-class TextEditorComponent extends Gtk.Widget {
-
-  theme = theme
-
-  /**
-   * @type {TextEditor}
-   */
-  model = null
-
-  /**
-   * @param {object} [options]
-   * @param {string} options.text
-   * @param {string} options.filepath
-   * @param {string} options.buffer
-   */
-  static create({ text = '', filepath, buffer: existingBuffer } = {}) {
-    let buffer = existingBuffer
-    if (!buffer) {
-      buffer = new TextBuffer({ text })
-      if (filepath)
-        buffer.setPath(filepath)
-    }
-    const model = new TextEditor({
-      buffer,
-      softWrapped: true,
-      showLineNumbers: true,
-      showIndentGuide: true,
-      invisibles: {
-        tab: '',
-        cr: false,
-        eol: '$',
-        space: '·'
-      }
-    })
-    model.setVerticalScrollMargin(0)
-    model.setHorizontalScrollMargin(2)
-
-    // const lineDecorationOptions = { type: 'line', class: 'diff-added-line' }
-    // model.decorateMarker(model.markBufferRange([[6, 0], [6, "const path = require('path')".length]]), lineDecorationOptions)
-    // model.decorateMarker(model.markBufferRange([[7, 0], [7, "const isEqual = require('lodash.isequal')".length]]), lineDecorationOptions)
-
-    // const gutterDecorationOptions = { type: 'gutter', class: 'diff-added-line-number' }
-    // model.decorateMarker(model.markBufferRange([[6, 0], [6, 1]]), gutterDecorationOptions)
-    // model.decorateMarker(model.markBufferRange([[7, 0], [7, 1]]), gutterDecorationOptions)
-
-    model.scanInBufferRange(/require/g, [[0, 0], [22, 0]], ({ range }) => {
-      model.decorateMarker(
-        model.markBufferRange(range),
-        { type: 'highlight', class: 'highlight' }
-      )
-    })
-
-    const image = Gtk.Image.newFromFile(path.join(__dirname, '../../static/demo.png'))
-    image.setSizeRequest(200, 200)
-    model.decorateMarker(
-      model.markScreenPosition([0, 0]),
-      { type: 'block', position: 'after', item: image })
-
-    const label = new Gtk.Label({ label: 'This is a test' })
-    label.addCssClass('dim-label title')
-    model.decorateMarker(
-      model.markScreenPosition([6, 0]),
-      { type: 'block', position: 'before', item: label })
-
-    // model.decorateMarker(
-    //   model.markScreenPosition([9, 0]),
-    //   { type: 'block', position: 'before', item: Gtk.Button.newFromIconName('starred') })
-
-    module.paths.push(process.env.NODE_PATH)
-    const jsGrammarPath = require.resolve('language-javascript/grammars/tree-sitter-javascript.cson')
-    const params = CSON.parse(fs.readFileSync(jsGrammarPath))
-    const grammar = new TreeSitterGrammar(xedel.grammars, jsGrammarPath, params)
-
-    const languageMode = new TreeSitterLanguageMode({
-      buffer,
-      grammar,
-      grammars: xedel.grammars,
-      config: xedel.config,
-    });
-    buffer.setLanguageMode(languageMode);
-
-    return model.getElement()
+module.exports = class TextEditorComponent {
+  static setScheduler(scheduler) {
+    etch.setScheduler(scheduler);
   }
 
-  /**
-   * @param {Object} props
-   * @param {TextEditor} props.model
-   */
+  static getScheduler() {
+    return etch.getScheduler();
+  }
+
+  static didUpdateStyles() {
+    if (this.attachedComponents) {
+      this.attachedComponents.forEach(component => {
+        component.didUpdateStyles();
+      });
+    }
+  }
+
+  static didUpdateScrollbarStyles() {
+    if (this.attachedComponents) {
+      this.attachedComponents.forEach(component => {
+        component.didUpdateScrollbarStyles();
+      });
+    }
+  }
+
   constructor(props) {
-    super()
+    this.props = props;
 
-    this.model = props.model
+    if (!props.model) {
+      props.model = new TextEditor({
+        mini: props.mini,
+        readOnly: props.readOnly
+      });
+    }
+    this.props.model.component = this;
 
-    this.vexpand = true
-    this.hexpand = true
-    this.focusable = true
-    this.focusOnClick = true
+    if (props.element) {
+      this.element = props.element;
+    } else {
+      if (!TextEditorElement)
+        TextEditorElement = require('./text-editor-element');
+      this.element = new TextEditorElement();
+    }
+    this.element.initialize(this);
+    this.virtualNode = $('atom-text-editor');
+    this.virtualNode.domNode = this.element;
+    this.refs = {};
 
-    this.backgroundArea = new BackgroundComponent({ element: this })
-    this.highlightsArea = new HighlightsComponent({ element: this })
-    this.cursorArea     = new CursorsComponent({ element: this })
-
-    this.lineNumberGutterArea =
-      new LineNumberGutterComponent({
-        rootComponent: this,
-        model: this.model,
-        name: 'line-number',
-        measurements: {},
-      })
-
-    this.gutterContainer = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0)
-    this.gutterContainer.append(this.lineNumberGutterArea)
-
-    this.textContainer = new Gtk.Fixed()
-    this.textContainer.focusable = true
-    this.textContainer.focusOnClick = true
-
-    this.textWindow = new Gtk.ScrolledWindow()
-    this.textWindow.hexpand = true
-    this.textWindow.vexpand = true
-    this.textWindow.setChild(this.textContainer)
-
-    this.textWindowContainer = new Gtk.Fixed()
-    this.textWindowContainer.put(this.backgroundArea, 0, 0)
-    this.textWindowContainer.put(this.highlightsArea, 0, 0)
-    this.textWindowContainer.put(this.textWindow,     0, 0)
-    this.textWindowContainer.put(this.cursorArea,     0, 0)
-
-    this.box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0)
-    this.box.append(this.gutterContainer)
-    this.box.append(this.textWindowContainer)
-    this.box.insertBefore(this)
-
-
-    /*
-     * Event handlers
-     */
-
-    this.didBlur = this.didBlur.bind(this);
-    this.didFocus = this.didFocus.bind(this);
+    this.updateSync = this.updateSync.bind(this);
+    this.didBlurHiddenInput = this.didBlurHiddenInput.bind(this);
+    this.didFocusHiddenInput = this.didFocusHiddenInput.bind(this);
+    this.didPaste = this.didPaste.bind(this);
     this.didTextInput = this.didTextInput.bind(this);
     this.didKeydown = this.didKeydown.bind(this);
     this.didKeyup = this.didKeyup.bind(this);
@@ -243,46 +86,15 @@ class TextEditorComponent extends Gtk.Widget {
     this.didCompositionUpdate = this.didCompositionUpdate.bind(this);
     this.didCompositionEnd = this.didCompositionEnd.bind(this);
 
-    this.didChange = this.didChange.bind(this);
-    this.didChangeCursorPosition = this.didChangeCursorPosition.bind(this);
+    this.updatedSynchronously = this.props.updatedSynchronously;
     this.didScrollDummyScrollbar = this.didScrollDummyScrollbar.bind(this);
     this.didMouseDownOnContent = this.didMouseDownOnContent.bind(this);
     this.debouncedResumeCursorBlinking = debounce(
       this.resumeCursorBlinking.bind(this),
-      CURSOR_BLINK_RESUME_DELAY
+      this.props.cursorBlinkResumeDelay || CURSOR_BLINK_RESUME_DELAY
     );
-
-    this.didResize = this.didResize.bind(this);
-    this.didSizeAllocate = this.didSizeAllocate.bind(this);
-
-    this.keyController = new Gtk.EventControllerKey()
-    this.keyController.on('key-pressed', this.onKeyPressEvent)
-    this.addController(this.keyController)
-
-    this.focusController = new Gtk.EventControllerFocus()
-    this.focusController.on('enter', this.didFocus)
-    this.focusController.on('leave', this.didBlur)
-    this.addController(this.focusController)
-
-    // TODO: implement these
-    // this.textContainer.on('button-press-event', this.didMouseDownOnContent)
-
-    this.textWindow.getVadjustment().on('value-changed', this.didScrollDummyScrollbar)
-    this.textWindow.getHadjustment().on('value-changed', this.didScrollDummyScrollbar)
-
-
-    this.emitter = new Emitter();
-    this.disposables = new CompositeDisposable();
-    this.disposables.add(
-      this.model.onDidChangeCursorPosition(this.didChangeCursorPosition))
-    this.disposables.add(
-      this.model.onDidChange(this.didChange))
-
-    /*
-     * Class members
-     */
-
     this.lineTopIndex = new LineTopIndex();
+    this.lineNodesPool = new NodePool();
     this.updateScheduled = false;
     this.suppressUpdates = false;
     this.hasInitialMeasurements = false;
@@ -293,20 +105,15 @@ class TextEditorComponent extends Gtk.Widget {
       halfWidthCharacterWidth: 0,
       koreanCharacterWidth: 0,
       gutterContainerWidth: 0,
-      gutterSurfaceHeight: 0,
       lineNumberGutterWidth: 0,
       clientContainerHeight: 0,
       clientContainerWidth: 0,
-      textContainerWidth: 0,
-      textContainerHeight: 0,
       verticalScrollbarWidth: 0,
       horizontalScrollbarHeight: 0,
-      horizontalPadding: 10,
-      verticalPadding: 0,
       longestLineWidth: 0
     };
     this.derivedDimensionsCache = {};
-    this._visible = false;
+    this.visible = false;
     this.cursorsBlinking = false;
     this.cursorsBlinkedOff = false;
     this.nextUpdateOnlyBlinksCursors = null;
@@ -316,9 +123,12 @@ class TextEditorComponent extends Gtk.Widget {
     this.horizontalPixelPositionsByScreenLineId = new Map(); // Values are maps from column to horizontal pixel positions
     this.blockDecorationsToMeasure = new Set();
     this.blockDecorationsByElement = new WeakMap();
-    // this.blockDecorationSentinel = document.createElement('div');
-    // this.blockDecorationSentinel.style.height = '1px';
+    this.blockDecorationSentinel = document.createElement('div');
+    this.blockDecorationSentinel.style.height = '1px';
     this.heightsByBlockDecoration = new WeakMap();
+    this.blockDecorationResizeObserver = new ResizeObserver(
+      this.didResizeBlockDecorations.bind(this)
+    );
     this.lineComponentsByScreenLineId = new Map();
     this.overlayComponents = new Set();
     this.shouldRenderDummyScrollbars = true;
@@ -334,14 +144,12 @@ class TextEditorComponent extends Gtk.Widget {
     this.lastKeydownBeforeKeypress = null;
     this.accentedCharacterMenuIsOpen = false;
     this.remeasureGutterDimensions = false;
-    this.guttersToRender = [this.model.getLineNumberGutter()];
+    this.guttersToRender = [this.props.model.getLineNumberGutter()];
     this.guttersVisibility = [this.guttersToRender[0].visible];
     this.idsByTileStartRow = new Map();
-    this.tilesById = new Map()
     this.nextTileId = 0;
     this.renderedTileStartRows = [];
-    this.showLineNumbers = this.model.doesShowLineNumbers();
-
+    this.showLineNumbers = this.props.model.doesShowLineNumbers();
     this.lineNumbersToRender = {
       maxDigits: 2,
       bufferRows: [],
@@ -366,264 +174,24 @@ class TextEditorComponent extends Gtk.Widget {
     };
     this.textDecorationsByMarker = new Map();
     this.textDecorationBoundaries = [];
-    this.pendingScrollTopRow = 0;
-    this.pendingScrollLeftColumn = 0;
+    this.pendingScrollTopRow = this.props.initialScrollTopRow;
+    this.pendingScrollLeftColumn = this.props.initialScrollLeftColumn;
+    this.tabIndex =
+      this.props.element && this.props.element.tabIndex
+        ? this.props.element.tabIndex
+        : -1;
 
     this.measuredContent = false;
     this.queryGuttersToRender();
     this.queryMaxLineNumberDigits();
     this.observeBlockDecorations();
-    // this.updateClassList();
-    // etch.updateSync(this);
-    // this.render()
+    this.updateClassList();
+    etch.updateSync(this);
   }
-
-  destroy() {
-    if (!this.alive) return;
-    this.alive = false;
-    this.disposables.dispose();
-    this.model.destroy()
-  }
-
-  get buffer() {
-    return this.model?.getBuffer()
-  }
-
-  setBuffer(buffer) {
-    this.model.setBuffer(buffer)
-  }
-
-  getBuffer() {
-    return this.model.getBuffer()
-  }
-
-  setModel(model) {
-    this.model = model
-  }
-
-  getModel() {
-    return this.model
-  }
-
-  hasFocus() {
-    return this.textContainer.isFocus()
-  }
-
-  /*
-   * Virtual functions
-   */
-
-  sizeAllocate(width, height, baseline) {
-    /* ignore return value, this is just so that GTK doesn't complain */
-    this.box.measure(Gtk.Orientation.HORIZONTAL, width)
-    this.box.sizeAllocate(
-      new Gdk.Rectangle({ x: 0, y: 0, width, height }),
-      baseline
-    )
-
-    setImmediate(() => {
-      // TODO: clean this when node-gtk handles setImmediate correctly
-      try {
-        if (this.attached)
-          this.didSizeAllocate()
-        else
-          this.didAttach()
-      } catch (err) {
-        console.error(err)
-        process.exit(1)
-      }
-    })
-  }
-
-  /*
-   * Event handlers
-   */
-
-  onKeyPressEvent = (keyval, keycode, state) => {
-    // TODO: clean this
-    console.log(keyval, Gdk.keyvalName(keyval), keycode, state)
-    switch (keyval) {
-      case Gdk.KEY_g: this.model.moveToTop(); break
-      case Gdk.KEY_G: this.model.moveToBottom(); break
-      case Gdk.KEY_j: this.model.moveDown(); break
-      case Gdk.KEY_k: this.model.moveUp(); break
-      case Gdk.KEY_h: this.model.moveLeft(); break
-      case Gdk.KEY_l: this.model.moveRight(); break
-      case Gdk.KEY_BackSpace: this.model.backspace(); break
-      case Gdk.KEY_Return: this.model.insertText('\n'); break
-      default: {
-        const key = Key.fromArgs(keyval, keycode, state)
-        if (key.string && Text.isPrintable(key.string.charCodeAt(0))) {
-          console.log('inserting', JSON.stringify(key.string))
-          this.model.insertText(key.string)
-        }
-      }
-    }
-    this.pauseCursorBlinking()
-    return false
-  }
-
-  /*
-   * Rendering
-   */
-
-  render() {
-    this.renderGutter()
-    this.renderText()
-  }
-
-  renderGutter() {
-    this.gutterContainer.setSizeRequest(
-      this.measurements.gutterContainerWidth,
-      this.getAllocatedHeight()
-    )
-
-    this.lineNumberGutterArea.setSizeRequest(
-      this.measurements.lineNumberGutterWidth,
-      this.getAllocatedHeight()
-    )
-    this.lineNumberGutterArea.update({
-      rootComponent: this,
-      model: this.model,
-      measurements: this.measurements,
-      font: this.font,
-      // onMouseDown: gutter.onMouseDown,
-      // onMouseMove: gutter.onMouseMove,
-      // startRow: renderedStartRow,
-      // endRow: renderedEndRow,
-      // rowsPerTile: rowsPerTile,
-      // maxDigits: maxDigits,
-      // keys: keys,
-      // bufferRows: bufferRows,
-      // screenRows: screenRows,
-      // softWrappedFlags: softWrappedFlags,
-      // foldableFlags: foldableFlags,
-      // decorations: decorationsToRender.lineNumbers.get(gutter.name) || [],
-      // blockDecorations: decorationsToRender.blocks,
-      didMeasureVisibleBlockDecoration: this.didMeasureVisibleBlockDecoration,
-      // height: scrollHeight,
-      // width,
-      // lineHeight: lineHeight,
-      // showLineNumbers
-    })
-  }
-
-  renderText() {
-    const {
-      textContainerWidth: width,
-      textContainerHeight: height,
-    } = this.measurements
-
-    this.backgroundArea.update({ width, height })
-    this.cursorArea.update({ width, height })
-
-    this.textWindow.setSizeRequest(width, height)
-    this.textContainer.setSizeRequest(
-      this.getScrollWidth(),
-      this.getScrollHeight()
-    )
-
-    this.renderHighlightDecorations()
-    this.renderLineTiles()
-    this.queueDraw()
-  }
-
-  renderLineTiles() {
-    if (!this.hasInitialMeasurements)
-      return
-
-    // TODO: renderHighlightDecorations
-
-    const { lineComponentsByScreenLineId } = this;
-
-    const startRow = this.getRenderedStartRow();
-    const endRow = this.getRenderedEndRow();
-    const rowsPerTile = this.getRowsPerTile();
-    const tileWidth = this.getScrollWidth();
-
-    for (let i = 0; i < this.renderedTileStartRows.length; i++) {
-      const tileStartRow = this.renderedTileStartRows[i];
-      const tileEndRow = Math.min(endRow, tileStartRow + rowsPerTile);
-      const tileHeight =
-        this.pixelPositionBeforeBlocksForRow(tileEndRow) -
-        this.pixelPositionBeforeBlocksForRow(tileStartRow);
-      const top = this.pixelPositionBeforeBlocksForRow(tileStartRow)
-
-
-      const tileId = this.idsByTileStartRow.get(tileStartRow)
-      let tile
-      const props = {
-        key: tileId,
-        element: this,
-        parent: this.textContainer,
-        measuredContent: this.measuredContent,
-        height: tileHeight,
-        width: tileWidth,
-        top: top,
-        font: this.font,
-        measurements: this.measurements,
-        renderedStartRow: startRow,
-        tileStartRow,
-        tileEndRow,
-        screenLines: this.renderedScreenLines.slice(
-          tileStartRow - startRow,
-          tileEndRow - startRow
-        ),
-        lineDecorations: this.decorationsToRender.lines.slice(
-          tileStartRow - startRow,
-          tileEndRow - startRow
-        ),
-        textDecorations: this.decorationsToRender.text.slice(
-          tileStartRow - startRow,
-          tileEndRow - startRow
-        ),
-        highlightDecorations: this.decorationsToRender.highlights.slice(
-          tileStartRow - startRow,
-          tileEndRow - startRow
-        ),
-        blockDecorations: this.decorationsToRender.blocks.get(tileStartRow),
-        displayLayer: this.model.displayLayer,
-        lineComponentsByScreenLineId
-      }
-
-      if (this.tilesById.has(tileId)) {
-        tile = this.tilesById.get(tileId)
-        tile.update(props)
-      }
-      else {
-        tile = new LinesTileComponent(props)
-        this.tilesById.set(tileId, tile)
-      }
-    }
-  }
-
-  renderHighlightDecorations() {
-    const { measurements } = this
-    const {
-      textContainerWidth: width,
-      textContainerHeight: height,
-    } = measurements
-    const lineDecorations = this.decorationsToRender.lines
-    const highlightDecorations = this.decorationsToRender.highlights
-
-    this.highlightsArea.update({
-      width,
-      height,
-      lineDecorations,
-      highlightDecorations,
-      measurements,
-    })
-  }
-
-  etchUpdateSync() {
-    this.queueDraw()
-  }
-
-  /* copied functions below */
 
   update(props) {
-    if (props.model !== this.model) {
-      this.model.component = null;
+    if (props.model !== this.props.model) {
+      this.props.model.component = null;
       props.model.component = this;
     }
     this.props = props;
@@ -632,7 +200,7 @@ class TextEditorComponent extends Gtk.Widget {
 
   pixelPositionForScreenPosition({ row, column }) {
     const top = this.pixelPositionAfterBlocksForRow(row);
-    let left = this.pixelLeftForRowAndColumn(row, column);
+    let left = column === 0 ? 0 : this.pixelLeftForRowAndColumn(row, column);
     if (left == null) {
       this.requestHorizontalMeasurement(row, column);
       this.updateSync();
@@ -642,19 +210,26 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   scheduleUpdate(nextUpdateOnlyBlinksCursors = false) {
-    if (!this._visible) return;
+    if (!this.visible) return;
     if (this.suppressUpdates) return;
 
     this.nextUpdateOnlyBlinksCursors =
       this.nextUpdateOnlyBlinksCursors !== false &&
       nextUpdateOnlyBlinksCursors === true;
 
-    this.updateSync();
+    if (this.updatedSynchronously) {
+      this.updateSync();
+    } else if (!this.updateScheduled) {
+      this.updateScheduled = true;
+      etch.getScheduler().updateDocument(() => {
+        if (this.updateScheduled) this.updateSync(true);
+      });
+    }
   }
 
   updateSync(useScheduler = false) {
     // Don't proceed if we know we are not visible
-    if (!this._visible) {
+    if (!this.visible) {
       this.updateScheduled = false;
       return;
     }
@@ -673,8 +248,8 @@ class TextEditorComponent extends Gtk.Widget {
 
     const onlyBlinkingCursors = this.nextUpdateOnlyBlinksCursors;
     this.nextUpdateOnlyBlinksCursors = null;
-    if (/* useScheduler && */ onlyBlinkingCursors) {
-      this.cursorArea.queueDraw()
+    if (useScheduler && onlyBlinkingCursors) {
+      this.refs.cursorsAndInput.updateCursorBlinkSync(this.cursorsBlinkedOff);
       if (this.resolveNextUpdatePromise) this.resolveNextUpdatePromise();
       this.updateScheduled = false;
       return;
@@ -702,13 +277,25 @@ class TextEditorComponent extends Gtk.Widget {
     this.measureBlockDecorations();
 
     this.updateSyncBeforeMeasuringContent();
-    this.render()
-
-    const restartFrame = this.measureContentDuringUpdateSync();
-    if (restartFrame) {
-      this.updateSync(false);
+    if (useScheduler === true) {
+      const scheduler = etch.getScheduler();
+      scheduler.readDocument(() => {
+        const restartFrame = this.measureContentDuringUpdateSync();
+        scheduler.updateDocument(() => {
+          if (restartFrame) {
+            this.updateSync(true);
+          } else {
+            this.updateSyncAfterMeasuringContent();
+          }
+        });
+      });
     } else {
-      this.updateSyncAfterMeasuringContent();
+      const restartFrame = this.measureContentDuringUpdateSync();
+      if (restartFrame) {
+        this.updateSync(false);
+      } else {
+        this.updateSyncAfterMeasuringContent();
+      }
     }
 
     this.updateScheduled = false;
@@ -718,8 +305,8 @@ class TextEditorComponent extends Gtk.Widget {
     if (this.remeasureAllBlockDecorations) {
       this.remeasureAllBlockDecorations = false;
 
-      const decorations = this.model.getDecorations();
-      for (let i = 0; i < decorations.length; i++) {
+      const decorations = this.props.model.getDecorations();
+      for (var i = 0; i < decorations.length; i++) {
         const decoration = decorations[i];
         const marker = decoration.getMarker();
         if (marker.isValid() && decoration.getProperties().type === 'block') {
@@ -735,15 +322,62 @@ class TextEditorComponent extends Gtk.Widget {
     }
 
     if (this.blockDecorationsToMeasure.size > 0) {
+      const { blockDecorationMeasurementArea } = this.refs;
+      const sentinelElements = new Set();
+
+      blockDecorationMeasurementArea.appendChild(document.createElement('div'));
       this.blockDecorationsToMeasure.forEach(decoration => {
         const { item } = decoration.getProperties();
-        const [_, natural] = item.getPreferredSize()
-        const height = natural.height
+        const decorationElement = TextEditor.viewForItem(item);
+        if (document.contains(decorationElement)) {
+          const parentElement = decorationElement.parentElement;
+
+          if (!decorationElement.previousSibling) {
+            const sentinelElement = this.blockDecorationSentinel.cloneNode();
+            parentElement.insertBefore(sentinelElement, decorationElement);
+            sentinelElements.add(sentinelElement);
+          }
+
+          if (!decorationElement.nextSibling) {
+            const sentinelElement = this.blockDecorationSentinel.cloneNode();
+            parentElement.appendChild(sentinelElement);
+            sentinelElements.add(sentinelElement);
+          }
+
+          this.didMeasureVisibleBlockDecoration = true;
+        } else {
+          blockDecorationMeasurementArea.appendChild(
+            this.blockDecorationSentinel.cloneNode()
+          );
+          blockDecorationMeasurementArea.appendChild(decorationElement);
+          blockDecorationMeasurementArea.appendChild(
+            this.blockDecorationSentinel.cloneNode()
+          );
+        }
+      });
+
+      if (this.resizeBlockDecorationMeasurementsArea) {
+        this.resizeBlockDecorationMeasurementsArea = false;
+        this.refs.blockDecorationMeasurementArea.style.width =
+          this.getScrollWidth() + 'px';
+      }
+
+      this.blockDecorationsToMeasure.forEach(decoration => {
+        const { item } = decoration.getProperties();
+        const decorationElement = TextEditor.viewForItem(item);
+        const { previousSibling, nextSibling } = decorationElement;
+        const height =
+          nextSibling.getBoundingClientRect().top -
+          previousSibling.getBoundingClientRect().bottom;
         this.heightsByBlockDecoration.set(decoration, height);
         this.lineTopIndex.resizeBlock(decoration, height);
       });
+
+      sentinelElements.forEach(sentinelElement => sentinelElement.remove());
+      while (blockDecorationMeasurementArea.firstChild) {
+        blockDecorationMeasurementArea.firstChild.remove();
+      }
       this.blockDecorationsToMeasure.clear();
-      this.didMeasureVisibleBlockDecoration = true;
     }
   }
 
@@ -772,11 +406,8 @@ class TextEditorComponent extends Gtk.Widget {
     this.queryDecorationsToRender();
     this.queryExtraScreenLinesToRender();
     this.shouldRenderDummyScrollbars = !this.remeasureScrollbars;
-
-    this.etchUpdateSync()
-    // this.etchUpdateSync();
-    // this.updateClassList();
-
+    etch.updateSync(this);
+    this.updateClassList();
     this.shouldRenderDummyScrollbars = true;
     this.didMeasureVisibleBlockDecoration = false;
   }
@@ -819,7 +450,7 @@ class TextEditorComponent extends Gtk.Widget {
 
   updateSyncAfterMeasuringContent() {
     this.derivedDimensionsCache = {};
-    this.etchUpdateSync();
+    etch.updateSync(this);
 
     this.currentFrameLineNumberGutterProps = null;
     this.scrollTopPending = false;
@@ -835,17 +466,443 @@ class TextEditorComponent extends Gtk.Widget {
 
       this.measureScrollbarDimensions();
       this.remeasureScrollbars = false;
-      this.etchUpdateSync();
+      etch.updateSync(this);
     }
 
     this.derivedDimensionsCache = {};
     if (this.resolveNextUpdatePromise) this.resolveNextUpdatePromise();
   }
 
-  /* render functions */
+  render() {
+    const { model } = this.props;
+    const style = {};
+
+    if (!model.getAutoHeight() && !model.getAutoWidth()) {
+      style.contain = 'size';
+    }
+
+    let clientContainerHeight = '100%';
+    let clientContainerWidth = '100%';
+    if (this.hasInitialMeasurements) {
+      if (model.getAutoHeight()) {
+        clientContainerHeight =
+          this.getContentHeight() + this.getHorizontalScrollbarHeight() + 'px';
+      }
+      if (model.getAutoWidth()) {
+        style.width = 'min-content';
+        clientContainerWidth =
+          this.getGutterContainerWidth() +
+          this.getContentWidth() +
+          this.getVerticalScrollbarWidth() +
+          'px';
+      } else {
+        style.width = this.element.style.width;
+      }
+    }
+
+    let attributes = {};
+    if (model.isMini()) {
+      attributes.mini = '';
+    }
+
+    if (model.isReadOnly()) {
+      attributes.readonly = '';
+    }
+
+    const dataset = { encoding: model.getEncoding() };
+    const grammar = model.getGrammar();
+    if (grammar && grammar.scopeName) {
+      dataset.grammar = grammar.scopeName.replace(/\./g, ' ');
+    }
+
+    return $(
+      'atom-text-editor',
+      {
+        // See this.updateClassList() for construction of the class name
+        style,
+        attributes,
+        dataset,
+        tabIndex: -1,
+        on: { mousewheel: this.didMouseWheel }
+      },
+      $.div(
+        {
+          ref: 'clientContainer',
+          style: {
+            position: 'relative',
+            contain: 'strict',
+            overflow: 'hidden',
+            backgroundColor: 'inherit',
+            height: clientContainerHeight,
+            width: clientContainerWidth
+          }
+        },
+        this.renderGutterContainer(),
+        this.renderScrollContainer()
+      ),
+      this.renderOverlayDecorations()
+    );
+  }
+
+  renderGutterContainer() {
+    if (this.props.model.isMini()) {
+      return null;
+    } else {
+      return $(GutterContainerComponent, {
+        ref: 'gutterContainer',
+        key: 'gutterContainer',
+        rootComponent: this,
+        hasInitialMeasurements: this.hasInitialMeasurements,
+        measuredContent: this.measuredContent,
+        scrollTop: this.getScrollTop(),
+        scrollHeight: this.getScrollHeight(),
+        lineNumberGutterWidth: this.getLineNumberGutterWidth(),
+        lineHeight: this.getLineHeight(),
+        renderedStartRow: this.getRenderedStartRow(),
+        renderedEndRow: this.getRenderedEndRow(),
+        rowsPerTile: this.getRowsPerTile(),
+        guttersToRender: this.guttersToRender,
+        decorationsToRender: this.decorationsToRender,
+        isLineNumberGutterVisible: this.props.model.isLineNumberGutterVisible(),
+        showLineNumbers: this.showLineNumbers,
+        lineNumbersToRender: this.lineNumbersToRender,
+        didMeasureVisibleBlockDecoration: this.didMeasureVisibleBlockDecoration
+      });
+    }
+  }
+
+  renderScrollContainer() {
+    const style = {
+      position: 'absolute',
+      contain: 'strict',
+      overflow: 'hidden',
+      top: 0,
+      bottom: 0,
+      backgroundColor: 'inherit'
+    };
+
+    if (this.hasInitialMeasurements) {
+      style.left = this.getGutterContainerWidth() + 'px';
+      style.width = this.getScrollContainerWidth() + 'px';
+    }
+
+    return $.div(
+      {
+        ref: 'scrollContainer',
+        key: 'scrollContainer',
+        className: 'scroll-view',
+        style
+      },
+      this.renderContent(),
+      this.renderDummyScrollbars()
+    );
+  }
+
+  renderContent() {
+    let style = {
+      contain: 'strict',
+      overflow: 'hidden',
+      backgroundColor: 'inherit'
+    };
+    if (this.hasInitialMeasurements) {
+      style.width = ceilToPhysicalPixelBoundary(this.getScrollWidth()) + 'px';
+      style.height = ceilToPhysicalPixelBoundary(this.getScrollHeight()) + 'px';
+      style.willChange = 'transform';
+      style.transform = `translate(${-roundToPhysicalPixelBoundary(
+        this.getScrollLeft()
+      )}px, ${-roundToPhysicalPixelBoundary(this.getScrollTop())}px)`;
+    }
+
+    return $.div(
+      {
+        ref: 'content',
+        on: { mousedown: this.didMouseDownOnContent },
+        style
+      },
+      this.renderLineTiles(),
+      this.renderBlockDecorationMeasurementArea(),
+      this.renderCharacterMeasurementLine()
+    );
+  }
+
+  renderHighlightDecorations() {
+    return $(HighlightsComponent, {
+      hasInitialMeasurements: this.hasInitialMeasurements,
+      highlightDecorations: this.decorationsToRender.highlights.slice(),
+      width: this.getScrollWidth(),
+      height: this.getScrollHeight(),
+      lineHeight: this.getLineHeight()
+    });
+  }
+
+  renderLineTiles() {
+    const style = {
+      position: 'absolute',
+      contain: 'strict',
+      overflow: 'hidden'
+    };
+
+    const children = [];
+    children.push(this.renderHighlightDecorations());
+
+    if (this.hasInitialMeasurements) {
+      const { lineComponentsByScreenLineId } = this;
+
+      const startRow = this.getRenderedStartRow();
+      const endRow = this.getRenderedEndRow();
+      const rowsPerTile = this.getRowsPerTile();
+      const tileWidth = this.getScrollWidth();
+
+      for (let i = 0; i < this.renderedTileStartRows.length; i++) {
+        const tileStartRow = this.renderedTileStartRows[i];
+        const tileEndRow = Math.min(endRow, tileStartRow + rowsPerTile);
+        const tileHeight =
+          this.pixelPositionBeforeBlocksForRow(tileEndRow) -
+          this.pixelPositionBeforeBlocksForRow(tileStartRow);
+
+        children.push(
+          $(LinesTileComponent, {
+            key: this.idsByTileStartRow.get(tileStartRow),
+            measuredContent: this.measuredContent,
+            height: tileHeight,
+            width: tileWidth,
+            top: this.pixelPositionBeforeBlocksForRow(tileStartRow),
+            lineHeight: this.getLineHeight(),
+            renderedStartRow: startRow,
+            tileStartRow,
+            tileEndRow,
+            screenLines: this.renderedScreenLines.slice(
+              tileStartRow - startRow,
+              tileEndRow - startRow
+            ),
+            lineDecorations: this.decorationsToRender.lines.slice(
+              tileStartRow - startRow,
+              tileEndRow - startRow
+            ),
+            textDecorations: this.decorationsToRender.text.slice(
+              tileStartRow - startRow,
+              tileEndRow - startRow
+            ),
+            blockDecorations: this.decorationsToRender.blocks.get(tileStartRow),
+            displayLayer: this.props.model.displayLayer,
+            nodePool: this.lineNodesPool,
+            lineComponentsByScreenLineId
+          })
+        );
+      }
+
+      this.extraRenderedScreenLines.forEach((screenLine, screenRow) => {
+        if (screenRow < startRow || screenRow >= endRow) {
+          children.push(
+            $(LineComponent, {
+              key: 'extra-' + screenLine.id,
+              offScreen: true,
+              screenLine,
+              screenRow,
+              displayLayer: this.props.model.displayLayer,
+              nodePool: this.lineNodesPool,
+              lineComponentsByScreenLineId
+            })
+          );
+        }
+      });
+
+      style.width = this.getScrollWidth() + 'px';
+      style.height = this.getScrollHeight() + 'px';
+    }
+
+    children.push(this.renderPlaceholderText());
+    children.push(this.renderCursorsAndInput());
+
+    return $.div(
+      { key: 'lineTiles', ref: 'lineTiles', className: 'lines', style },
+      children
+    );
+  }
+
+  renderCursorsAndInput() {
+    return $(CursorsAndInputComponent, {
+      ref: 'cursorsAndInput',
+      key: 'cursorsAndInput',
+      didBlurHiddenInput: this.didBlurHiddenInput,
+      didFocusHiddenInput: this.didFocusHiddenInput,
+      didTextInput: this.didTextInput,
+      didPaste: this.didPaste,
+      didKeydown: this.didKeydown,
+      didKeyup: this.didKeyup,
+      didKeypress: this.didKeypress,
+      didCompositionStart: this.didCompositionStart,
+      didCompositionUpdate: this.didCompositionUpdate,
+      didCompositionEnd: this.didCompositionEnd,
+      measuredContent: this.measuredContent,
+      lineHeight: this.getLineHeight(),
+      scrollHeight: this.getScrollHeight(),
+      scrollWidth: this.getScrollWidth(),
+      decorationsToRender: this.decorationsToRender,
+      cursorsBlinkedOff: this.cursorsBlinkedOff,
+      hiddenInputPosition: this.hiddenInputPosition,
+      tabIndex: this.tabIndex
+    });
+  }
+
+  renderPlaceholderText() {
+    const { model } = this.props;
+    if (model.isEmpty()) {
+      const placeholderText = model.getPlaceholderText();
+      if (placeholderText != null) {
+        return $.div({ className: 'placeholder-text' }, placeholderText);
+      }
+    }
+    return null;
+  }
+
+  renderCharacterMeasurementLine() {
+    return $.div(
+      {
+        key: 'characterMeasurementLine',
+        ref: 'characterMeasurementLine',
+        className: 'line dummy',
+        style: { position: 'absolute', visibility: 'hidden' }
+      },
+      $.span({ ref: 'normalWidthCharacterSpan' }, NORMAL_WIDTH_CHARACTER),
+      $.span({ ref: 'doubleWidthCharacterSpan' }, DOUBLE_WIDTH_CHARACTER),
+      $.span({ ref: 'halfWidthCharacterSpan' }, HALF_WIDTH_CHARACTER),
+      $.span({ ref: 'koreanCharacterSpan' }, KOREAN_CHARACTER)
+    );
+  }
+
+  renderBlockDecorationMeasurementArea() {
+    return $.div({
+      ref: 'blockDecorationMeasurementArea',
+      key: 'blockDecorationMeasurementArea',
+      style: {
+        contain: 'strict',
+        position: 'absolute',
+        visibility: 'hidden',
+        width: this.getScrollWidth() + 'px'
+      }
+    });
+  }
+
+  renderDummyScrollbars() {
+    if (this.shouldRenderDummyScrollbars && !this.props.model.isMini()) {
+      let scrollHeight, scrollTop, horizontalScrollbarHeight;
+      let scrollWidth,
+        scrollLeft,
+        verticalScrollbarWidth,
+        forceScrollbarVisible;
+      let canScrollHorizontally, canScrollVertically;
+
+      if (this.hasInitialMeasurements) {
+        scrollHeight = this.getScrollHeight();
+        scrollWidth = this.getScrollWidth();
+        scrollTop = this.getScrollTop();
+        scrollLeft = this.getScrollLeft();
+        canScrollHorizontally = this.canScrollHorizontally();
+        canScrollVertically = this.canScrollVertically();
+        horizontalScrollbarHeight = this.getHorizontalScrollbarHeight();
+        verticalScrollbarWidth = this.getVerticalScrollbarWidth();
+        forceScrollbarVisible = this.remeasureScrollbars;
+      } else {
+        forceScrollbarVisible = true;
+      }
+
+      return [
+        $(DummyScrollbarComponent, {
+          ref: 'verticalScrollbar',
+          orientation: 'vertical',
+          didScroll: this.didScrollDummyScrollbar,
+          didMouseDown: this.didMouseDownOnContent,
+          canScroll: canScrollVertically,
+          scrollHeight,
+          scrollTop,
+          horizontalScrollbarHeight,
+          forceScrollbarVisible
+        }),
+        $(DummyScrollbarComponent, {
+          ref: 'horizontalScrollbar',
+          orientation: 'horizontal',
+          didScroll: this.didScrollDummyScrollbar,
+          didMouseDown: this.didMouseDownOnContent,
+          canScroll: canScrollHorizontally,
+          scrollWidth,
+          scrollLeft,
+          verticalScrollbarWidth,
+          forceScrollbarVisible
+        }),
+
+        // Force a "corner" to render where the two scrollbars meet at the lower right
+        $.div({
+          ref: 'scrollbarCorner',
+          className: 'scrollbar-corner',
+          style: {
+            position: 'absolute',
+            height: '20px',
+            width: '20px',
+            bottom: 0,
+            right: 0,
+            overflow: 'scroll'
+          }
+        })
+      ];
+    } else {
+      return null;
+    }
+  }
+
+  renderOverlayDecorations() {
+    return this.decorationsToRender.overlays.map(overlayProps =>
+      $(
+        OverlayComponent,
+        Object.assign(
+          {
+            key: overlayProps.element,
+            overlayComponents: this.overlayComponents,
+            didResize: overlayComponent => {
+              this.updateOverlayToRender(overlayProps);
+              overlayComponent.update(overlayProps);
+            }
+          },
+          overlayProps
+        )
+      )
+    );
+  }
+
+  // Imperatively manipulate the class list of the root element to avoid
+  // clearing classes assigned by package authors.
+  updateClassList() {
+    const { model } = this.props;
+
+    const oldClassList = this.classList;
+    const newClassList = ['editor'];
+    if (this.focused) newClassList.push('is-focused');
+    if (model.isMini()) newClassList.push('mini');
+    for (var i = 0; i < model.selections.length; i++) {
+      if (!model.selections[i].isEmpty()) {
+        newClassList.push('has-selection');
+        break;
+      }
+    }
+
+    if (oldClassList) {
+      for (let i = 0; i < oldClassList.length; i++) {
+        const className = oldClassList[i];
+        if (!newClassList.includes(className)) {
+          this.element.classList.remove(className);
+        }
+      }
+    }
+
+    for (let i = 0; i < newClassList.length; i++) {
+      this.element.classList.add(newClassList[i]);
+    }
+
+    this.classList = newClassList;
+  }
 
   queryScreenLinesToRender() {
-    const { model } = this;
+    const { model } = this.props;
 
     this.renderedScreenLines = model.displayLayer.getScreenLines(
       this.getRenderedStartRow(),
@@ -854,7 +911,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   queryLongestLine() {
-    const { model } = this;
+    const { model } = this.props;
 
     const longestLineRow = model.getApproximateLongestScreenRow();
     const longestLine = model.screenLineForScreenRow(longestLineRow);
@@ -878,15 +935,14 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   queryLineNumbersToRender() {
-    const { model } = this;
+    const { model } = this.props;
     if (!model.anyLineNumberGutterVisible()) return;
     if (this.showLineNumbers !== model.doesShowLineNumbers()) {
       this.remeasureGutterDimensions = true;
       this.showLineNumbers = model.doesShowLineNumbers();
     }
 
-    // FIXME: uncomment this?
-    // this.queryMaxLineNumberDigits();
+    this.queryMaxLineNumberDigits();
 
     const startRow = this.getRenderedStartRow();
     const endRow = this.getRenderedEndRow();
@@ -936,7 +992,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   queryMaxLineNumberDigits() {
-    const { model } = this;
+    const { model } = this.props;
     if (model.anyLineNumberGutterVisible()) {
       const maxDigits = Math.max(2, model.getLineCount().toString().length);
       if (maxDigits !== this.lineNumbersToRender.maxDigits) {
@@ -956,7 +1012,7 @@ class TextEditorComponent extends Gtk.Widget {
   queryGuttersToRender() {
     const oldGuttersToRender = this.guttersToRender;
     const oldGuttersVisibility = this.guttersVisibility;
-    this.guttersToRender = this.model.getGutters();
+    this.guttersToRender = this.props.model.getGutters();
     this.guttersVisibility = this.guttersToRender.map(g => g.visible);
 
     if (
@@ -989,7 +1045,7 @@ class TextEditorComponent extends Gtk.Widget {
     this.textDecorationsByMarker.clear();
     this.textDecorationBoundaries.length = 0;
 
-    const decorationsByMarker = this.model.decorationManager.decorationPropertiesByMarkerForScreenRowRange(
+    const decorationsByMarker = this.props.model.decorationManager.decorationPropertiesByMarkerForScreenRowRange(
       this.getRenderedStartRow(),
       this.getRenderedEndRow()
     );
@@ -1152,7 +1208,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   addCursorDecorationToMeasure(decoration, marker, screenRange, reversed) {
-    const { model } = this;
+    const { model } = this.props;
     if (!model.getShowCursorOnSelection() && !screenRange.isEmpty()) return;
 
     let decorationToMeasure = this.decorationsToMeasure.cursors.get(marker);
@@ -1229,7 +1285,7 @@ class TextEditorComponent extends Gtk.Widget {
     decorations.push({
       className:
         'decoration' + (decoration.class ? ' ' + decoration.class : ''),
-      element: TextEditor.viewForItem(decoration),
+      element: TextEditor.viewForItem(decoration.item),
       top,
       height
     });
@@ -1522,43 +1578,53 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   didAttach() {
-    if (this.attached)
-      return
+    if (!this.attached) {
+      this.attached = true;
+      this.intersectionObserver = new IntersectionObserver(entries => {
+        const { intersectionRect } = entries[entries.length - 1];
+        if (intersectionRect.width > 0 || intersectionRect.height > 0) {
+          this.didShow();
+        } else {
+          this.didHide();
+        }
+      });
+      this.intersectionObserver.observe(this.element);
 
-    this.attached = true;
+      this.resizeObserver = new ResizeObserver(this.didResize.bind(this));
+      this.resizeObserver.observe(this.element);
 
-    // TODO: handle didResize & didResizeGutterContainer
-    // this.resizeObserver = new ResizeObserver(this.didResize.bind(this));
-    // this.resizeObserver.observe(this.element);
-    // if (this.refs.gutterContainer) {
-    //   this.gutterContainerResizeObserver = new ResizeObserver(
-    //     this.didResizeGutterContainer.bind(this)
-    //   );
-    //   this.gutterContainerResizeObserver.observe(
-    //     this.refs.gutterContainer.element
-    //   );
-    // }
-    this.remeasureAllBlockDecorations = true;
+      if (this.refs.gutterContainer) {
+        this.gutterContainerResizeObserver = new ResizeObserver(
+          this.didResizeGutterContainer.bind(this)
+        );
+        this.gutterContainerResizeObserver.observe(
+          this.refs.gutterContainer.element
+        );
+      }
 
-    this.overlayComponents.forEach(component => component.didAttach());
+      this.overlayComponents.forEach(component => component.didAttach());
 
-    if (this.isVisible()) {
-      this.didShow();
-    } else {
-      this.didHide();
+      if (this.isVisible()) {
+        this.didShow();
+
+        if (this.refs.verticalScrollbar)
+          this.refs.verticalScrollbar.flushScrollPosition();
+        if (this.refs.horizontalScrollbar)
+          this.refs.horizontalScrollbar.flushScrollPosition();
+      } else {
+        this.didHide();
+      }
+      if (!this.constructor.attachedComponents) {
+        this.constructor.attachedComponents = new Set();
+      }
+      this.constructor.attachedComponents.add(this);
     }
-    if (!this.constructor.attachedComponents) {
-      this.constructor.attachedComponents = new Set();
-    }
-    this.constructor.attachedComponents.add(this);
-
-    this.didSizeAllocate()
   }
 
   didDetach() {
     if (this.attached) {
-      // this.intersectionObserver.disconnect();
-      // this.resizeObserver.disconnect();
+      this.intersectionObserver.disconnect();
+      this.resizeObserver.disconnect();
       if (this.gutterContainerResizeObserver)
         this.gutterContainerResizeObserver.disconnect();
       this.overlayComponents.forEach(component => component.didDetach());
@@ -1570,19 +1636,20 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   didShow() {
-    if (!this._visible && this.isVisible()) {
+    if (!this.visible && this.isVisible()) {
       if (!this.hasInitialMeasurements) this.measureDimensions();
-      this._visible = true;
-      this.model.setVisible(true);
+      this.visible = true;
+      this.props.model.setVisible(true);
+      this.resizeBlockDecorationMeasurementsArea = true;
       this.updateSync();
       this.flushPendingLogicalScrollPosition();
     }
   }
 
   didHide() {
-    if (this._visible) {
-      this._visible = false;
-      this.model.setVisible(false);
+    if (this.visible) {
+      this.visible = false;
+      this.props.model.setVisible(false);
     }
   }
 
@@ -1598,8 +1665,45 @@ class TextEditorComponent extends Gtk.Widget {
     // it has been shown for the first time. If this element is being focused,
     // it is necessarily visible, so we call `didShow` to ensure the hidden
     // input is rendered before we try to shift focus to it.
-    if (!this._visible) this.didShow();
+    if (!this.visible) this.didShow();
 
+    if (!this.focused) {
+      this.focused = true;
+      this.startCursorBlinking();
+      this.scheduleUpdate();
+    }
+
+    this.getHiddenInput().focus();
+  }
+
+  // Called by TextEditorElement so that this function is always the first
+  // listener to be fired, even if other listeners are bound before creating
+  // the component.
+  didBlur(event) {
+    if (event.relatedTarget === this.getHiddenInput()) {
+      event.stopImmediatePropagation();
+    }
+  }
+
+  didBlurHiddenInput(event) {
+    if (
+      this.element !== event.relatedTarget &&
+      !this.element.contains(event.relatedTarget)
+    ) {
+      this.focused = false;
+      this.stopCursorBlinking();
+      this.scheduleUpdate();
+      this.element.dispatchEvent(new FocusEvent(event.type, event));
+    }
+  }
+
+  didFocusHiddenInput() {
+    // Focusing the hidden input when it is off-screen causes the browser to
+    // scroll it into view. Since we use synthetic scrolling this behavior
+    // causes all the lines to disappear so we counteract it by always setting
+    // the scroll position to 0.
+    this.refs.scrollContainer.scrollTop = 0;
+    this.refs.scrollContainer.scrollLeft = 0;
     if (!this.focused) {
       this.focused = true;
       this.startCursorBlinking();
@@ -1607,17 +1711,8 @@ class TextEditorComponent extends Gtk.Widget {
     }
   }
 
-  // Called by TextEditorElement so that this function is always the first
-  // listener to be fired, even if other listeners are bound before creating
-  // the component.
-  didBlur() {
-    this.focused = false;
-    this.stopCursorBlinking();
-    this.scheduleUpdate();
-  }
-
   didMouseWheel(event) {
-    const scrollSensitivity = this.model.getScrollSensitivity() / 100;
+    const scrollSensitivity = this.props.model.getScrollSensitivity() / 100;
 
     let { wheelDeltaX, wheelDeltaY } = event;
 
@@ -1647,47 +1742,23 @@ class TextEditorComponent extends Gtk.Widget {
     }
   }
 
-  didSizeAllocate() {
-    if (!this.attached)
-      return
-
-    const width = this.getAllocatedWidth()
-    const height = this.getAllocatedHeight()
-
-    let changed = false
-    if (this.previousWidth !== width)
-      changed = true
-    if (this.previousHeight !== height)
-      changed = true
-
-    this.previousWidth = width
-    this.previousHeight = height
-
-    if (changed)
-      this.didResize()
-  }
-
   didResize() {
     // Prevent the component from measuring the client container dimensions when
     // getting spurious resize events.
-    if (!this.isVisible())
-      return
+    if (this.isVisible()) {
+      const clientContainerWidthChanged = this.measureClientContainerWidth();
+      const clientContainerHeightChanged = this.measureClientContainerHeight();
+      if (clientContainerWidthChanged || clientContainerHeightChanged) {
+        if (clientContainerWidthChanged) {
+          this.remeasureAllBlockDecorations = true;
+        }
 
-    const clientContainerWidthChanged  = this.measureClientContainerWidth();
-    const clientContainerHeightChanged = this.measureClientContainerHeight();
-
-    if (clientContainerWidthChanged || clientContainerHeightChanged) {
-      if (clientContainerWidthChanged) {
-        this.remeasureAllBlockDecorations = true;
+        this.resizeObserver.disconnect();
+        this.scheduleUpdate();
+        process.nextTick(() => {
+          this.resizeObserver.observe(this.element);
+        });
       }
-
-      this.measureDimensions()
-
-      // this.resizeObserver.disconnect();
-      this.scheduleUpdate();
-      /* process.nextTick(() => {
-        *   this.resizeObserver.observe(this.element);
-        * }); */
     }
   }
 
@@ -1705,20 +1776,20 @@ class TextEditorComponent extends Gtk.Widget {
     }
   }
 
-  didChange() {
-    // FIXME: granularize updates
-    this.updateSync()
-  }
-
-  didChangeCursorPosition() {
-    // FIXME: granularize updates
-    this.updateSync()
-  }
-
   didScrollDummyScrollbar() {
-    this.updateSync()
-    // this.renderGutter()
-    this.derivedDimensionsCache = {};
+    let scrollTopChanged = false;
+    let scrollLeftChanged = false;
+    if (!this.scrollTopPending) {
+      scrollTopChanged = this.setScrollTop(
+        this.refs.verticalScrollbar.element.scrollTop
+      );
+    }
+    if (!this.scrollLeftPending) {
+      scrollLeftChanged = this.setScrollLeft(
+        this.refs.horizontalScrollbar.element.scrollLeft
+      );
+    }
+    if (scrollTopChanged || scrollLeftChanged) this.updateSync();
   }
 
   didUpdateStyles() {
@@ -1727,9 +1798,26 @@ class TextEditorComponent extends Gtk.Widget {
     this.scheduleUpdate();
   }
 
+  didUpdateScrollbarStyles() {
+    if (!this.props.model.isMini()) {
+      this.remeasureScrollbars = true;
+      this.scheduleUpdate();
+    }
+  }
+
+  didPaste(event) {
+    // On Linux, Chromium translates a middle-button mouse click into a
+    // mousedown event *and* a paste event. Since Atom supports the middle mouse
+    // click as a way of closing a tab, we only want the mousedown event, not
+    // the paste event. And since we don't use the `paste` event for any
+    // behavior in Atom, we can no-op the event to eliminate this issue.
+    // See https://github.com/atom/atom/pull/15183#issue-248432413.
+    if (this.getPlatform() === 'linux') event.preventDefault();
+  }
+
   didTextInput(event) {
     if (this.compositionCheckpoint) {
-      this.model.revertToCheckpoint(this.compositionCheckpoint);
+      this.props.model.revertToCheckpoint(this.compositionCheckpoint);
       this.compositionCheckpoint = null;
     }
 
@@ -1759,10 +1847,10 @@ class TextEditorComponent extends Gtk.Widget {
       // will replace the original non accented character with the selected
       // alternative.
       if (this.accentedCharacterMenuIsOpen) {
-        this.model.selectLeft();
+        this.props.model.selectLeft();
       }
 
-      this.model.insertText(event.data, { groupUndo: true });
+      this.props.model.insertText(event.data, { groupUndo: true });
     }
   }
 
@@ -1783,10 +1871,6 @@ class TextEditorComponent extends Gtk.Widget {
   // keypress, meaning we're *holding* the _same_ key we intially pressed.
   // Got that?
   didKeydown(event) {
-    this.pauseCursorBlinking()
-    return
-    // FIXME: handle this
-
     // Stop dragging when user interacts with the keyboard. This prevents
     // unwanted selections in the case edits are performed while selecting text
     // at the same time. Modifier keys are exempt to preserve the ability to
@@ -1853,14 +1937,14 @@ class TextEditorComponent extends Gtk.Widget {
       return;
     }
 
-    this.compositionCheckpoint = this.model.createCheckpoint();
+    this.compositionCheckpoint = this.props.model.createCheckpoint();
     if (this.accentedCharacterMenuIsOpen) {
-      this.model.selectLeft();
+      this.props.model.selectLeft();
     }
   }
 
   didCompositionUpdate(event) {
-    this.model.insertText(event.data, { select: true });
+    this.props.model.insertText(event.data, { select: true });
   }
 
   didCompositionEnd(event) {
@@ -1868,7 +1952,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   didMouseDownOnContent(event) {
-    const { model } = this;
+    const { model } = this.props;
     const { target, button, detail, ctrlKey, shiftKey, metaKey } = event;
     const platform = this.getPlatform();
 
@@ -1972,7 +2056,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   didMouseDownOnLineNumberGutter(event) {
-    const { model } = this;
+    const { model } = this.props;
     const { target, button, ctrlKey, shiftKey, metaKey } = event;
 
     // Only handle mousedown events for left mouse button
@@ -2065,7 +2149,7 @@ class TextEditorComponent extends Gtk.Widget {
 
     const animationFrameLoop = () => {
       window.requestAnimationFrame(() => {
-        if (dragging && this._visible) {
+        if (dragging && this.visible) {
           didDrag(lastMousemoveEvent);
           animationFrameLoop();
         }
@@ -2181,44 +2265,26 @@ class TextEditorComponent extends Gtk.Widget {
     if (this.cursorsBlinking) {
       this.cursorsBlinkedOff = false;
       this.cursorsBlinking = false;
-      clearInterval(this.cursorBlinkIntervalHandle);
+      window.clearInterval(this.cursorBlinkIntervalHandle);
       this.cursorBlinkIntervalHandle = null;
-      this.scheduleUpdate(true);
+      this.scheduleUpdate();
     }
   }
 
   startCursorBlinking() {
     if (!this.cursorsBlinking) {
-      this.cursorBlinkIntervalHandle = setInterval(() => {
+      this.cursorBlinkIntervalHandle = window.setInterval(() => {
         this.cursorsBlinkedOff = !this.cursorsBlinkedOff;
         this.scheduleUpdate(true);
-      }, CURSOR_BLINK_PERIOD / 2);
+      }, (this.props.cursorBlinkPeriod || CURSOR_BLINK_PERIOD) / 2);
       this.cursorsBlinking = true;
       this.scheduleUpdate(true);
     }
   }
 
   didRequestAutoscroll(autoscroll) {
-    this.autoscrollVertically(autoscroll.screenRange, autoscroll.options)
-    /* const coords = this.pixelPositionForScreenPosition(autoscroll.start)
-     * this.setScrollTop(coords.top)
-     * this.setScrollLeft(coords.left) */
-    // console.log('AUTOSCROLL', autoscroll.screenRange, autoscroll.options)
-    // this.pendingAutoscroll = autoscroll;
-    // this.scheduleUpdate();
-
-    /*
-     * let { screenRange, options } = autoscroll;
-     * this.autoscrollVertically(screenRange, options);
-     * this.requestHorizontalMeasurement(
-     *   screenRange.start.row,
-     *   screenRange.start.column
-     * );
-     * this.requestHorizontalMeasurement(
-     *   screenRange.end.row,
-     *   screenRange.end.column
-     * );
-     */
+    this.pendingAutoscroll = autoscroll;
+    this.scheduleUpdate();
   }
 
   flushPendingLogicalScrollPosition() {
@@ -2242,7 +2308,6 @@ class TextEditorComponent extends Gtk.Widget {
     }
   }
 
-
   autoscrollVertically(screenRange, options) {
     const screenRangeTop = this.pixelPositionAfterBlocksForRow(
       screenRange.start.row
@@ -2265,7 +2330,7 @@ class TextEditorComponent extends Gtk.Widget {
           desiredScrollCenter + this.getScrollContainerClientHeight() / 2;
       }
     } else {
-      desiredScrollTop    = screenRangeTop - verticalScrollMargin;
+      desiredScrollTop = screenRangeTop - verticalScrollMargin;
       desiredScrollBottom = screenRangeBottom + verticalScrollMargin;
     }
 
@@ -2333,7 +2398,7 @@ class TextEditorComponent extends Gtk.Widget {
       (this.getScrollContainerClientHeight() / this.getLineHeight() - 1) / 2
     );
     const marginInLines = Math.min(
-      this.model.verticalScrollMargin,
+      this.props.model.verticalScrollMargin,
       maxMarginInLines
     );
     return marginInLines * this.getLineHeight();
@@ -2346,7 +2411,7 @@ class TextEditorComponent extends Gtk.Widget {
         2
     );
     const marginInBaseCharacters = Math.min(
-      this.model.horizontalScrollMargin,
+      this.props.model.horizontalScrollMargin,
       maxMarginInBaseCharacters
     );
     return marginInBaseCharacters * this.getBaseCharacterWidth();
@@ -2355,13 +2420,13 @@ class TextEditorComponent extends Gtk.Widget {
   // This method is called at the beginning of a frame render to relay any
   // potential changes in the editor's width into the model before proceeding.
   updateModelSoftWrapColumn() {
-    const { model } = this;
+    const { model } = this.props;
     const newEditorWidthInChars = this.getScrollContainerClientWidthInBaseCharacters();
     if (newEditorWidthInChars !== model.getEditorWidthInChars()) {
       this.suppressUpdates = true;
 
       const renderedStartRow = this.getRenderedStartRow();
-      this.model.setEditorWidthInChars(newEditorWidthInChars);
+      this.props.model.setEditorWidthInChars(newEditorWidthInChars);
 
       // Relaying a change in to the editor's client width may cause the
       // vertical scrollbar to appear or disappear, which causes the editor's
@@ -2373,7 +2438,7 @@ class TextEditorComponent extends Gtk.Widget {
       // display layer because once it has been reset, we can't compute the
       // rendered start row accurately. 😥
       this.populateVisibleRowRange(renderedStartRow);
-      this.model.setEditorWidthInChars(
+      this.props.model.setEditorWidthInChars(
         this.getScrollContainerClientWidthInBaseCharacters()
       );
       this.derivedDimensionsCache = {};
@@ -2386,46 +2451,25 @@ class TextEditorComponent extends Gtk.Widget {
   // package tests relied on it
   measureDimensions() {
     this.measureCharacterDimensions();
+    this.measureGutterDimensions();
     this.measureClientContainerHeight();
     this.measureClientContainerWidth();
-    this.measureGutterDimensions();
-    this.measureTextContainerDimensions();
     this.measureScrollbarDimensions();
     this.hasInitialMeasurements = true;
-
-    const {
-      textContainerWidth,
-      baseCharacterWidth,
-      horizontalPadding,
-    } = this.measurements
-
-    const usableTextWidth = textContainerWidth - horizontalPadding
-    const editorWidthInChars = Math.floor(usableTextWidth / baseCharacterWidth) - 1
-
-    this.model.update({
-      width: usableTextWidth,
-      editorWidthInChars,
-    })
-    // console.log('TODO: handle this')
-    /* console.log({
-     *   width: usableTextWidth,
-     *   editorWidthInChars,
-     * }) */
   }
 
   measureCharacterDimensions() {
-    this.fontSize   = DEFAULT_FONT_SIZE
-    this.fontFamily = DEFAULT_FONT_FAMILY
-    this.font = Font.parse(`${this.fontFamily} ${this.fontSize}px`)
+    this.measurements.lineHeight = Math.max(
+      1,
+      this.refs.characterMeasurementLine.getBoundingClientRect().height
+    );
+    this.measurements.baseCharacterWidth = this.refs.normalWidthCharacterSpan.getBoundingClientRect().width;
+    this.measurements.doubleWidthCharacterWidth = this.refs.doubleWidthCharacterSpan.getBoundingClientRect().width;
+    this.measurements.halfWidthCharacterWidth = this.refs.halfWidthCharacterSpan.getBoundingClientRect().width;
+    this.measurements.koreanCharacterWidth = this.refs.koreanCharacterSpan.getBoundingClientRect().width;
 
-    this.measurements.lineHeight = this.font.charHeight;
-    this.measurements.baseCharacterWidth = this.font.charWidth;
-    this.measurements.doubleWidthCharacterWidth = this.font.doubleWidth;
-    this.measurements.halfWidthCharacterWidth = this.font.halfWidth;
-    this.measurements.koreanCharacterWidth = this.font.koreanWidth;
-
-    this.model.setLineHeightInPixels(this.measurements.lineHeight);
-    this.model.setDefaultCharWidth(
+    this.props.model.setLineHeightInPixels(this.measurements.lineHeight);
+    this.props.model.setDefaultCharWidth(
       this.measurements.baseCharacterWidth,
       this.measurements.doubleWidthCharacterWidth,
       this.measurements.halfWidthCharacterWidth,
@@ -2437,23 +2481,36 @@ class TextEditorComponent extends Gtk.Widget {
   measureGutterDimensions() {
     let dimensionsChanged = false;
 
-    const lineNumberGutterWidth = this.measurements.baseCharacterWidth * (this.lineNumbersToRender.maxDigits + 2)
-    if (lineNumberGutterWidth !== this.measurements.lineNumberGutterWidth) {
-      dimensionsChanged = true;
-      this.measurements.lineNumberGutterWidth = lineNumberGutterWidth;
+    if (this.refs.gutterContainer) {
+      const gutterContainerWidth = this.refs.gutterContainer.element
+        .offsetWidth;
+      if (gutterContainerWidth !== this.measurements.gutterContainerWidth) {
+        dimensionsChanged = true;
+        this.measurements.gutterContainerWidth = gutterContainerWidth;
+      }
+    } else {
+      this.measurements.gutterContainerWidth = 0;
     }
 
-    const gutterContainerWidth = lineNumberGutterWidth;
-    if (gutterContainerWidth !== this.measurements.gutterContainerWidth) {
-      dimensionsChanged = true;
-      this.measurements.gutterContainerWidth = gutterContainerWidth;
+    if (
+      this.refs.gutterContainer &&
+      this.refs.gutterContainer.refs.lineNumberGutter
+    ) {
+      const lineNumberGutterWidth = this.refs.gutterContainer.refs
+        .lineNumberGutter.element.offsetWidth;
+      if (lineNumberGutterWidth !== this.measurements.lineNumberGutterWidth) {
+        dimensionsChanged = true;
+        this.measurements.lineNumberGutterWidth = lineNumberGutterWidth;
+      }
+    } else {
+      this.measurements.lineNumberGutterWidth = 0;
     }
 
     return dimensionsChanged;
   }
 
   measureClientContainerHeight() {
-    const clientContainerHeight = this.getAllocatedHeight();
+    const clientContainerHeight = this.refs.clientContainer.offsetHeight;
     if (clientContainerHeight !== this.measurements.clientContainerHeight) {
       this.measurements.clientContainerHeight = clientContainerHeight;
       return true;
@@ -2463,7 +2520,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   measureClientContainerWidth() {
-    const clientContainerWidth = this.getAllocatedWidth();
+    const clientContainerWidth = this.refs.clientContainer.offsetWidth;
     if (clientContainerWidth !== this.measurements.clientContainerWidth) {
       this.measurements.clientContainerWidth = clientContainerWidth;
       return true;
@@ -2472,15 +2529,14 @@ class TextEditorComponent extends Gtk.Widget {
     }
   }
 
-  measureTextContainerDimensions() {
-    const { measurements } = this
-    measurements.textContainerWidth  = measurements.clientContainerWidth - measurements.gutterContainerWidth
-    measurements.textContainerHeight = measurements.clientContainerHeight
-  }
-
   measureScrollbarDimensions() {
-    this.measurements.verticalScrollbarWidth = 0;
-    this.measurements.horizontalScrollbarHeight = 0;
+    if (this.props.model.isMini()) {
+      this.measurements.verticalScrollbarWidth = 0;
+      this.measurements.horizontalScrollbarHeight = 0;
+    } else {
+      this.measurements.verticalScrollbarWidth = this.refs.verticalScrollbar.getRealScrollbarWidth();
+      this.measurements.horizontalScrollbarHeight = this.refs.horizontalScrollbar.getRealScrollbarHeight();
+    }
   }
 
   measureLongestLineWidth() {
@@ -2489,7 +2545,7 @@ class TextEditorComponent extends Gtk.Widget {
         this.longestLineToMeasure.id
       );
       this.measurements.longestLineWidth =
-        Font.measure(this.font.description, this.longestLineToMeasure.lineText)
+        lineComponent.element.firstChild.offsetWidth;
       this.longestLineToMeasure = null;
     }
   }
@@ -2501,7 +2557,7 @@ class TextEditorComponent extends Gtk.Widget {
   requestHorizontalMeasurement(row, column) {
     if (column === 0) return;
 
-    const screenLine = this.model.screenLineForScreenRow(row);
+    const screenLine = this.props.model.screenLineForScreenRow(row);
     if (screenLine) {
       this.requestLineToMeasure(row, screenLine);
 
@@ -2524,29 +2580,28 @@ class TextEditorComponent extends Gtk.Widget {
       );
 
       if (!lineComponent) {
-        // FIXME: this is not required because we don't use lineComponent is measurements
-        // for now, but we should either clean it or re-enable it when we do horizontal
-        // measurements differently.
-        // const error = new Error(
-        //   'Requested measurement of a line component that is not currently rendered'
-        // );
-        // error.metadata = {
-        //   row,
-        //   columnsToMeasure,
-        //   renderedScreenLineIds: this.renderedScreenLines.map(line => line.id),
-        //   extraRenderedScreenLineIds: Array.from(
-        //     this.extraRenderedScreenLines.keys()
-        //   ),
-        //   lineComponentScreenLineIds: Array.from(
-        //     this.lineComponentsByScreenLineId.keys()
-        //   ),
-        //   renderedStartRow: this.getRenderedStartRow(),
-        //   renderedEndRow: this.getRenderedEndRow(),
-        //   requestedScreenLineId: screenLine.id
-        // };
-        // throw error;
+        const error = new Error(
+          'Requested measurement of a line component that is not currently rendered'
+        );
+        error.metadata = {
+          row,
+          columnsToMeasure,
+          renderedScreenLineIds: this.renderedScreenLines.map(line => line.id),
+          extraRenderedScreenLineIds: Array.from(
+            this.extraRenderedScreenLines.keys()
+          ),
+          lineComponentScreenLineIds: Array.from(
+            this.lineComponentsByScreenLineId.keys()
+          ),
+          renderedStartRow: this.getRenderedStartRow(),
+          renderedEndRow: this.getRenderedEndRow(),
+          requestedScreenLineId: screenLine.id
+        };
+        throw error;
       }
 
+      const lineNode = lineComponent.element;
+      const textNodes = lineComponent.textNodes;
       let positionsForLine = this.horizontalPixelPositionsByScreenLineId.get(
         screenLine.id
       );
@@ -2559,7 +2614,8 @@ class TextEditorComponent extends Gtk.Widget {
       }
 
       this.measureHorizontalPositionsOnLine(
-        lineComponent,
+        lineNode,
+        textNodes,
         columnsToMeasure,
         positionsForLine
       );
@@ -2568,94 +2624,79 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   measureHorizontalPositionsOnLine(
-    lineComponent,
+    lineNode,
+    textNodes,
     columnsToMeasure,
     positions
   ) {
-    // FIXME: handle this correctly (textNodes gone)
+    let lineNodeClientLeft = -1;
+    let textNodeStartColumn = 0;
+    let textNodesIndex = 0;
+    let lastTextNodeRight = null;
 
-    for (let i = 0; i < columnsToMeasure.length; i++) {
-      const column = columnsToMeasure[i]
-      const x = this.measurements.baseCharacterWidth * column
-      positions.set(column, x)
+    // eslint-disable-next-line no-labels
+    columnLoop: for (
+      let columnsIndex = 0;
+      columnsIndex < columnsToMeasure.length;
+      columnsIndex++
+    ) {
+      const nextColumnToMeasure = columnsToMeasure[columnsIndex];
+      while (textNodesIndex < textNodes.length) {
+        if (nextColumnToMeasure === 0) {
+          positions.set(0, 0);
+          continue columnLoop; // eslint-disable-line no-labels
+        }
+
+        if (positions.has(nextColumnToMeasure)) continue columnLoop; // eslint-disable-line no-labels
+        const textNode = textNodes[textNodesIndex];
+        const textNodeEndColumn =
+          textNodeStartColumn + textNode.textContent.length;
+
+        if (nextColumnToMeasure < textNodeEndColumn) {
+          let clientPixelPosition;
+          if (nextColumnToMeasure === textNodeStartColumn) {
+            clientPixelPosition = clientRectForRange(textNode, 0, 1).left;
+          } else {
+            clientPixelPosition = clientRectForRange(
+              textNode,
+              0,
+              nextColumnToMeasure - textNodeStartColumn
+            ).right;
+          }
+
+          if (lineNodeClientLeft === -1) {
+            lineNodeClientLeft = lineNode.getBoundingClientRect().left;
+          }
+
+          positions.set(
+            nextColumnToMeasure,
+            Math.round(clientPixelPosition - lineNodeClientLeft)
+          );
+          continue columnLoop; // eslint-disable-line no-labels
+        } else {
+          textNodesIndex++;
+          textNodeStartColumn = textNodeEndColumn;
+        }
+      }
+
+      if (lastTextNodeRight == null) {
+        const lastTextNode = textNodes[textNodes.length - 1];
+        lastTextNodeRight = clientRectForRange(
+          lastTextNode,
+          0,
+          lastTextNode.textContent.length
+        ).right;
+      }
+
+      if (lineNodeClientLeft === -1) {
+        lineNodeClientLeft = lineNode.getBoundingClientRect().left;
+      }
+
+      positions.set(
+        nextColumnToMeasure,
+        Math.round(lastTextNodeRight - lineNodeClientLeft)
+      );
     }
-
-    /* let lineNodeClientLeft = -1;
-     * let textNodeStartColumn = 0;
-     * let textNodesIndex = 0;
-     * let lastTextNodeRight = null;
-     *
-     * const text = lineComponent.getText()
-     *
-     * // eslint-disable-next-line no-labels
-     * columnLoop: for (
-     *   let columnsIndex = 0;
-     *   columnsIndex < columnsToMeasure.length;
-     *   columnsIndex++
-     * ) {
-     *   const nextColumnToMeasure = columnsToMeasure[columnsIndex];
-     *   while (textNodesIndex < textNodes.length) {
-     *     if (nextColumnToMeasure === 0) {
-     *       positions.set(0, 0);
-     *       continue columnLoop; // eslint-disable-line no-labels
-     *     }
-     *
-     *     if (positions.has(nextColumnToMeasure)) continue columnLoop; // eslint-disable-line no-labels
-     *     const textNode = textNodes[textNodesIndex];
-     *     const textNodeEndColumn =
-     *       textNodeStartColumn + textNode.textContent.length;
-     *
-     *     if (nextColumnToMeasure < textNodeEndColumn) {
-     *       let clientPixelPosition;
-     *       if (nextColumnToMeasure === textNodeStartColumn) {
-     *         // clientPixelPosition = clientRectForRange(textNode, 0, 1).left;
-     *         clientPixelPosition =
-     *           Font.measure(this.font.description, text.slice(0, textNodeStartColumn));
-     *       } else {
-     *         // clientPixelPosition = clientRectForRange(
-     *         //   textNode,
-     *         //   0,
-     *         //   nextColumnToMeasure - textNodeStartColumn
-     *         // ).right;
-     *         clientPixelPosition =
-     *           Font.measure(this.font.description, text.slice(0, nextColumnToMeasure));
-     *       }
-     *
-     *       if (lineNodeClientLeft === -1) {
-     *         // lineNodeClientLeft = lineNode.getBoundingClientRect().left;
-     *         lineNodeClientLeft = 0;
-     *       }
-     *
-     *       positions.set(
-     *         nextColumnToMeasure,
-     *         Math.round(clientPixelPosition - lineNodeClientLeft)
-     *       );
-     *       continue columnLoop; // eslint-disable-line no-labels
-     *     } else {
-     *       textNodesIndex++;
-     *       textNodeStartColumn = textNodeEndColumn;
-     *     }
-     *   }
-     *
-     *   if (lastTextNodeRight == null) {
-     *     const lastTextNode = textNodes[textNodes.length - 1];
-     *     lastTextNodeRight = clientRectForRange(
-     *       lastTextNode,
-     *       0,
-     *       lastTextNode.textContent.length
-     *     ).right;
-     *   }
-     *
-     *   if (lineNodeClientLeft === -1) {
-     *     // lineNodeClientLeft = lineNode.getBoundingClientRect().left;
-     *     lineNodeClientLeft = 0;
-     *   }
-     *
-     *   positions.set(
-     *     nextColumnToMeasure,
-     *     Math.round(lastTextNodeRight - lineNodeClientLeft)
-     *   );
-     * } */
   }
 
   rowForPixelPosition(pixelPosition) {
@@ -2698,8 +2739,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   screenPositionForPixelPosition({ top, left }) {
-    // FIXME: not working anymore (textNodes gone)
-    const { model } = this;
+    const { model } = this.props;
 
     const row = Math.min(
       this.rowForPixelPosition(top),
@@ -2806,7 +2846,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   didChangeSelectionRange() {
-    const { model } = this;
+    const { model } = this.props;
 
     if (this.getPlatform() === 'linux') {
       if (this.selectionClipboardImmediateId) {
@@ -2833,7 +2873,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   observeBlockDecorations() {
-    const { model } = this;
+    const { model } = this.props;
     const decorations = model.getDecorations({ type: 'block' });
     for (let i = 0; i < decorations.length; i++) {
       this.addBlockDecoration(decorations[i]);
@@ -2850,6 +2890,7 @@ class TextEditorComponent extends Gtk.Widget {
       this.lineTopIndex.insertBlock(decoration, row, 0, position === 'after');
       this.blockDecorationsToMeasure.add(decoration);
       this.blockDecorationsByElement.set(element, decoration);
+      this.blockDecorationResizeObserver.observe(element);
 
       this.scheduleUpdate();
     }
@@ -2865,6 +2906,7 @@ class TextEditorComponent extends Gtk.Widget {
             this.blockDecorationsToMeasure.delete(decoration);
             this.heightsByBlockDecoration.delete(decoration);
             this.blockDecorationsByElement.delete(element);
+            this.blockDecorationResizeObserver.unobserve(element);
             this.lineTopIndex.removeBlock(decoration);
             this.scheduleUpdate();
           } else if (!wasValid && isValid) {
@@ -2889,6 +2931,7 @@ class TextEditorComponent extends Gtk.Widget {
           this.blockDecorationsToMeasure.delete(decoration);
           this.heightsByBlockDecoration.delete(decoration);
           this.blockDecorationsByElement.delete(element);
+          this.blockDecorationResizeObserver.unobserve(element);
           this.lineTopIndex.removeBlock(decoration);
           this.scheduleUpdate();
         }
@@ -2897,7 +2940,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   didResizeBlockDecorations(entries) {
-    if (!this._visible) return;
+    if (!this.visible) return;
 
     for (let i = 0; i < entries.length; i++) {
       const { target, contentRect } = entries[i];
@@ -2930,16 +2973,14 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   isVisible() {
-    return true
+    return this.element.offsetWidth > 0 || this.element.offsetHeight > 0;
   }
 
   getWindowInnerHeight() {
-    throw new Error('unimplemented')
     return window.innerHeight;
   }
 
   getWindowInnerWidth() {
-    throw new Error('unimplemented')
     return window.innerWidth;
   }
 
@@ -2964,21 +3005,19 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   getScrollContainerWidth() {
-    /* if (this.model.getAutoWidth()) {
-     *   return this.getScrollWidth();
-     * } else {
-     *   return this.getClientContainerWidth() - this.getGutterContainerWidth();
-     * } */
-    return this.getClientContainerWidth() - this.getGutterContainerWidth();
+    if (this.props.model.getAutoWidth()) {
+      return this.getScrollWidth();
+    } else {
+      return this.getClientContainerWidth() - this.getGutterContainerWidth();
+    }
   }
 
   getScrollContainerHeight() {
-    /* if (this.model.getAutoHeight()) {
-     *   return this.getScrollHeight() + this.getHorizontalScrollbarHeight();
-     * } else {
-     *   return this.getClientContainerHeight();
-     * } */
-    return this.getClientContainerHeight();
+    if (this.props.model.getAutoHeight()) {
+      return this.getScrollHeight() + this.getHorizontalScrollbarHeight();
+    } else {
+      return this.getClientContainerHeight();
+    }
   }
 
   getScrollContainerClientWidth() {
@@ -2992,14 +3031,14 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   canScrollVertically() {
-    const { model } = this;
+    const { model } = this.props;
     if (model.isMini()) return false;
     if (model.getAutoHeight()) return false;
     return this.getContentHeight() > this.getScrollContainerClientHeight();
   }
 
   canScrollHorizontally() {
-    const { model } = this;
+    const { model } = this.props;
     if (model.isMini()) return false;
     if (model.getAutoWidth()) return false;
     if (model.isSoftWrapped()) return false;
@@ -3007,7 +3046,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   getScrollHeight() {
-    if (this.model.getScrollPastEnd()) {
+    if (this.props.model.getScrollPastEnd()) {
       return (
         this.getContentHeight() +
         Math.max(
@@ -3015,7 +3054,7 @@ class TextEditorComponent extends Gtk.Widget {
           this.getScrollContainerClientHeight() - 3 * this.getLineHeight()
         )
       );
-    } else if (this.model.getAutoHeight()) {
+    } else if (this.props.model.getAutoHeight()) {
       return this.getContentHeight();
     } else {
       return Math.max(
@@ -3026,7 +3065,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   getScrollWidth() {
-    const { model } = this;
+    const { model } = this.props;
 
     if (model.isSoftWrapped()) {
       return this.getScrollContainerClientWidth();
@@ -3042,7 +3081,7 @@ class TextEditorComponent extends Gtk.Widget {
 
   getContentHeight() {
     return this.pixelPositionAfterBlocksForRow(
-      this.model.getApproximateScreenLineCount()
+      this.props.model.getApproximateScreenLineCount()
     );
   }
 
@@ -3065,15 +3104,15 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   getVerticalScrollbarWidth() {
-    return 0
+    return this.measurements.verticalScrollbarWidth;
   }
 
   getHorizontalScrollbarHeight() {
-    return 0
+    return this.measurements.horizontalScrollbarHeight;
   }
 
   getRowsPerTile() {
-    return this.rowsPerTile || DEFAULT_ROWS_PER_TILE;
+    return this.props.rowsPerTile || DEFAULT_ROWS_PER_TILE;
   }
 
   tileStartRowForRow(row) {
@@ -3086,16 +3125,17 @@ class TextEditorComponent extends Gtk.Widget {
         this.getFirstVisibleRow()
       );
     }
-    return this.derivedDimensionsCache.renderedStartRow; 
+
+    return this.derivedDimensionsCache.renderedStartRow;
   }
 
   getRenderedEndRow() {
     if (this.derivedDimensionsCache.renderedEndRow == null) {
       this.derivedDimensionsCache.renderedEndRow = Math.min(
-        this.model.getApproximateScreenLineCount(),
+        this.props.model.getApproximateScreenLineCount(),
         this.getRenderedStartRow() +
           this.getVisibleTileCount() * this.getRowsPerTile()
-      ); 
+      );
     }
 
     return this.derivedDimensionsCache.renderedEndRow;
@@ -3122,7 +3162,6 @@ class TextEditorComponent extends Gtk.Widget {
     return this.derivedDimensionsCache.renderedTileCount;
   }
 
-
   getFirstVisibleRow() {
     if (this.derivedDimensionsCache.firstVisibleRow == null) {
       this.derivedDimensionsCache.firstVisibleRow = this.rowForPixelPosition(
@@ -3135,8 +3174,10 @@ class TextEditorComponent extends Gtk.Widget {
 
   getLastVisibleRow() {
     if (this.derivedDimensionsCache.lastVisibleRow == null) {
-      this.derivedDimensionsCache.lastVisibleRow =
-        this.rowForPixelPosition(this.getScrollBottom());
+      this.derivedDimensionsCache.lastVisibleRow = Math.min(
+        this.props.model.getApproximateScreenLineCount() - 1,
+        this.rowForPixelPosition(this.getScrollBottom())
+      );
     }
 
     return this.derivedDimensionsCache.lastVisibleRow;
@@ -3164,9 +3205,8 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   getScrollTop() {
-    return this.textWindow.getVadjustment().getValue()
-    // this.scrollTop = Math.min(this.getMaxScrollTop(), this.scrollTop);
-    // return this.scrollTop;
+    this.scrollTop = Math.min(this.getMaxScrollTop(), this.scrollTop);
+    return this.scrollTop;
   }
 
   setScrollTop(scrollTop) {
@@ -3175,11 +3215,11 @@ class TextEditorComponent extends Gtk.Widget {
     scrollTop = roundToPhysicalPixelBoundary(
       Math.max(0, Math.min(this.getMaxScrollTop(), scrollTop))
     );
-    if (scrollTop !== this.getScrollTop()) {
+    if (scrollTop !== this.scrollTop) {
       this.derivedDimensionsCache = {};
       this.scrollTopPending = true;
-      this.textWindow.scrollTo(scrollTop, true)
-      this.emitter.emit('did-change-scroll-top', scrollTop);
+      this.scrollTop = scrollTop;
+      this.element.emitter.emit('did-change-scroll-top', scrollTop);
       return true;
     } else {
       return false;
@@ -3206,7 +3246,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   getScrollLeft() {
-    return this.textWindow.getHadjustment().getValue()
+    return this.scrollLeft;
   }
 
   setScrollLeft(scrollLeft) {
@@ -3215,10 +3255,10 @@ class TextEditorComponent extends Gtk.Widget {
     scrollLeft = roundToPhysicalPixelBoundary(
       Math.max(0, Math.min(this.getMaxScrollLeft(), scrollLeft))
     );
-    if (scrollLeft !== this.getScrollLeft()) {
+    if (scrollLeft !== this.scrollLeft) {
       this.scrollLeftPending = true;
-      this.textWindow.scrollTo(scrollTop, false)
-      this.emitter.emit('did-change-scroll-left', scrollLeft);
+      this.scrollLeft = scrollLeft;
+      this.element.emitter.emit('did-change-scroll-left', scrollLeft);
       return true;
     } else {
       return false;
@@ -3288,13 +3328,13 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   // Ensure the spatial index is populated with rows that are currently visible
-  populateVisibleRowRange() {
-    const { model } = this;
+  populateVisibleRowRange(renderedStartRow) {
+    const { model } = this.props;
     const previousScreenLineCount = model.getApproximateScreenLineCount();
 
-    const renderedEndRow = model.getScreenLineCount()
-
-    model.displayLayer.populateSpatialIndexIfNeeded(
+    const renderedEndRow =
+      renderedStartRow + this.getVisibleTileCount() * this.getRowsPerTile();
+    this.props.model.displayLayer.populateSpatialIndexIfNeeded(
       Infinity,
       renderedEndRow
     );
@@ -3315,8 +3355,6 @@ class TextEditorComponent extends Gtk.Widget {
       if (tileStartRow < startRow || tileStartRow >= endRow) {
         const tileId = this.idsByTileStartRow.get(tileStartRow);
         freeTileIds.push(tileId);
-        this.tilesById.get(tileId).destroy()
-        this.tilesById.delete(tileId)
         this.idsByTileStartRow.delete(tileStartRow);
       }
     }
@@ -3357,46 +3395,852 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   setInputEnabled(inputEnabled) {
-    this.model.update({ keyboardInputEnabled: inputEnabled });
+    this.props.model.update({ keyboardInputEnabled: inputEnabled });
   }
 
   isInputEnabled() {
     return (
-      !this.model.isReadOnly() &&
-      this.model.isKeyboardInputEnabled()
+      !this.props.model.isReadOnly() &&
+      this.props.model.isKeyboardInputEnabled()
     );
   }
 
+  getHiddenInput() {
+    return this.refs.cursorsAndInput.refs.hiddenInput;
+  }
+
   getPlatform() {
-    return process.platform;
+    return this.props.platform || process.platform;
+  }
+
+  getChromeVersion() {
+    return this.props.chromeVersion || parseInt(process.versions.chrome);
+  }
+};
+
+class DummyScrollbarComponent {
+  constructor(props) {
+    this.props = props;
+    etch.initialize(this);
+  }
+
+  update(newProps) {
+    const oldProps = this.props;
+    this.props = newProps;
+    etch.updateSync(this);
+
+    const shouldFlushScrollPosition =
+      newProps.scrollTop !== oldProps.scrollTop ||
+      newProps.scrollLeft !== oldProps.scrollLeft;
+    if (shouldFlushScrollPosition) this.flushScrollPosition();
+  }
+
+  flushScrollPosition() {
+    if (this.props.orientation === 'horizontal') {
+      this.element.scrollLeft = this.props.scrollLeft;
+    } else {
+      this.element.scrollTop = this.props.scrollTop;
+    }
+  }
+
+  render() {
+    const {
+      orientation,
+      scrollWidth,
+      scrollHeight,
+      verticalScrollbarWidth,
+      horizontalScrollbarHeight,
+      canScroll,
+      forceScrollbarVisible,
+      didScroll
+    } = this.props;
+
+    const outerStyle = {
+      position: 'absolute',
+      contain: 'content',
+      zIndex: 1,
+      willChange: 'transform'
+    };
+    if (!canScroll) outerStyle.visibility = 'hidden';
+
+    const innerStyle = {};
+    if (orientation === 'horizontal') {
+      let right = verticalScrollbarWidth || 0;
+      outerStyle.bottom = 0;
+      outerStyle.left = 0;
+      outerStyle.right = right + 'px';
+      outerStyle.height = '15px';
+      outerStyle.overflowY = 'hidden';
+      outerStyle.overflowX = forceScrollbarVisible ? 'scroll' : 'auto';
+      outerStyle.cursor = 'default';
+      innerStyle.height = '15px';
+      innerStyle.width = (scrollWidth || 0) + 'px';
+    } else {
+      let bottom = horizontalScrollbarHeight || 0;
+      outerStyle.right = 0;
+      outerStyle.top = 0;
+      outerStyle.bottom = bottom + 'px';
+      outerStyle.width = '15px';
+      outerStyle.overflowX = 'hidden';
+      outerStyle.overflowY = forceScrollbarVisible ? 'scroll' : 'auto';
+      outerStyle.cursor = 'default';
+      innerStyle.width = '15px';
+      innerStyle.height = (scrollHeight || 0) + 'px';
+    }
+
+    return $.div(
+      {
+        className: `${orientation}-scrollbar`,
+        style: outerStyle,
+        on: {
+          scroll: didScroll,
+          mousedown: this.didMouseDown
+        }
+      },
+      $.div({ style: innerStyle })
+    );
+  }
+
+  didMouseDown(event) {
+    let { bottom, right } = this.element.getBoundingClientRect();
+    const clickedOnScrollbar =
+      this.props.orientation === 'horizontal'
+        ? event.clientY >= bottom - this.getRealScrollbarHeight()
+        : event.clientX >= right - this.getRealScrollbarWidth();
+    if (!clickedOnScrollbar) this.props.didMouseDown(event);
+  }
+
+  getRealScrollbarWidth() {
+    return this.element.offsetWidth - this.element.clientWidth;
+  }
+
+  getRealScrollbarHeight() {
+    return this.element.offsetHeight - this.element.clientHeight;
   }
 }
 
-/*
- * Subcomponents of TextEditor
- */
-
-class LinesTileComponent extends Gtk.Widget {
+class GutterContainerComponent {
   constructor(props) {
-    super()
     this.props = props;
-    this.lineComponents = []
-    this.styleContext = this.getStyleContext()
+    etch.initialize(this);
+  }
+
+  update(props) {
+    if (this.shouldUpdate(props)) {
+      this.props = props;
+      etch.updateSync(this);
+    }
+  }
+
+  shouldUpdate(props) {
+    return (
+      !props.measuredContent ||
+      props.lineNumberGutterWidth !== this.props.lineNumberGutterWidth
+    );
+  }
+
+  render() {
+    const {
+      hasInitialMeasurements,
+      scrollTop,
+      scrollHeight,
+      guttersToRender,
+      decorationsToRender
+    } = this.props;
+
+    const innerStyle = {
+      willChange: 'transform',
+      display: 'flex'
+    };
+
+    if (hasInitialMeasurements) {
+      innerStyle.transform = `translateY(${-roundToPhysicalPixelBoundary(
+        scrollTop
+      )}px)`;
+    }
+
+    return $.div(
+      {
+        ref: 'gutterContainer',
+        key: 'gutterContainer',
+        className: 'gutter-container',
+        style: {
+          position: 'relative',
+          zIndex: 1,
+          backgroundColor: 'inherit'
+        }
+      },
+      $.div(
+        { style: innerStyle },
+        guttersToRender.map(gutter => {
+          if (gutter.type === 'line-number') {
+            return this.renderLineNumberGutter(gutter);
+          } else {
+            return $(CustomGutterComponent, {
+              key: gutter,
+              element: gutter.getElement(),
+              name: gutter.name,
+              visible: gutter.isVisible(),
+              height: scrollHeight,
+              decorations: decorationsToRender.customGutter.get(gutter.name)
+            });
+          }
+        })
+      )
+    );
+  }
+
+  renderLineNumberGutter(gutter) {
+    const {
+      rootComponent,
+      showLineNumbers,
+      hasInitialMeasurements,
+      lineNumbersToRender,
+      renderedStartRow,
+      renderedEndRow,
+      rowsPerTile,
+      decorationsToRender,
+      didMeasureVisibleBlockDecoration,
+      scrollHeight,
+      lineNumberGutterWidth,
+      lineHeight
+    } = this.props;
+
+    if (!gutter.isVisible()) {
+      return null;
+    }
+
+    const oneTrueLineNumberGutter = gutter.name === 'line-number';
+    const ref = oneTrueLineNumberGutter ? 'lineNumberGutter' : undefined;
+    const width = oneTrueLineNumberGutter ? lineNumberGutterWidth : undefined;
+
+    if (hasInitialMeasurements) {
+      const {
+        maxDigits,
+        keys,
+        bufferRows,
+        screenRows,
+        softWrappedFlags,
+        foldableFlags
+      } = lineNumbersToRender;
+      return $(LineNumberGutterComponent, {
+        ref,
+        element: gutter.getElement(),
+        name: gutter.name,
+        className: gutter.className,
+        labelFn: gutter.labelFn,
+        onMouseDown: gutter.onMouseDown,
+        onMouseMove: gutter.onMouseMove,
+        rootComponent: rootComponent,
+        startRow: renderedStartRow,
+        endRow: renderedEndRow,
+        rowsPerTile: rowsPerTile,
+        maxDigits: maxDigits,
+        keys: keys,
+        bufferRows: bufferRows,
+        screenRows: screenRows,
+        softWrappedFlags: softWrappedFlags,
+        foldableFlags: foldableFlags,
+        decorations: decorationsToRender.lineNumbers.get(gutter.name) || [],
+        blockDecorations: decorationsToRender.blocks,
+        didMeasureVisibleBlockDecoration: didMeasureVisibleBlockDecoration,
+        height: scrollHeight,
+        width,
+        lineHeight: lineHeight,
+        showLineNumbers
+      });
+    } else {
+      return $(LineNumberGutterComponent, {
+        ref,
+        element: gutter.getElement(),
+        name: gutter.name,
+        className: gutter.className,
+        onMouseDown: gutter.onMouseDown,
+        onMouseMove: gutter.onMouseMove,
+        maxDigits: lineNumbersToRender.maxDigits,
+        showLineNumbers
+      });
+    }
+  }
+}
+
+class LineNumberGutterComponent {
+  constructor(props) {
+    this.props = props;
+    this.element = this.props.element;
+    this.virtualNode = $.div(null);
+    this.virtualNode.domNode = this.element;
+    this.nodePool = new NodePool();
+    etch.updateSync(this);
+  }
+
+  update(newProps) {
+    if (this.shouldUpdate(newProps)) {
+      this.props = newProps;
+      etch.updateSync(this);
+    }
+  }
+
+  render() {
+    const {
+      rootComponent,
+      showLineNumbers,
+      height,
+      width,
+      startRow,
+      endRow,
+      rowsPerTile,
+      maxDigits,
+      keys,
+      bufferRows,
+      screenRows,
+      softWrappedFlags,
+      foldableFlags,
+      decorations,
+      className
+    } = this.props;
+
+    let children = null;
+
+    if (bufferRows) {
+      children = new Array(rootComponent.renderedTileStartRows.length);
+      for (let i = 0; i < rootComponent.renderedTileStartRows.length; i++) {
+        const tileStartRow = rootComponent.renderedTileStartRows[i];
+        const tileEndRow = Math.min(endRow, tileStartRow + rowsPerTile);
+        const tileChildren = new Array(tileEndRow - tileStartRow);
+        for (let row = tileStartRow; row < tileEndRow; row++) {
+          const indexInTile = row - tileStartRow;
+          const j = row - startRow;
+          const key = keys[j];
+          const softWrapped = softWrappedFlags[j];
+          const foldable = foldableFlags[j];
+          const bufferRow = bufferRows[j];
+          const screenRow = screenRows[j];
+
+          let className = 'line-number';
+          if (foldable) className = className + ' foldable';
+
+          const decorationsForRow = decorations[row - startRow];
+          if (decorationsForRow)
+            className = className + ' ' + decorationsForRow;
+
+          let number = null;
+          if (showLineNumbers) {
+            if (this.props.labelFn == null) {
+              number = softWrapped ? '•' : bufferRow + 1;
+              number =
+                NBSP_CHARACTER.repeat(maxDigits - number.length) + number;
+            } else {
+              number = this.props.labelFn({
+                bufferRow,
+                screenRow,
+                foldable,
+                softWrapped,
+                maxDigits
+              });
+            }
+          }
+
+          // We need to adjust the line number position to account for block
+          // decorations preceding the current row and following the preceding
+          // row. Note that we ignore the latter when the line number starts at
+          // the beginning of the tile, because the tile will already be
+          // positioned to take into account block decorations added after the
+          // last row of the previous tile.
+          let marginTop = rootComponent.heightForBlockDecorationsBeforeRow(row);
+          if (indexInTile > 0)
+            marginTop += rootComponent.heightForBlockDecorationsAfterRow(
+              row - 1
+            );
+
+          tileChildren[row - tileStartRow] = $(LineNumberComponent, {
+            key,
+            className,
+            width,
+            bufferRow,
+            screenRow,
+            number,
+            marginTop,
+            nodePool: this.nodePool
+          });
+        }
+
+        const tileTop = rootComponent.pixelPositionBeforeBlocksForRow(
+          tileStartRow
+        );
+        const tileBottom = rootComponent.pixelPositionBeforeBlocksForRow(
+          tileEndRow
+        );
+        const tileHeight = tileBottom - tileTop;
+        const tileWidth = width != null && width > 0 ? width + 'px' : '';
+
+        children[i] = $.div(
+          {
+            key: rootComponent.idsByTileStartRow.get(tileStartRow),
+            style: {
+              contain: 'layout style',
+              position: 'absolute',
+              top: 0,
+              height: tileHeight + 'px',
+              width: tileWidth,
+              transform: `translateY(${tileTop}px)`
+            }
+          },
+          ...tileChildren
+        );
+      }
+    }
+
+    let rootClassName = 'gutter line-numbers';
+    if (className) {
+      rootClassName += ' ' + className;
+    }
+
+    return $.div(
+      {
+        className: rootClassName,
+        attributes: { 'gutter-name': this.props.name },
+        style: {
+          position: 'relative',
+          height: ceilToPhysicalPixelBoundary(height) + 'px'
+        },
+        on: {
+          mousedown: this.didMouseDown,
+          mousemove: this.didMouseMove
+        }
+      },
+      $.div(
+        {
+          key: 'placeholder',
+          className: 'line-number dummy',
+          style: { visibility: 'hidden' }
+        },
+        showLineNumbers ? '0'.repeat(maxDigits) : null,
+        $.div({ className: 'icon-right' })
+      ),
+      children
+    );
+  }
+
+  shouldUpdate(newProps) {
+    const oldProps = this.props;
+
+    if (oldProps.showLineNumbers !== newProps.showLineNumbers) return true;
+    if (oldProps.height !== newProps.height) return true;
+    if (oldProps.width !== newProps.width) return true;
+    if (oldProps.lineHeight !== newProps.lineHeight) return true;
+    if (oldProps.startRow !== newProps.startRow) return true;
+    if (oldProps.endRow !== newProps.endRow) return true;
+    if (oldProps.rowsPerTile !== newProps.rowsPerTile) return true;
+    if (oldProps.maxDigits !== newProps.maxDigits) return true;
+    if (oldProps.labelFn !== newProps.labelFn) return true;
+    if (oldProps.className !== newProps.className) return true;
+    if (newProps.didMeasureVisibleBlockDecoration) return true;
+    if (!arraysEqual(oldProps.keys, newProps.keys)) return true;
+    if (!arraysEqual(oldProps.bufferRows, newProps.bufferRows)) return true;
+    if (!arraysEqual(oldProps.foldableFlags, newProps.foldableFlags))
+      return true;
+    if (!arraysEqual(oldProps.decorations, newProps.decorations)) return true;
+
+    let oldTileStartRow = oldProps.startRow;
+    let newTileStartRow = newProps.startRow;
+    while (
+      oldTileStartRow < oldProps.endRow ||
+      newTileStartRow < newProps.endRow
+    ) {
+      let oldTileBlockDecorations = oldProps.blockDecorations.get(
+        oldTileStartRow
+      );
+      let newTileBlockDecorations = newProps.blockDecorations.get(
+        newTileStartRow
+      );
+
+      if (oldTileBlockDecorations && newTileBlockDecorations) {
+        if (oldTileBlockDecorations.size !== newTileBlockDecorations.size)
+          return true;
+
+        let blockDecorationsChanged = false;
+
+        oldTileBlockDecorations.forEach((oldDecorations, screenLineId) => {
+          if (!blockDecorationsChanged) {
+            const newDecorations = newTileBlockDecorations.get(screenLineId);
+            blockDecorationsChanged =
+              newDecorations == null ||
+              !arraysEqual(oldDecorations, newDecorations);
+          }
+        });
+        if (blockDecorationsChanged) return true;
+
+        newTileBlockDecorations.forEach((newDecorations, screenLineId) => {
+          if (!blockDecorationsChanged) {
+            const oldDecorations = oldTileBlockDecorations.get(screenLineId);
+            blockDecorationsChanged = oldDecorations == null;
+          }
+        });
+        if (blockDecorationsChanged) return true;
+      } else if (oldTileBlockDecorations) {
+        return true;
+      } else if (newTileBlockDecorations) {
+        return true;
+      }
+
+      oldTileStartRow += oldProps.rowsPerTile;
+      newTileStartRow += newProps.rowsPerTile;
+    }
+
+    return false;
+  }
+
+  didMouseDown(event) {
+    if (this.props.onMouseDown == null) {
+      this.props.rootComponent.didMouseDownOnLineNumberGutter(event);
+    } else {
+      const { bufferRow, screenRow } = event.target.dataset;
+      this.props.onMouseDown({
+        bufferRow: parseInt(bufferRow, 10),
+        screenRow: parseInt(screenRow, 10),
+        domEvent: event
+      });
+    }
+  }
+
+  didMouseMove(event) {
+    if (this.props.onMouseMove != null) {
+      const { bufferRow, screenRow } = event.target.dataset;
+      this.props.onMouseMove({
+        bufferRow: parseInt(bufferRow, 10),
+        screenRow: parseInt(screenRow, 10),
+        domEvent: event
+      });
+    }
+  }
+}
+
+class LineNumberComponent {
+  constructor(props) {
+    const {
+      className,
+      width,
+      marginTop,
+      bufferRow,
+      screenRow,
+      number,
+      nodePool
+    } = props;
+    this.props = props;
+    const style = {};
+    if (width != null && width > 0) style.width = width + 'px';
+    if (marginTop != null && marginTop > 0) style.marginTop = marginTop + 'px';
+    this.element = nodePool.getElement('DIV', className, style);
+    this.element.dataset.bufferRow = bufferRow;
+    this.element.dataset.screenRow = screenRow;
+    if (number) this.element.appendChild(nodePool.getTextNode(number));
+    this.element.appendChild(nodePool.getElement('DIV', 'icon-right', null));
+  }
+
+  destroy() {
+    this.element.remove();
+    this.props.nodePool.release(this.element);
+  }
+
+  update(props) {
+    const {
+      nodePool,
+      className,
+      width,
+      marginTop,
+      bufferRow,
+      screenRow,
+      number
+    } = props;
+
+    if (this.props.bufferRow !== bufferRow)
+      this.element.dataset.bufferRow = bufferRow;
+    if (this.props.screenRow !== screenRow)
+      this.element.dataset.screenRow = screenRow;
+    if (this.props.className !== className) this.element.className = className;
+    if (this.props.width !== width) {
+      if (width != null && width > 0) {
+        this.element.style.width = width + 'px';
+      } else {
+        this.element.style.width = '';
+      }
+    }
+    if (this.props.marginTop !== marginTop) {
+      if (marginTop != null && marginTop > 0) {
+        this.element.style.marginTop = marginTop + 'px';
+      } else {
+        this.element.style.marginTop = '';
+      }
+    }
+
+    if (this.props.number !== number) {
+      if (this.props.number != null) {
+        const numberNode = this.element.firstChild;
+        numberNode.remove();
+        nodePool.release(numberNode);
+      }
+
+      if (number != null) {
+        this.element.insertBefore(
+          nodePool.getTextNode(number),
+          this.element.firstChild
+        );
+      }
+    }
+
+    this.props = props;
+  }
+}
+
+class CustomGutterComponent {
+  constructor(props) {
+    this.props = props;
+    this.element = this.props.element;
+    this.virtualNode = $.div(null);
+    this.virtualNode.domNode = this.element;
+    etch.updateSync(this);
+  }
+
+  update(props) {
+    this.props = props;
+    etch.updateSync(this);
+  }
+
+  destroy() {
+    etch.destroy(this);
+  }
+
+  render() {
+    let className = 'gutter';
+    if (this.props.className) {
+      className += ' ' + this.props.className;
+    }
+    return $.div(
+      {
+        className,
+        attributes: { 'gutter-name': this.props.name },
+        style: {
+          display: this.props.visible ? '' : 'none'
+        }
+      },
+      $.div(
+        {
+          className: 'custom-decorations',
+          style: { height: this.props.height + 'px' }
+        },
+        this.renderDecorations()
+      )
+    );
+  }
+
+  renderDecorations() {
+    if (!this.props.decorations) return null;
+
+    return this.props.decorations.map(({ className, element, top, height }) => {
+      return $(CustomGutterDecorationComponent, {
+        className,
+        element,
+        top,
+        height
+      });
+    });
+  }
+}
+
+class CustomGutterDecorationComponent {
+  constructor(props) {
+    this.props = props;
+    this.element = document.createElement('div');
+    const { top, height, className, element } = this.props;
+
+    this.element.style.position = 'absolute';
+    this.element.style.top = top + 'px';
+    this.element.style.height = height + 'px';
+    if (className != null) this.element.className = className;
+    if (element != null) {
+      this.element.appendChild(element);
+      element.style.height = height + 'px';
+    }
+  }
+
+  update(newProps) {
+    const oldProps = this.props;
+    this.props = newProps;
+
+    if (newProps.top !== oldProps.top)
+      this.element.style.top = newProps.top + 'px';
+    if (newProps.height !== oldProps.height) {
+      this.element.style.height = newProps.height + 'px';
+      if (newProps.element)
+        newProps.element.style.height = newProps.height + 'px';
+    }
+    if (newProps.className !== oldProps.className)
+      this.element.className = newProps.className || '';
+    if (newProps.element !== oldProps.element) {
+      if (this.element.firstChild) this.element.firstChild.remove();
+      if (newProps.element != null) {
+        this.element.appendChild(newProps.element);
+        newProps.element.style.height = newProps.height + 'px';
+      }
+    }
+  }
+}
+
+class CursorsAndInputComponent {
+  constructor(props) {
+    this.props = props;
+    etch.initialize(this);
+  }
+
+  update(props) {
+    if (props.measuredContent) {
+      this.props = props;
+      etch.updateSync(this);
+    }
+  }
+
+  updateCursorBlinkSync(cursorsBlinkedOff) {
+    this.props.cursorsBlinkedOff = cursorsBlinkedOff;
+    const className = this.getCursorsClassName();
+    this.refs.cursors.className = className;
+    this.virtualNode.props.className = className;
+  }
+
+  render() {
+    const {
+      lineHeight,
+      decorationsToRender,
+      scrollHeight,
+      scrollWidth
+    } = this.props;
+
+    const className = this.getCursorsClassName();
+    const cursorHeight = lineHeight + 'px';
+
+    const children = [this.renderHiddenInput()];
+    for (let i = 0; i < decorationsToRender.cursors.length; i++) {
+      const {
+        pixelLeft,
+        pixelTop,
+        pixelWidth,
+        className: extraCursorClassName,
+        style: extraCursorStyle
+      } = decorationsToRender.cursors[i];
+      let cursorClassName = 'cursor';
+      if (extraCursorClassName) cursorClassName += ' ' + extraCursorClassName;
+
+      const cursorStyle = {
+        height: cursorHeight,
+        width: Math.min(pixelWidth, scrollWidth - pixelLeft) + 'px',
+        transform: `translate(${pixelLeft}px, ${pixelTop}px)`
+      };
+      if (extraCursorStyle) Object.assign(cursorStyle, extraCursorStyle);
+
+      children.push(
+        $.div({
+          className: cursorClassName,
+          style: cursorStyle
+        })
+      );
+    }
+
+    return $.div(
+      {
+        key: 'cursors',
+        ref: 'cursors',
+        className,
+        style: {
+          position: 'absolute',
+          contain: 'strict',
+          zIndex: 1,
+          width: scrollWidth + 'px',
+          height: scrollHeight + 'px',
+          pointerEvents: 'none',
+          userSelect: 'none'
+        }
+      },
+      children
+    );
+  }
+
+  getCursorsClassName() {
+    return this.props.cursorsBlinkedOff ? 'cursors blink-off' : 'cursors';
+  }
+
+  renderHiddenInput() {
+    const {
+      lineHeight,
+      hiddenInputPosition,
+      didBlurHiddenInput,
+      didFocusHiddenInput,
+      didPaste,
+      didTextInput,
+      didKeydown,
+      didKeyup,
+      didKeypress,
+      didCompositionStart,
+      didCompositionUpdate,
+      didCompositionEnd,
+      tabIndex
+    } = this.props;
+
+    let top, left;
+    if (hiddenInputPosition) {
+      top = hiddenInputPosition.pixelTop;
+      left = hiddenInputPosition.pixelLeft;
+    } else {
+      top = 0;
+      left = 0;
+    }
+
+    return $.input({
+      ref: 'hiddenInput',
+      key: 'hiddenInput',
+      className: 'hidden-input',
+      on: {
+        blur: didBlurHiddenInput,
+        focus: didFocusHiddenInput,
+        paste: didPaste,
+        textInput: didTextInput,
+        keydown: didKeydown,
+        keyup: didKeyup,
+        keypress: didKeypress,
+        compositionstart: didCompositionStart,
+        compositionupdate: didCompositionUpdate,
+        compositionend: didCompositionEnd
+      },
+      tabIndex: tabIndex,
+      style: {
+        position: 'absolute',
+        width: '1px',
+        height: lineHeight + 'px',
+        top: top + 'px',
+        left: left + 'px',
+        opacity: 0,
+        padding: 0,
+        border: 0
+      }
+    });
+  }
+}
+
+class LinesTileComponent {
+  constructor(props) {
+    this.props = props;
+    etch.initialize(this);
     this.createLines();
     this.updateBlockDecorations({}, props);
-    this.props.parent.put(this, 0, this.props.top)
   }
 
   update(newProps) {
     if (this.shouldUpdate(newProps)) {
       const oldProps = this.props;
       this.props = newProps;
+      etch.updateSync(this);
       if (!newProps.measuredContent) {
         this.updateLines(oldProps, newProps);
         this.updateBlockDecorations(oldProps, newProps);
-      }
-      if (oldProps.top !== newProps.top) {
-        this.props.parent.move(tile, 0, top)
       }
     }
   }
@@ -3406,104 +4250,91 @@ class LinesTileComponent extends Gtk.Widget {
       this.lineComponents[i].destroy();
     }
     this.lineComponents.length = 0;
-    this.props.blockDecorations?.forEach(decorations => {
-      decorations.forEach(decoration => {
-        decoration.item.getParent()?.remove(decoration.item)
-      })
-    })
-    this.getParent().remove(this)
+
+    return etch.destroy(this);
+  }
+
+  render() {
+    const { height, width, top } = this.props;
+
+    return $.div(
+      {
+        style: {
+          contain: 'layout style',
+          position: 'absolute',
+          height: height + 'px',
+          width: width + 'px',
+          transform: `translateY(${top}px)`
+        }
+      }
+      // Lines and block decorations will be manually inserted here for efficiency
+    );
   }
 
   createLines() {
     const {
-      height,
-      width,
-      top,
-      font,
-      measurements,
-      screenLines,
       tileStartRow,
+      screenLines,
       lineDecorations,
       textDecorations,
-      highlightDecorations,
+      nodePool,
       displayLayer,
-      lineComponentsByScreenLineId,
+      lineComponentsByScreenLineId
     } = this.props;
 
-    this.y = top
-
-    this.setSizeRequest(width, height)
-
-    this.textSurface = new Cairo.ImageSurface(Cairo.Format.ARGB32, width, height)
-    this.textContext = new Cairo.Context(this.textSurface)
-    this.textLayout = PangoCairo.createLayout(this.textContext)
-    this.textLayout.setAlignment(Pango.Alignment.LEFT)
-    this.textLayout.setFontDescription(font.description)
-
+    this.lineComponents = [];
     for (let i = 0, length = screenLines.length; i < length; i++) {
       const component = new LineComponent({
-        tile: this,
-        width,
-        height,
-        measurements,
-        index: i,
         screenLine: screenLines[i],
         screenRow: tileStartRow + i,
         lineDecoration: lineDecorations[i],
         textDecorations: textDecorations[i],
-        highlightDecorations: highlightDecorations[i],
         displayLayer,
+        nodePool,
         lineComponentsByScreenLineId
       });
-      this.lineComponents.push(component)
+      this.element.appendChild(component.element);
+      this.lineComponents.push(component);
     }
   }
 
   updateLines(oldProps, newProps) {
-    const {
-      height,
-      width,
-      measurements,
+    var {
       screenLines,
       tileStartRow,
       lineDecorations,
       textDecorations,
-      highlightDecorations,
+      nodePool,
       displayLayer,
-      lineComponentsByScreenLineId,
+      lineComponentsByScreenLineId
     } = newProps;
 
-    const oldScreenLines = oldProps.screenLines;
-    const newScreenLines = screenLines;
-    const oldScreenLinesEndIndex = oldScreenLines.length;
-    const newScreenLinesEndIndex = newScreenLines.length;
-    let oldScreenLineIndex = 0;
-    let newScreenLineIndex = 0;
-    let lineComponentIndex = 0;
+    var oldScreenLines = oldProps.screenLines;
+    var newScreenLines = screenLines;
+    var oldScreenLinesEndIndex = oldScreenLines.length;
+    var newScreenLinesEndIndex = newScreenLines.length;
+    var oldScreenLineIndex = 0;
+    var newScreenLineIndex = 0;
+    var lineComponentIndex = 0;
 
     while (
       oldScreenLineIndex < oldScreenLinesEndIndex ||
       newScreenLineIndex < newScreenLinesEndIndex
     ) {
-      const oldScreenLine = oldScreenLines[oldScreenLineIndex];
-      const newScreenLine = newScreenLines[newScreenLineIndex];
+      var oldScreenLine = oldScreenLines[oldScreenLineIndex];
+      var newScreenLine = newScreenLines[newScreenLineIndex];
 
       if (oldScreenLineIndex >= oldScreenLinesEndIndex) {
-        const newScreenLineComponent = new LineComponent({
-          tile: this,
-          width,
-          height,
-          measurements,
-          index: newScreenLineIndex,
+        var newScreenLineComponent = new LineComponent({
           screenLine: newScreenLine,
           screenRow: tileStartRow + newScreenLineIndex,
           lineDecoration: lineDecorations[newScreenLineIndex],
           textDecorations: textDecorations[newScreenLineIndex],
-          highlightDecorations: highlightDecorations[newScreenLineIndex],
           displayLayer,
+          nodePool,
           lineComponentsByScreenLineId
         });
-
+        this.element.appendChild(newScreenLineComponent.element);
         this.lineComponents.push(newScreenLineComponent);
 
         newScreenLineIndex++;
@@ -3514,9 +4345,8 @@ class LinesTileComponent extends Gtk.Widget {
 
         oldScreenLineIndex++;
       } else if (oldScreenLine === newScreenLine) {
-        const lineComponent = this.lineComponents[lineComponentIndex];
+        var lineComponent = this.lineComponents[lineComponentIndex];
         lineComponent.update({
-          index: newScreenLineIndex,
           screenRow: tileStartRow + newScreenLineIndex,
           lineDecoration: lineDecorations[newScreenLineIndex],
           textDecorations: textDecorations[newScreenLineIndex]
@@ -3526,38 +4356,32 @@ class LinesTileComponent extends Gtk.Widget {
         newScreenLineIndex++;
         lineComponentIndex++;
       } else {
-        const oldScreenLineIndexInNewScreenLines = newScreenLines.indexOf(
+        var oldScreenLineIndexInNewScreenLines = newScreenLines.indexOf(
           oldScreenLine
         );
-        const newScreenLineIndexInOldScreenLines = oldScreenLines.indexOf(
+        var newScreenLineIndexInOldScreenLines = oldScreenLines.indexOf(
           newScreenLine
         );
         if (
           newScreenLineIndex < oldScreenLineIndexInNewScreenLines &&
           oldScreenLineIndexInNewScreenLines < newScreenLinesEndIndex
         ) {
-          const newScreenLineComponents = [];
+          var newScreenLineComponents = [];
           while (newScreenLineIndex < oldScreenLineIndexInNewScreenLines) {
             // eslint-disable-next-line no-redeclare
-            const newScreenLineComponent = new LineComponent({
-              tile: this,
-              width,
-              height,
-              measurements,
-              index: newScreenLineIndex,
-              screenLine: newScreenLine,
+            var newScreenLineComponent = new LineComponent({
+              screenLine: newScreenLines[newScreenLineIndex],
               screenRow: tileStartRow + newScreenLineIndex,
               lineDecoration: lineDecorations[newScreenLineIndex],
               textDecorations: textDecorations[newScreenLineIndex],
-              highlightDecorations: highlightDecorations[newScreenLineIndex],
               displayLayer,
+              nodePool,
               lineComponentsByScreenLineId
             });
-            // FIXME: delete this
-            // this.element.insertBefore(
-            //   newScreenLineComponent.element,
-            //   this.getFirstElementForScreenLine(oldProps, oldScreenLine)
-            // );
+            this.element.insertBefore(
+              newScreenLineComponent.element,
+              this.getFirstElementForScreenLine(oldProps, oldScreenLine)
+            );
             newScreenLineComponents.push(newScreenLineComponent);
 
             newScreenLineIndex++;
@@ -3581,26 +4405,21 @@ class LinesTileComponent extends Gtk.Widget {
             oldScreenLineIndex++;
           }
         } else {
-          const oldScreenLineComponent = this.lineComponents[lineComponentIndex];
+          var oldScreenLineComponent = this.lineComponents[lineComponentIndex];
           // eslint-disable-next-line no-redeclare
-          const newScreenLineComponent = new LineComponent({
-            tile: this,
-            width,
-            height,
-            measurements,
-            index: newScreenLineIndex,
-            screenLine: newScreenLine,
+          var newScreenLineComponent = new LineComponent({
+            screenLine: newScreenLines[newScreenLineIndex],
             screenRow: tileStartRow + newScreenLineIndex,
             lineDecoration: lineDecorations[newScreenLineIndex],
             textDecorations: textDecorations[newScreenLineIndex],
-            highlightDecorations: highlightDecorations[newScreenLineIndex],
             displayLayer,
+            nodePool,
             lineComponentsByScreenLineId
           });
-          // this.element.insertBefore(
-          //   newScreenLineComponent.element,
-          //   oldScreenLineComponent.element
-          // );
+          this.element.insertBefore(
+            newScreenLineComponent.element,
+            oldScreenLineComponent.element
+          );
           oldScreenLineComponent.destroy();
           this.lineComponents[lineComponentIndex] = newScreenLineComponent;
 
@@ -3610,7 +4429,6 @@ class LinesTileComponent extends Gtk.Widget {
         }
       }
     }
-    this.queueDraw()
   }
 
   getFirstElementForScreenLine(oldProps, screenLine) {
@@ -3649,118 +4467,146 @@ class LinesTileComponent extends Gtk.Widget {
   }
 
   updateBlockDecorations(oldProps, newProps) {
-    const { parent, blockDecorations, lineComponentsByScreenLineId } = newProps;
-    const rootComponent = newProps.element
-
-    if (!rootComponent.hasInitialMeasurements)
-      return
+    var { blockDecorations, lineComponentsByScreenLineId } = newProps;
 
     if (oldProps.blockDecorations) {
       oldProps.blockDecorations.forEach((oldDecorations, screenLineId) => {
-        const newDecorations = newProps.blockDecorations
+        var newDecorations = newProps.blockDecorations
           ? newProps.blockDecorations.get(screenLineId)
           : null;
-        for (let i = 0; i < oldDecorations.length; i++) {
-          const oldDecoration = oldDecorations[i];
+        for (var i = 0; i < oldDecorations.length; i++) {
+          var oldDecoration = oldDecorations[i];
           if (newDecorations && newDecorations.includes(oldDecoration))
             continue;
 
-          const element = TextEditor.viewForItem(oldDecoration.item);
-          element.getParent()?.remove(element)
+          var element = TextEditor.viewForItem(oldDecoration.item);
+          if (element.parentElement !== this.element) continue;
+
+          element.remove();
         }
-      })
+      });
     }
 
     if (blockDecorations) {
-      const horizontalPadding = rootComponent.measurements.horizontalPadding
       blockDecorations.forEach((newDecorations, screenLineId) => {
         const oldDecorations = oldProps.blockDecorations
           ? oldProps.blockDecorations.get(screenLineId)
           : null;
-        const line = lineComponentsByScreenLineId.get(screenLineId)
+        const lineNode = lineComponentsByScreenLineId.get(screenLineId).element;
+        let lastAfter = lineNode;
 
         for (let i = 0; i < newDecorations.length; i++) {
           const newDecoration = newDecorations[i];
           const element = TextEditor.viewForItem(newDecoration.item);
 
           if (oldDecorations && oldDecorations.includes(newDecoration)) {
+            if (newDecoration.position === 'after') {
+              lastAfter = element;
+            }
             continue;
           }
 
           if (newDecoration.position === 'after') {
-            const top =
-                rootComponent.pixelPositionAfterBlocksForRow(line.props.screenRow)
-              + rootComponent.measurements.lineHeight
-            parent.put(element, horizontalPadding, top)
+            this.element.insertBefore(element, lastAfter.nextSibling);
+            lastAfter = element;
           } else {
-            const top =
-                rootComponent.pixelPositionBeforeBlocksForRow(line.props.screenRow)
-            parent.put(element, horizontalPadding, top)
+            this.element.insertBefore(element, lineNode);
           }
         }
-      })
+      });
     }
   }
 
   shouldUpdate(newProps) {
-    return !isEqual(newProps, this.props)
-  }
+    const oldProps = this.props;
+    if (oldProps.top !== newProps.top) return true;
+    if (oldProps.height !== newProps.height) return true;
+    if (oldProps.width !== newProps.width) return true;
+    if (oldProps.lineHeight !== newProps.lineHeight) return true;
+    if (oldProps.tileStartRow !== newProps.tileStartRow) return true;
+    if (oldProps.tileEndRow !== newProps.tileEndRow) return true;
+    if (!arraysEqual(oldProps.screenLines, newProps.screenLines)) return true;
+    if (!arraysEqual(oldProps.lineDecorations, newProps.lineDecorations))
+      return true;
 
-  snapshot(snapshot) {
-    const { element, tileStartRow } = this.props
+    if (oldProps.blockDecorations && newProps.blockDecorations) {
+      if (oldProps.blockDecorations.size !== newProps.blockDecorations.size)
+        return true;
 
-    // snapshot.appendColor(RED, Graphene.Rect.create(0, 0, 1, this.getAllocatedHeight()))
-    // snapshot.appendColor(RED, Graphene.Rect.create(0, 0, this.getAllocatedWidth(), 1))
+      let blockDecorationsChanged = false;
 
-    /* Draw lines */
-    let marginTop = 0
-    for (let i = 0; i < this.lineComponents.length; i++) {
-      const row = tileStartRow + i
+      oldProps.blockDecorations.forEach((oldDecorations, screenLineId) => {
+        if (!blockDecorationsChanged) {
+          const newDecorations = newProps.blockDecorations.get(screenLineId);
+          blockDecorationsChanged =
+            newDecorations == null ||
+            !arraysEqual(oldDecorations, newDecorations);
+        }
+      });
+      if (blockDecorationsChanged) return true;
 
-      marginTop += element.heightForBlockDecorationsBeforeRow(row)
-
-      const lineComponent = this.lineComponents[i]
-      lineComponent.snapshot(snapshot, this.styleContext, this.textLayout, marginTop)
-
-      marginTop += element.heightForBlockDecorationsAfterRow(row)
+      newProps.blockDecorations.forEach((newDecorations, screenLineId) => {
+        if (!blockDecorationsChanged) {
+          const oldDecorations = oldProps.blockDecorations.get(screenLineId);
+          blockDecorationsChanged = oldDecorations == null;
+        }
+      });
+      if (blockDecorationsChanged) return true;
+    } else if (oldProps.blockDecorations) {
+      return true;
+    } else if (newProps.blockDecorations) {
+      return true;
     }
+
+    if (oldProps.textDecorations.length !== newProps.textDecorations.length)
+      return true;
+    for (let i = 0; i < oldProps.textDecorations.length; i++) {
+      if (
+        !textDecorationsEqual(
+          oldProps.textDecorations[i],
+          newProps.textDecorations[i]
+        )
+      )
+        return true;
+    }
+
+    return false;
   }
 }
 
 class LineComponent {
   constructor(props) {
     const {
+      nodePool,
+      screenRow,
       screenLine,
       lineComponentsByScreenLineId,
+      offScreen
     } = props;
     this.props = props;
-    this.rootNode = new SpanNode();
+    this.element = nodePool.getElement('DIV', this.buildClassName(), null);
+    this.element.dataset.screenRow = screenRow;
+    this.textNodes = [];
+
+    if (offScreen) {
+      this.element.style.position = 'absolute';
+      this.element.style.visibility = 'hidden';
+      this.element.dataset.offScreen = true;
+    }
 
     this.appendContents();
     lineComponentsByScreenLineId.set(screenLine.id, this);
   }
 
-  getText() {
-    return this.rootNode.toString()
-  }
-
-  getMarkup() {
-    return this.rootNode.toMarkup()
-  }
-
   update(newProps) {
-    // IIURC, line content never changes, if it does it's a new line,
-    // thus we never update the content.
-
     if (this.props.lineDecoration !== newProps.lineDecoration) {
       this.props.lineDecoration = newProps.lineDecoration;
-      // this.element.className = this.buildClassName();
-      // FIXME make line decoration work
+      this.element.className = this.buildClassName();
     }
 
     if (this.props.screenRow !== newProps.screenRow) {
       this.props.screenRow = newProps.screenRow;
-      // this.element.dataset.screenRow = newProps.screenRow;
+      this.element.dataset.screenRow = newProps.screenRow;
     }
 
     if (
@@ -3770,30 +4616,38 @@ class LineComponent {
       )
     ) {
       this.props.textDecorations = newProps.textDecorations;
+      this.element.firstChild.remove();
       this.appendContents();
     }
-    this.props = Object.assign({}, this.props, newProps)
   }
 
   destroy() {
-    const { lineComponentsByScreenLineId, screenLine } = this.props;
+    const { nodePool, lineComponentsByScreenLineId, screenLine } = this.props;
 
     if (lineComponentsByScreenLineId.get(screenLine.id) === this) {
       lineComponentsByScreenLineId.delete(screenLine.id);
     }
+
+    this.element.remove();
+    nodePool.release(this.element);
   }
 
   appendContents() {
-    const { displayLayer, screenLine, textDecorations } = this.props;
+    const { displayLayer, nodePool, screenLine, textDecorations } = this.props;
+
+    this.textNodes.length = 0;
 
     const { lineText, tags } = screenLine;
-    let openScopeNode = new SpanNode()
+    let openScopeNode = nodePool.getElement('SPAN', null, null);
+    this.element.appendChild(openScopeNode);
 
     let decorationIndex = 0;
     let column = 0;
     let activeClassName = null;
     let activeStyle = null;
-    let nextDecoration = textDecorations ? textDecorations[decorationIndex] : null;
+    let nextDecoration = textDecorations
+      ? textDecorations[decorationIndex]
+      : null;
     if (nextDecoration && nextDecoration.column === 0) {
       column = nextDecoration.column;
       activeClassName = nextDecoration.className;
@@ -3803,53 +4657,79 @@ class LineComponent {
 
     for (let i = 0; i < tags.length; i++) {
       const tag = tags[i];
-      if (tag === 0)
-        continue
-
-      if (displayLayer.isCloseTag(tag)) {
-        openScopeNode = openScopeNode.parentElement;
-      }
-      else if (displayLayer.isOpenTag(tag)) {
-        const className = displayLayer.classNameForTag(tag)
-        const newScopeNode = new SpanNode(className);
-        openScopeNode.appendChild(newScopeNode);
-        openScopeNode = newScopeNode;
-      }
-      else {
-        const nextTokenColumn = column + tag;
-        while (nextDecoration && nextDecoration.column <= nextTokenColumn) {
-          const text = lineText.substring(column, nextDecoration.column);
-          openScopeNode.appendTextNode(
-            text,
-            activeClassName,
-            activeStyle
+      if (tag !== 0) {
+        if (displayLayer.isCloseTag(tag)) {
+          openScopeNode = openScopeNode.parentElement;
+        } else if (displayLayer.isOpenTag(tag)) {
+          const newScopeNode = nodePool.getElement(
+            'SPAN',
+            displayLayer.classNameForTag(tag),
+            null
           );
-          column = nextDecoration.column;
-          activeClassName = nextDecoration.className;
-          activeStyle = nextDecoration.style;
-          nextDecoration = textDecorations[++decorationIndex];
-        }
+          openScopeNode.appendChild(newScopeNode);
+          openScopeNode = newScopeNode;
+        } else {
+          const nextTokenColumn = column + tag;
+          while (nextDecoration && nextDecoration.column <= nextTokenColumn) {
+            const text = lineText.substring(column, nextDecoration.column);
+            this.appendTextNode(
+              openScopeNode,
+              text,
+              activeClassName,
+              activeStyle
+            );
+            column = nextDecoration.column;
+            activeClassName = nextDecoration.className;
+            activeStyle = nextDecoration.style;
+            nextDecoration = textDecorations[++decorationIndex];
+          }
 
-        if (column < nextTokenColumn) {
-          const text = lineText.substring(column, nextTokenColumn);
-          openScopeNode.appendTextNode(
-            text,
-            activeClassName,
-            activeStyle
-          );
-          column = nextTokenColumn;
+          if (column < nextTokenColumn) {
+            const text = lineText.substring(column, nextTokenColumn);
+            this.appendTextNode(
+              openScopeNode,
+              text,
+              activeClassName,
+              activeStyle
+            );
+            column = nextTokenColumn;
+          }
         }
       }
+    }
+
+    if (column === 0) {
+      const textNode = nodePool.getTextNode(' ');
+      this.element.appendChild(textNode);
+      this.textNodes.push(textNode);
     }
 
     if (lineText.endsWith(displayLayer.foldCharacter)) {
       // Insert a zero-width non-breaking whitespace, so that LinesYardstick can
       // take the fold-marker::after pseudo-element into account during
       // measurements when such marker is the last character on the line.
-      openScopeNode.appendTextNode(ZERO_WIDTH_NBSP_CHARACTER)
+      const textNode = nodePool.getTextNode(ZERO_WIDTH_NBSP_CHARACTER);
+      this.element.appendChild(textNode);
+      this.textNodes.push(textNode);
+    }
+  }
+
+  appendTextNode(openScopeNode, text, activeClassName, activeStyle) {
+    const { nodePool } = this.props;
+
+    if (activeClassName || activeStyle) {
+      const decorationNode = nodePool.getElement(
+        'SPAN',
+        activeClassName,
+        activeStyle
+      );
+      openScopeNode.appendChild(decorationNode);
+      openScopeNode = decorationNode;
     }
 
-    this.rootNode = openScopeNode
+    const textNode = nodePool.getTextNode(text);
+    openScopeNode.appendChild(textNode);
+    this.textNodes.push(textNode);
   }
 
   buildClassName() {
@@ -3858,533 +4738,320 @@ class LineComponent {
     if (lineDecoration != null) className = className + ' ' + lineDecoration;
     return className;
   }
-
-  snapshot(snapshot, context, layout, marginTop) {
-    const {
-      index,
-      measurements,
-    } = this.props
-
-    const x = measurements.horizontalPadding
-    const y = index * measurements.lineHeight + marginTop
-
-    /* Draw text */
-    layout.setMarkup(this.getMarkup())
-    snapshot.renderLayout(context, x, y, layout)
-  }
 }
 
-class LineNumberGutterComponent extends Gtk.Widget {
+class HighlightsComponent {
   constructor(props) {
-    super()
-    this.props = props;
-    // TODO: implement mousedown handlers
-    // TODO: render decorations
+    this.props = {};
+    this.element = document.createElement('div');
+    this.element.className = 'highlights';
+    this.element.style.contain = 'strict';
+    this.element.style.position = 'absolute';
+    this.element.style.overflow = 'hidden';
+    this.element.style.userSelect = 'none';
+    this.highlightComponentsByKey = new Map();
+    this.update(props);
   }
 
-  setupLayout(props) {
-    if (!props.measurements.lineNumberGutterWidth || !props.measurements.lineHeight)
-      return
-
-    this.surface = new Cairo.ImageSurface(
-      Cairo.Format.ARGB32,
-      props.measurements.lineNumberGutterWidth,
-      props.measurements.lineHeight
-    )
-    this.context = new Cairo.Context(this.surface)
-    this.layout = PangoCairo.createLayout(this.context)
-    this.layout.setFontDescription(props.font.description)
+  destroy() {
+    this.highlightComponentsByKey.forEach(highlightComponent => {
+      highlightComponent.destroy();
+    });
+    this.highlightComponentsByKey.clear();
   }
 
   update(newProps) {
-    if (
-      this.props.measurements.lineHeight !== newProps.measurements.lineHeight ||
-      this.props.measurements.lineNumberGutterWidth !== newProps.measurements.lineNumberGutterWidth
-    )
-      this.setupLayout(newProps)
-    this.queueDraw()
-    this.props = newProps;
-  }
+    if (this.shouldUpdate(newProps)) {
+      this.props = newProps;
+      const { height, width, lineHeight, highlightDecorations } = this.props;
 
-  snapshot(snapshot) {
-    if (!this.layout)
-      return
+      this.element.style.height = height + 'px';
+      this.element.style.width = width + 'px';
 
-    const { rootComponent } = this.props
+      const visibleHighlightDecorations = new Set();
+      if (highlightDecorations) {
+        for (let i = 0; i < highlightDecorations.length; i++) {
+          const highlightDecoration = highlightDecorations[i];
+          const highlightProps = Object.assign(
+            { lineHeight },
+            highlightDecorations[i]
+          );
 
-    const startRow = rootComponent.getRenderedStartRow();
-    const endRow = rootComponent.getRenderedEndRow();
-    const rowsPerTile = rootComponent.getRowsPerTile();
-    const tileWidth = rootComponent.getScrollWidth();
+          let highlightComponent = this.highlightComponentsByKey.get(
+            highlightDecoration.key
+          );
+          if (highlightComponent) {
+            highlightComponent.update(highlightProps);
+          } else {
+            highlightComponent = new HighlightComponent(highlightProps);
+            this.element.appendChild(highlightComponent.element);
+            this.highlightComponentsByKey.set(
+              highlightDecoration.key,
+              highlightComponent
+            );
+          }
 
-    for (let i = 0; i < rootComponent.renderedTileStartRows.length; i++) {
-      const tileStartRow = rootComponent.renderedTileStartRows[i];
-      const tileEndRow = Math.min(endRow, tileStartRow + rowsPerTile);
-      const tileHeight =
-        rootComponent.pixelPositionBeforeBlocksForRow(tileEndRow) -
-        rootComponent.pixelPositionBeforeBlocksForRow(tileStartRow);
-
-      const props = {
-        tileStartRow,
-        tileEndRow,
-        tileWidth,
-        tileHeight,
-        screenLines: rootComponent.renderedScreenLines.slice(
-          tileStartRow - startRow,
-          tileEndRow - startRow
-        ),
-        lineDecorations: rootComponent.decorationsToRender.lines.slice(
-          tileStartRow - startRow,
-          tileEndRow - startRow
-        ),
-        textDecorations: rootComponent.decorationsToRender.text.slice(
-          tileStartRow - startRow,
-          tileEndRow - startRow
-        ),
-        blockDecorations: rootComponent.decorationsToRender.blocks.get(tileStartRow),
-        displayLayer: rootComponent.model.displayLayer,
+          highlightDecorations[i].flashRequested = false;
+          visibleHighlightDecorations.add(highlightDecoration.key);
+        }
       }
 
-      this.snapshotTile(snapshot, props)
+      this.highlightComponentsByKey.forEach((highlightComponent, key) => {
+        if (!visibleHighlightDecorations.has(key)) {
+          highlightComponent.destroy();
+          this.highlightComponentsByKey.delete(key);
+        }
+      });
     }
   }
 
-  snapshotTile(snapshot, tile) {
-    const { rootComponent, model } = this.props
-    const { tileStartRow, tileEndRow } = tile
+  shouldUpdate(newProps) {
+    const oldProps = this.props;
 
-    const renderedStartRow = rootComponent.getRenderedStartRow();
+    if (!newProps.hasInitialMeasurements) return false;
 
-    const startRow = Math.max(rootComponent.getFirstVisibleRow() - 1, 0)
-    const endRow   = Math.min(rootComponent.getLastVisibleRow(), model.getScreenLineCount())
+    if (oldProps.width !== newProps.width) return true;
+    if (oldProps.height !== newProps.height) return true;
+    if (oldProps.lineHeight !== newProps.lineHeight) return true;
+    if (!oldProps.highlightDecorations && newProps.highlightDecorations)
+      return true;
+    if (oldProps.highlightDecorations && !newProps.highlightDecorations)
+      return true;
+    if (oldProps.highlightDecorations && newProps.highlightDecorations) {
+      if (
+        oldProps.highlightDecorations.length !==
+        newProps.highlightDecorations.length
+      )
+        return true;
 
-    const { measurements, lineNumbersToRender } = rootComponent
-    const {
-      maxDigits,
-      keys,
-      bufferRows,
-      screenRows,
-      softWrappedFlags,
-      foldableFlags,
-    } = lineNumbersToRender
-    const gutter = model.getLineNumberGutter()
-    const decorations = rootComponent.decorationsToRender.lineNumbers.get(gutter.name) || []
-
-    if (!bufferRows)
-      return
-
-    const tileOffsetTop = rootComponent.pixelPositionBeforeBlocksForRow(tileStartRow)
-    const scrollTop = rootComponent.getScrollTop()
-    let marginTop = 0
-
-    for (let row = tileStartRow; row < tileEndRow; row++) {
-      if (row < startRow)
-        continue
-      if (row > endRow)
-        return
-      const indexInTile = row - tileStartRow;
-      const j = row - renderedStartRow;
-      const key = keys[j];
-      const softWrapped = softWrappedFlags[j];
-      const foldable = foldableFlags[j];
-      const bufferRow = bufferRows[j];
-      const screenRow = screenRows[j];
-
-      /* let className = 'line-number';
-        * if (foldable) className = className + ' foldable'; */
-
-      const decorationsForRow = decorations[j];
-      const style = getStyle({
-        foreground: rootComponent.theme.lineNumber,
-      }, decorationsForRow)
-
-      let number = null;
-      {
-        number = softWrapped ? SPACE_CHARACTER : String(bufferRow + 1);
-        number = SPACE_CHARACTER.repeat(maxDigits - number.length + 1) + number
-        number = number + (foldable ? '›' : SPACE_CHARACTER)
+      for (
+        let i = 0, length = oldProps.highlightDecorations.length;
+        i < length;
+        i++
+      ) {
+        const oldHighlight = oldProps.highlightDecorations[i];
+        const newHighlight = newProps.highlightDecorations[i];
+        if (oldHighlight.className !== newHighlight.className) return true;
+        if (newHighlight.flashRequested) return true;
+        if (oldHighlight.startPixelTop !== newHighlight.startPixelTop)
+          return true;
+        if (oldHighlight.startPixelLeft !== newHighlight.startPixelLeft)
+          return true;
+        if (oldHighlight.endPixelTop !== newHighlight.endPixelTop) return true;
+        if (oldHighlight.endPixelLeft !== newHighlight.endPixelLeft)
+          return true;
+        if (!oldHighlight.screenRange.isEqual(newHighlight.screenRange))
+          return true;
       }
+    }
+  }
+}
 
-      // We need to adjust the line number position to account for block
-      // decorations preceding the current row and following the preceding
-      // row. Note that we ignore the latter when the line number starts at
-      // the beginning of the tile, because the tile will already be
-      // positioned to take into account block decorations added after the
-      // last row of the previous tile.
-      marginTop += rootComponent.heightForBlockDecorationsBeforeRow(row);
+class HighlightComponent {
+  constructor(props) {
+    this.props = props;
+    etch.initialize(this);
+    if (this.props.flashRequested) this.performFlash();
+  }
 
-      const x = 0
-      const y =
-        ((row - tileStartRow) * measurements.lineHeight)
-        + marginTop
-        + tileOffsetTop
-        - scrollTop
+  destroy() {
+    if (this.timeoutsByClassName) {
+      this.timeoutsByClassName.forEach(timeout => {
+        window.clearTimeout(timeout);
+      });
+      this.timeoutsByClassName.clear();
+    }
 
-      const markup = renderMarkup(style, number)
+    return etch.destroy(this);
+  }
 
-      this.layout.setMarkup(markup)
-      snapshot.renderLayout(this.getStyleContext(), x, y, this.layout)
+  update(newProps) {
+    this.props = newProps;
+    etch.updateSync(this);
+    if (newProps.flashRequested) this.performFlash();
+  }
 
-      marginTop += rootComponent.heightForBlockDecorationsAfterRow(
-        row
+  performFlash() {
+    const { flashClass, flashDuration } = this.props;
+    if (!this.timeoutsByClassName) this.timeoutsByClassName = new Map();
+
+    // If a flash of this class is already in progress, clear it early and
+    // flash again on the next frame to ensure CSS transitions apply to the
+    // second flash.
+    if (this.timeoutsByClassName.has(flashClass)) {
+      window.clearTimeout(this.timeoutsByClassName.get(flashClass));
+      this.timeoutsByClassName.delete(flashClass);
+      this.element.classList.remove(flashClass);
+      requestAnimationFrame(() => this.performFlash());
+    } else {
+      this.element.classList.add(flashClass);
+      this.timeoutsByClassName.set(
+        flashClass,
+        window.setTimeout(() => {
+          this.element.classList.remove(flashClass);
+        }, flashDuration)
       );
     }
   }
 
-  didMouseDown(event) {
-    if (this.props.onMouseDown == null) {
-      this.props.rootComponent.didMouseDownOnLineNumberGutter(event);
-    } else {
-      const { bufferRow, screenRow } = event.target.dataset;
-      this.props.onMouseDown({
-        bufferRow: parseInt(bufferRow, 10),
-        screenRow: parseInt(screenRow, 10),
-        domEvent: event
-      });
-    }
-  }
-
-  didMouseMove(event) {
-    if (this.props.onMouseMove != null) {
-      const { bufferRow, screenRow } = event.target.dataset;
-      this.props.onMouseMove({
-        bufferRow: parseInt(bufferRow, 10),
-        screenRow: parseInt(screenRow, 10),
-        domEvent: event
-      });
-    }
-  }
-}
-
-class BackgroundComponent extends Gtk.Widget {
-  props = {
-    width: 0,
-    height: 0,
-  }
-
-  constructor(props) {
-    super()
-    this.update(props)
-  }
-
-  update(newProps) {
-    const oldProps = this.props
-    this.props = Object.assign({}, this.props, newProps)
-    if (this.props.width !== oldProps.width || this.props.height !== oldProps.height)
-      this.setSizeRequest(newProps.width, newProps.height)
-    this.queueDraw()
-  }
-
-  snapshot(snapshot) {
-    const { width, height } = this.props
-    snapshot.appendColor(
-      theme.backgroundColor,
-      Graphene.Rect.create(0, 0, width, height)
-    )
-  }
-}
-
-class CursorsComponent extends Gtk.DrawingArea {
-  props = {
-    element: null,
-    width: 0,
-    height: 0,
-  }
-
-  constructor(props) {
-    super()
-    this.canFocus = false
-    this.focusable = false
-    this.focusOnClick = false
-    this.setCanTarget(false)
-    this.update(props)
-    this.setDrawFunc(this.onDraw.bind(this))
-  }
-
-  update(newProps) {
-    const oldProps = this.props
-    this.props = Object.assign({}, this.props, newProps)
-    if (this.props.width !== oldProps.width || this.props.height !== oldProps.height)
-      this.setSizeRequest(newProps.width, newProps.height)
-    this.queueDraw()
-  }
-
-  onDraw(_, cx) {
-    const { element } = this.props
-    const blinkOff = element.cursorsBlinkedOff
-    const hasFocus = element.hasFocus()
-    const isActive = xedel.mainWindow ? xedel.mainWindow.isActive() : true
-    const model = element.getModel()
-    const cursors = model.getCursors()
-    const { measurements } = element
-
-    if (!element.hasInitialMeasurements)
-      return
-
-    if (!hasFocus)
-      return
-
-    if (isActive && blinkOff)
-      return
-
-    const scrollTop  = element.getScrollTop()
-    const scrollLeft = element.getScrollLeft()
-
-    cx.translate(
-      measurements.horizontalPadding - scrollLeft,
-      measurements.verticalPadding   - scrollTop
-    )
-
-    for (let i = 0; i < cursors.length; i++) {
-      const cursor = cursors[i]
-      const position = cursor.getScreenPosition()
-      const screenLine = model.screenLineForScreenRow(position.row)
-      const character =
-        position.column < screenLine.lineText.length ?
-          screenLine.lineText[position.column] :
-        position.column === screenLine.lineText.length ?
-          ' ' : 'X'
-      const coords = element.pixelPositionForScreenPosition(position)
-
-
-      if (hasFocus && isActive) {
-        cx.rectangle(
-          coords.left,
-          coords.top,
-          measurements.baseCharacterWidth,
-          measurements.lineHeight
-        )
-        cx.setColor(theme.cursorColor)
-        cx.fill()
-        cx.setColor(theme.backgroundColor)
-        cx.moveTo(coords.left, coords.top)
-        Font.draw(element.font.description, cx, character)
-      }
-      else {
-        cx.rectangle(
-          coords.left + 0.5 - 1,
-          coords.top  + 0.5,
-          measurements.baseCharacterWidth,
-          measurements.lineHeight
-        )
-        cx.setColor(theme.cursorColorInactive)
-        cx.setLineWidth(1)
-        cx.stroke()
-      }
-    }
-  }
-}
-
-class HighlightsComponent extends Gtk.DrawingArea {
-  props = {
-    element: null,
-    width: 0,
-    height: 0,
-    lineDecorations: [],
-    highlightDecorations: [],
-  }
-
-  constructor(props) {
-    super()
-    this.update(props)
-    this.setDrawFunc(this.onDraw.bind(this))
-  }
-
-  update(newProps) {
-    const oldProps = this.props
-    this.props = Object.assign({}, this.props, newProps)
-    if (this.props.width !== oldProps.width || this.props.height !== oldProps.height)
-      this.setSizeRequest(newProps.width, newProps.height)
-    this.queueDraw()
-  }
-
-  onDraw(self, cx) {
+  render() {
     const {
-      element,
-      width,
-      lineDecorations,
-      highlightDecorations,
-      measurements
-    } = this.props
+      className,
+      screenRange,
+      lineHeight,
+      startPixelTop,
+      startPixelLeft,
+      endPixelTop,
+      endPixelLeft
+    } = this.props;
+    const regionClassName = 'region ' + className;
 
-    const startRow   = element.getRenderedStartRow()
-    const scrollTop  = element.getScrollTop()
-    const scrollLeft = element.getScrollLeft()
-
-    /* Line decorations */
-    for (let i = 0; i < lineDecorations.length; i++) {
-      const decoration = lineDecorations[i]
-      if (!decoration)
-        continue
-
-      const classNames = decoration.split(' ')
-
-      for (let j = 0; j < classNames.length; j++) {
-        const className = classNames[j]
-
-        const row = startRow + i
-
-        const x = 0 - scrollLeft
-        const y = element.pixelPositionAfterBlocksForRow(row) - scrollTop
-
-        const style = decorationStyleByClass[className]
-
-        if (style.background) {
-          cx.rectangle(x, y, width, measurements.lineHeight)
-          cx.setColor(style.background)
-          cx.fill()
+    let children;
+    if (screenRange.start.row === screenRange.end.row) {
+      children = $.div({
+        className: regionClassName,
+        style: {
+          position: 'absolute',
+          boxSizing: 'border-box',
+          top: startPixelTop + 'px',
+          left: startPixelLeft + 'px',
+          width: endPixelLeft - startPixelLeft + 'px',
+          height: lineHeight + 'px'
         }
+      });
+    } else {
+      children = [];
+      children.push(
+        $.div({
+          className: regionClassName,
+          style: {
+            position: 'absolute',
+            boxSizing: 'border-box',
+            top: startPixelTop + 'px',
+            left: startPixelLeft + 'px',
+            right: 0,
+            height: lineHeight + 'px'
+          }
+        })
+      );
 
-        if (style.borderWidth && style.borderColor) {
-          const isBorderWidthOdd = style.borderWidth % 2 === 1
-          if (isBorderWidthOdd)
-            cx.translate(0, 0.5)
-          cx.rectangle(x, y, width, measurements.lineHeight - (isBorderWidthOdd ? 1 : 0))
-          cx.setLineWidth(style.borderWidth)
-          cx.setColor(style.borderColor)
-          cx.stroke()
-          if (isBorderWidthOdd)
-            cx.translate(0, -0.5)
-        }
+      if (screenRange.end.row - screenRange.start.row > 1) {
+        children.push(
+          $.div({
+            className: regionClassName,
+            style: {
+              position: 'absolute',
+              boxSizing: 'border-box',
+              top: startPixelTop + lineHeight + 'px',
+              left: 0,
+              right: 0,
+              height: endPixelTop - startPixelTop - lineHeight * 2 + 'px'
+            }
+          })
+        );
+      }
+
+      if (endPixelLeft > 0) {
+        children.push(
+          $.div({
+            className: regionClassName,
+            style: {
+              position: 'absolute',
+              boxSizing: 'border-box',
+              top: endPixelTop - lineHeight + 'px',
+              left: 0,
+              width: endPixelLeft + 'px',
+              height: lineHeight + 'px'
+            }
+          })
+        );
       }
     }
 
-    /* Highlight decorations */
-    for (let i = 0; i < highlightDecorations.length; i++) {
-      const decoration = highlightDecorations[i]
-      const x = decoration.startPixelLeft + measurements.horizontalPadding - scrollLeft
-      const y = decoration.startPixelTop  + measurements.verticalPadding - scrollTop
-      const width = decoration.endPixelLeft - decoration.startPixelLeft
-      const height = decoration.endPixelTop - decoration.startPixelTop
+    return $.div({ className: 'highlight ' + className }, children);
+  }
+}
 
-      const style = decorationStyleByClass['highlight']
+class OverlayComponent {
+  constructor(props) {
+    this.props = props;
+    this.element = document.createElement('atom-overlay');
+    if (this.props.className != null)
+      this.element.classList.add(this.props.className);
+    this.element.appendChild(this.props.element);
+    this.element.style.position = 'fixed';
+    this.element.style.zIndex = 4;
+    this.element.style.top = (this.props.pixelTop || 0) + 'px';
+    this.element.style.left = (this.props.pixelLeft || 0) + 'px';
+    this.currentContentRect = null;
 
-      if (style.background) {
-        cx.roundedRectangle(x, y, width, height, 5)
-        cx.setColor(style.background)
-        cx.fill()
+    // Synchronous DOM updates in response to resize events might trigger a
+    // "loop limit exceeded" error. We disconnect the observer before
+    // potentially mutating the DOM, and then reconnect it on the next tick.
+    // Note: ResizeObserver calls its callback when .observe is called
+    this.resizeObserver = new ResizeObserver(entries => {
+      const { contentRect } = entries[0];
+
+      if (
+        this.currentContentRect &&
+        (this.currentContentRect.width !== contentRect.width ||
+          this.currentContentRect.height !== contentRect.height)
+      ) {
+        this.resizeObserver.disconnect();
+        this.props.didResize(this);
+        process.nextTick(() => {
+          this.resizeObserver.observe(this.props.element);
+        });
       }
-      if (style.borderWidth && style.borderColor) {
-        const isBorderWidthOdd = style.borderWidth % 2 === 1
-        if (isBorderWidthOdd)
-          cx.translate(0, 0.5)
-        cx.roundedRectangle(x, y, width, height - (isBorderWidthOdd ? 1 : 0), 5)
-        cx.setLineWidth(style.borderWidth)
-        cx.setColor(style.borderColor)
-        cx.stroke()
-        if (isBorderWidthOdd)
-          cx.translate(0, -0.5)
-      }
+
+      this.currentContentRect = contentRect;
+    });
+    this.didAttach();
+    this.props.overlayComponents.add(this);
+  }
+
+  destroy() {
+    this.props.overlayComponents.delete(this);
+    this.didDetach();
+  }
+
+  getNextUpdatePromise() {
+    if (!this.nextUpdatePromise) {
+      this.nextUpdatePromise = new Promise(resolve => {
+        this.resolveNextUpdatePromise = () => {
+          this.nextUpdatePromise = null;
+          this.resolveNextUpdatePromise = null;
+          resolve();
+        };
+      });
     }
+    return this.nextUpdatePromise;
   }
-}
 
-
-
-gi.registerClass(TextEditorComponent)
-// gi.registerClass(LineComponent)
-gi.registerClass(LinesTileComponent)
-gi.registerClass(LineNumberGutterComponent)
-gi.registerClass(BackgroundComponent)
-gi.registerClass(CursorsComponent)
-gi.registerClass(HighlightsComponent)
-
-module.exports = TextEditorComponent
-
-function renderMarkup(style, text) {
-  return `${renderOpenTag(style)}${escapeMarkup(text)}</span>`
-}
-
-function renderOpenTag(style) {
-  let result = '<span'
-  for (let key in style) {
-    const value = style[key]
-    switch (key) {
-      case 'foreground': result += ` foreground="${Color.toString(value)}"`; break
-      case 'background': result += ` background="${Color.toString(value)}"`; break
-      case 'fontWeight': result += ` weight="${value}"`; break
-      case 'fontFamily': result += ` font_family="${value}"`; break
-      case 'size':       result += ` size="${value}"`; break
-      case 'style':      result += ` style="${value}"`; break
+  update(newProps) {
+    const oldProps = this.props;
+    this.props = Object.assign({}, oldProps, newProps);
+    if (this.props.pixelTop != null)
+      this.element.style.top = this.props.pixelTop + 'px';
+    if (this.props.pixelLeft != null)
+      this.element.style.left = this.props.pixelLeft + 'px';
+    if (newProps.className !== oldProps.className) {
+      if (oldProps.className != null)
+        this.element.classList.remove(oldProps.className);
+      if (newProps.className != null)
+        this.element.classList.add(newProps.className);
     }
-  }
-  result += `>`
-  return result
-}
 
-function escapeMarkup(text) {
-  return text.replace(/<|>|&/g, m => {
-    switch (m) {
-      case '<': return '&lt;'
-      case '>': return '&gt;'
-      case '&': return '&amp;'
-    }
-    return m
-  })
-}
-
-class SpanNode {
-  constructor(className, style) {
-    this.className = className
-    this.style = style
+    if (this.resolveNextUpdatePromise) this.resolveNextUpdatePromise();
   }
 
-  appendChild(e) {
-    this.children = this.children || []
-    this.children.push(e)
-    if (typeof e !== 'string')
-      e.parentElement = this
+  didAttach() {
+    this.resizeObserver.observe(this.props.element);
   }
 
-  appendTextNode(text, className, style) {
-    let node = this
-    if (className || style) {
-      const decorationNode = new SpanNode(className, style)
-      node.appendChild(decorationNode);
-      node = decorationNode;
-    }
-    node.appendChild(text);
+  didDetach() {
+    this.resizeObserver.disconnect();
   }
-
-  toMarkup() {
-    if (!this.children)
-      return ''
-    let result = renderOpenTag(getStyle(this.style, this.className))
-    for (let i = 0; i < this.children.length; i++) {
-      const child = this.children[i]
-      if (typeof child === 'string')
-        result += escapeMarkup(child)
-      else
-        result += child.toMarkup()
-    }
-    result += '</span>'
-    return result
-  }
-
-  toString() {
-    if (!this.children)
-      return ''
-    let result = ''
-    for (let i = 0; i < this.children.length; i++) {
-      const child = this.children[i]
-      if (typeof child === 'string')
-        result += child
-      else
-        result += child.toString()
-    }
-    return result
-  }
-}
-
-function ceilToPhysicalPixelBoundary(virtualPixelPosition) {
-  return virtualPixelPosition;
-  /*
-   * const virtualPixelsPerPhysicalPixel = 1 / window.devicePixelRatio;
-   * return (
-   *   Math.ceil(virtualPixelPosition / virtualPixelsPerPhysicalPixel) *
-   *   virtualPixelsPerPhysicalPixel
-   * );
-   */
 }
 
 let rangeForMeasurement;
@@ -4467,31 +5134,92 @@ function debounce(fn, wait) {
   };
 }
 
-function roundToPhysicalPixelBoundary(virtualPixelPosition) {
-  return virtualPixelPosition
-  /* const virtualPixelsPerPhysicalPixel = 1 / window.devicePixelRatio;
-   * return (
-   *   Math.round(virtualPixelPosition / virtualPixelsPerPhysicalPixel) *
-   *   virtualPixelsPerPhysicalPixel
-   * ); */
-}
+class NodePool {
+  constructor() {
+    this.elementsByType = {};
+    this.textNodes = [];
+  }
 
-function getStyle(baseStyle, classNames) {
-  if (!classNames)
-    return baseStyle
+  getElement(type, className, style) {
+    var element;
+    var elementsByDepth = this.elementsByType[type];
+    if (elementsByDepth) {
+      while (elementsByDepth.length > 0) {
+        var elements = elementsByDepth[elementsByDepth.length - 1];
+        if (elements && elements.length > 0) {
+          element = elements.pop();
+          if (elements.length === 0) elementsByDepth.pop();
+          break;
+        } else {
+          elementsByDepth.pop();
+        }
+      }
+    }
 
-  if (!baseStyle)
-    baseStyle = {}
-
-  const names = classNames.split(' ')
-  for (let name of names) {
-    const style = decorationStyleByClass[name]
-    if (!style)
-      continue
-    for (let prop in style) {
-      baseStyle[prop] = style[prop]
+    if (element) {
+      element.className = className || '';
+      element.attributeStyleMap.forEach((value, key) => {
+        if (!style || style[key] == null) element.style[key] = '';
+      });
+      if (style) Object.assign(element.style, style);
+      for (const key in element.dataset) delete element.dataset[key];
+      while (element.firstChild) element.firstChild.remove();
+      return element;
+    } else {
+      var newElement = document.createElement(type);
+      if (className) newElement.className = className;
+      if (style) Object.assign(newElement.style, style);
+      return newElement;
     }
   }
 
-  return baseStyle
+  getTextNode(text) {
+    if (this.textNodes.length > 0) {
+      var node = this.textNodes.pop();
+      node.textContent = text;
+      return node;
+    } else {
+      return document.createTextNode(text);
+    }
+  }
+
+  release(node, depth = 0) {
+    var { nodeName } = node;
+    if (nodeName === '#text') {
+      this.textNodes.push(node);
+    } else {
+      var elementsByDepth = this.elementsByType[nodeName];
+      if (!elementsByDepth) {
+        elementsByDepth = [];
+        this.elementsByType[nodeName] = elementsByDepth;
+      }
+
+      var elements = elementsByDepth[depth];
+      if (!elements) {
+        elements = [];
+        elementsByDepth[depth] = elements;
+      }
+
+      elements.push(node);
+      for (var i = 0; i < node.childNodes.length; i++) {
+        this.release(node.childNodes[i], depth + 1);
+      }
+    }
+  }
+}
+
+function roundToPhysicalPixelBoundary(virtualPixelPosition) {
+  const virtualPixelsPerPhysicalPixel = 1 / window.devicePixelRatio;
+  return (
+    Math.round(virtualPixelPosition / virtualPixelsPerPhysicalPixel) *
+    virtualPixelsPerPhysicalPixel
+  );
+}
+
+function ceilToPhysicalPixelBoundary(virtualPixelPosition) {
+  const virtualPixelsPerPhysicalPixel = 1 / window.devicePixelRatio;
+  return (
+    Math.ceil(virtualPixelPosition / virtualPixelsPerPhysicalPixel) *
+    virtualPixelsPerPhysicalPixel
+  );
 }

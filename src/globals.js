@@ -37,4 +37,6 @@ Object.assign(xedel, {
   }
 })
 
+global.xedel = xedel
+
 module.exports = xedel
