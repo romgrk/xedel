@@ -83,7 +83,7 @@ function onExit() {
   if (onExit.didExit)
     return
   onExit.didExit = true
-  app.exit()
+  xedel.app.exit()
   console.log('Exiting gracefully...')
 }
 
