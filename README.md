@@ -52,13 +52,14 @@ to be the best future-proof option.
  - Should we offer compatibility with VSCode extensions?
 
 ### Functionalities
+ - [x] Editor: rendering
+ - [x] Editor: marks & decorations
+ - [x] Editor: multi-cursor
+ - [x] Editor: API
+ - [ ] Syntax (tree-sitter) (in progress)
+ - [ ] Plugin system
  - [ ] UI (side panels, grid view, tabs)
  - [ ] Core: keyboard-mapping system
- - [ ] Syntax (tree-sitter)
- - [ ] Editor: rendering
- - [ ] Editor: marks & decorations
- - [ ] Editor: multi-cursor
- - [ ] Editor: API
  - [ ] Fuzzy-finder
  - [ ] File searching/replacing
  - [ ] Language Server Protocol
