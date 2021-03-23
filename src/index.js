@@ -1,6 +1,6 @@
 const fs = require('fs')
 const path = require('path')
-const chalk = require('chalk')
+const CSON = require('season')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
 const Gdk = gi.require('Gdk', '4.0')
@@ -14,6 +14,7 @@ const Config = require('./editor/config')
 const GrammarRegistry = require('./editor/grammar-registry')
 const CommandsManager = require('./commands-manager')
 const KeymapManager = require('./keymap-manager')
+const TreeSitterGrammar = require('./editor/tree-sitter-grammar')
 const clipboard = require('./editor/clipboard')
 // const grammars = require('./grammars')
 
@@ -55,8 +56,7 @@ xedel.loaded.then(() => {
 
 const userConfigHome = process.env.XDG_CONFIG_HOME || `${process.env.HOME}/.config`
 const configPath = path.join(userConfigHome, 'xedel')
-
-process.env.NODE_PATH = path.join(configPath, 'plugins')
+const pluginsPath = path.join(configPath, 'plugins')
 
 function main() {
   const app = xedel.app = new Application()
@@ -65,6 +65,33 @@ function main() {
   xedel.commands = new CommandsManager()
   xedel.keymaps = new KeymapManager()
   xedel.grammars = new GrammarRegistry({ config: xedel.config })
+
+  const plugins = fs.readdirSync(pluginsPath)
+  plugins.forEach(pluginName => {
+    // FIXME: handle disposables inside here
+    console.log('Loading ' + pluginName)
+    const pluginPath = path.join(pluginsPath, pluginName)
+    const plugin = require(pluginPath)
+    const grammarsPath = path.join(pluginPath, 'grammars')
+    const grammarPaths =
+      fs.existsSync(grammarsPath) ?
+        fs.readdirSync(grammarsPath).map(p => path.join(grammarsPath, p)) : []
+
+    grammarPaths.forEach(grammarPath => {
+      // FIXME: this line
+      if (!grammarPath.includes('tree-sitter'))
+        return
+      const params = CSON.parse(fs.readFileSync(grammarPath))
+      const grammar = new TreeSitterGrammar(xedel.grammars, grammarPath, params)
+      grammar.activate()
+      console.log('==> Added grammar ' + params.name)
+    })
+
+    if (plugin.activate)
+      plugin.activate()
+    console.log('==> Loaded ' + pluginName)
+  })
+
 
   app.run()
 }

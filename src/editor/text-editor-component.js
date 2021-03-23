@@ -26,7 +26,6 @@ const { isPairedCharacter } = require('./text-utils');
 const TextEditor = require('./text-editor')
 const TextBuffer = require('./text-buffer')
 
-const TreeSitterGrammar = require('./tree-sitter-grammar')
 const TreeSitterLanguageMode = require('./tree-sitter-language-mode')
 const doomOne = require('./theme-doom-one')
 
@@ -147,30 +146,25 @@ class TextEditorComponent extends Gtk.Widget {
       )
     })
 
-    const image = Gtk.Image.newFromFile(path.join(__dirname, '../../static/demo.png'))
+    const image = Gtk.Image.newFromFile(path.join(__dirname, '../../static/demo.gif'))
     image.setSizeRequest(200, 200)
     model.decorateMarker(
       model.markScreenPosition([0, 0]),
       { type: 'block', position: 'after', item: image })
 
-    const label = new Gtk.Label({ label: 'This is a test' })
-    label.addCssClass('dim-label title')
-    model.decorateMarker(
-      model.markScreenPosition([6, 0]),
-      { type: 'block', position: 'before', item: label })
+    // const label = new Gtk.Label({ label: 'This is a test' })
+    // label.addCssClass('dim-label title')
+    // model.decorateMarker(
+    //   model.markScreenPosition([6, 0]),
+    //   { type: 'block', position: 'before', item: label })
 
     // model.decorateMarker(
     //   model.markScreenPosition([9, 0]),
     //   { type: 'block', position: 'before', item: Gtk.Button.newFromIconName('starred') })
 
-    module.paths.push(process.env.NODE_PATH)
-    const jsGrammarPath = require.resolve('language-javascript/grammars/tree-sitter-javascript.cson')
-    const params = CSON.parse(fs.readFileSync(jsGrammarPath))
-    const grammar = new TreeSitterGrammar(xedel.grammars, jsGrammarPath, params)
-
     const languageMode = new TreeSitterLanguageMode({
       buffer,
-      grammar,
+      grammar: xedel.grammars.grammarForScopeName('source.js'),
       grammars: xedel.grammars,
       config: xedel.config,
     });

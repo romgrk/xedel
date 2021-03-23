@@ -38,5 +38,7 @@ Object.assign(xedel, {
 })
 
 global.xedel = xedel
+// Compatibility with existing atom plugins:
+global.atom = xedel
 
 module.exports = xedel
