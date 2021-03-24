@@ -2,10 +2,11 @@
  * keymap-manager.js
  */
 
-const xedel = require('./globals')
+const { Disposable } = require('event-kit')
 
 const Key = require('./key')
 const { unreachable } = require('./utils/assert')
+const { translateSelector } = require('./utils/atom-compatibility')
 
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
@@ -25,6 +26,7 @@ class KeymapManager {
   queuedKeystrokes = []
 
   keymapsByName = {}
+  keymapsBySource = {}
 
   constructor() {
     xedel.loaded.then(() => {
@@ -42,24 +44,41 @@ class KeymapManager {
   removeListener(listener) {
     this.listeners = this.listeners.filter(l => l !== listener)
   }
+  // add: (source, keyBindingsBySelector, priority=0, throwOnInvalidSelector=true)
+  add(source, keymapBySelector, priority = 0, throwOnInvalidSelector = true) {
+    Object.keys(keymapBySelector).forEach(name => {
+      const keymap = keymapBySelector[name]
+      const selector = translateSelector(name)
 
-  addKeymap(element, keymap) {
-    const name = element.name || element.constructor.name || element
+      if (this.keymapsByName[selector] === undefined)
+        this.keymapsByName[selector] = []
 
-    if (this.keymapsByName[name] === undefined)
-      this.keymapsByName[name] = []
+      this.keymapsByName[selector].push(keymap)
+    })
 
-    this.keymapsByName[name].push(keymap)
+    this.keymapsBySource[source] = keymapBySelector
+
+    return new Disposable(() => {
+      this.removeBindingsFromSource(source)
+    })
   }
 
-  removeKeymap(element, keymap) {
-    const name = element.name || element.constructor.name || element
+  removeBindingsFromSource(source) {
+    const keymapBySelector = this.keymapsBySource[source]
 
-    if (this.keymapsByName[name] === undefined)
+    if (!keymapBySelector)
       return
 
-    this.keymapsByName[name] =
-      this.keymapsByName[name].filter(k => k !== keymap)
+    Object.keys(keymapBySelector).forEach(name => {
+      const keymap = keymapBySelector[name]
+      const selector = translateSelector(name)
+
+      if (this.keymapsByName[selector] === undefined)
+        return
+
+      this.keymapsByName[selector] =
+        this.keymapsByName[selector].filter(k => k !== keymap)
+    })
   }
 
   onWindowKeyPressEvent = (keyval, keycode, state) => {
@@ -129,7 +148,7 @@ class KeymapManager {
     // console.log({ effect })
 
     if (typeof effect === 'string') {
-      const command = xedel.commands.get(effect)
+      const command = xedel.commands.get(element.constructor.name, effect)
       effect = command.effect
     }
 
@@ -166,8 +185,7 @@ function getElementsStack() {
 }
 
 function matchKeybinding(queuedKeystrokes, keymap, element) {
-  const { name, keys } = keymap
-  const keybindingKeys = Object.keys(keys)
+  const keybindingKeys = Object.keys(keymap)
   const results = []
 
   outer: for (let keybinding of keybindingKeys) {
@@ -189,8 +207,8 @@ function matchKeybinding(queuedKeystrokes, keymap, element) {
       results.push({
         match: MATCH.PARTIAL,
         keybinding,
-        effect: keys[keybinding],
-        source: name,
+        effect: keymap[keybinding],
+        // source: name, // FIXME this
         element
       })
     }
@@ -198,8 +216,8 @@ function matchKeybinding(queuedKeystrokes, keymap, element) {
       results.push({
         match: MATCH.FULL,
         keybinding,
-        effect: keys[keybinding],
-        source: name,
+        effect: keymap[keybinding],
+        // source: name, // FIXME this
         element
       })
     }

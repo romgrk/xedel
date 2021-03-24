@@ -20,8 +20,7 @@ xedel.loaded.then(() => {
   }
 
   const editorViewKeymap = {
-    name: 'editor-view',
-    keys: {
+    EditorView: {
       'alt-,': 'pane:previous',
       'alt-.': 'pane:next',
       'alt-c': 'pane:close',
@@ -29,7 +28,7 @@ xedel.loaded.then(() => {
   }
 
   xedel.commands.add('editor-view', editorViewCommands)
-  xedel.keymaps.addKeymap(EditorView, editorViewKeymap)
+  xedel.keymaps.add(__filename, editorViewKeymap)
 })
 
 class EditorView extends Gtk.Notebook {

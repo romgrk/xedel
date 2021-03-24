@@ -16,8 +16,7 @@ const EditorView = require('./editor-view')
 const UI_FILE = path.join(__dirname, './ui.glade')
 
 const windowKeymap = {
-  name: 'window',
-  keys: {
+  Window: {
     'ctrl-o': () => openFileDialog(xedel.loadFile),
     'ctrl-w q': ['destroy'],
   }
@@ -25,10 +24,10 @@ const windowKeymap = {
 
 xedel.loaded.then(() => {
   // xedel.commands.add('editor', editorCommands)
-  xedel.keymaps.addKeymap(MainWindow, windowKeymap)
+  xedel.keymaps.add(__filename, windowKeymap)
 })
 
-class MainWindow extends Gtk.ApplicationWindow {
+class Window extends Gtk.ApplicationWindow {
   constructor(app) {
     super(app)
 
@@ -69,4 +68,6 @@ class MainWindow extends Gtk.ApplicationWindow {
   }
 }
 
-module.exports = MainWindow
+gi.registerClass(Window)
+
+module.exports = Window

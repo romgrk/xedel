@@ -2,41 +2,50 @@
  * commands-manager.js
  */
 
+const { Disposable } = require('event-kit');
+const { translateSelector } = require('./utils/atom-compatibility')
+
 class CommandsManager {
-  commands = {}
+  commandsByName = {}
   sources = {}
 
-  get(command) {
-    if (!this.commands[command])
+  get(element, command) {
+    if (this.commandsByName[element]?.[command] === undefined)
       throw new Error(`Command '${command}' is not registered`)
-    return this.commands[command]
+    return this.commandsByName[element][command]
   }
 
   add(element, commands) {
     const source = getSource()
+    const name = translateSelector(element)
+
+    if (!this.commandsByName[name])
+      this.commandsByName[name] = {}
+
+    const elementCommands = this.commandsByName[name]
 
     for (let command in commands) {
-      if (command in this.commands) {
+      if (command in elementCommands) {
         console.warn(new Error(`Command '${command}' already exists`))
       }
       const effect = commands[command]
-      this.commands[command] = { element, effect, source }
+      elementCommands[command] = { element: name, effect, source }
     }
 
-    this.sources[source] = commands
+    this.sources[source] =
+      (this.sources[source] || []).concat({ element, commands })
 
-    return () => {
+    return new Disposable(() => {
       this.remove(source)
-    }
+    })
   }
 
   remove(source) {
-    const commands = this.sources[source]
-
-    for (let command of commands) {
-      delete this.commands[command]
-    }
-
+    this.sources[source].forEach(({ element, commands }) => {
+      for (let command in commands) {
+        delete this.commandsByName[element][command]
+      }
+    })
     delete this.sources[source]
   }
 }

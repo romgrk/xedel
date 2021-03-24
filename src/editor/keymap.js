@@ -25,9 +25,7 @@ const editorCommands = {
 }
 
 const editorKeymap = {
-  name: 'editor',
-  options: { preventPropagation: true },
-  keys: {
+  TextEditor: {
     'j': 'core:down',
     'k': 'core:up',
     'h': 'core:left',
@@ -44,7 +42,7 @@ const editorKeymap = {
 
 xedel.loaded.then(() => {
   xedel.commands.add('editor', editorCommands)
-  xedel.keymaps.addKeymap(TextEditorComponent, editorKeymap)
+  xedel.keymaps.add(__filename, editorKeymap)
 })
 
 

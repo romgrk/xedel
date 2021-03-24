@@ -95,6 +95,7 @@ const decorationStyleByClass = Color.parseObject({
 
 
 class TextEditorComponent extends Gtk.Widget {
+  static name = 'TextEditor'
 
   theme = theme
 
