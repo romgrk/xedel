@@ -11,17 +11,20 @@ const Gdk = gi.require('Gdk', '4.0')
 const GLib = gi.require('GLib', '2.0')
 const readFile = fs.promises.readFile
 
-const xedel = require('./globals')
 const MainWindow = require('./window')
 
 const STYLE_FILE = path.join(__dirname, './style.css')
 
 let styleFileWatcher
-
+let _callback
 
 class Application extends Gtk.Application {
-  constructor() {
+  constructor(callback) {
     super('com.github.romgrk.xedel', 0)
+    // FIXME: node-gtk issue: setting a property will make `new Window()`
+    // think that we're passing it an initialize props object rather than
+    // a GtkApplication object.
+    _callback = callback
     this.on('activate', () => this.onActivate())
   }
 
@@ -38,12 +41,14 @@ class Application extends Gtk.Application {
     ])
     .then(() => {})
 
-    const mainWindow = xedel.mainWindow = new MainWindow(this)
+    const mainWindow = new MainWindow(this)
     mainWindow.on('close-request', () => {
       this.loop.quit()
       process.exit(0)
     })
-    mainWindow.on('show', () => { xedel.emit('loaded') })
+    mainWindow.on('show', () => {
+      _callback(mainWindow)
+    })
     mainWindow.show()
     this.loop = GLib.MainLoop.new(null, false)
     this.loop.run()

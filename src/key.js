@@ -30,6 +30,7 @@ class Key {
   ctrl = false
   shift = false
   alt = false
+  cmd = false
   super = false
   name = undefined
 
@@ -61,6 +62,7 @@ class Key {
     key.ctrl   = Boolean(state & Gdk.ModifierType.CONTROL_MASK)
     key.shift  = shift || Boolean(state & Gdk.ModifierType.SHIFT_MASK)
     key.alt    = Boolean(state & Gdk.ModifierType.ALT_MASK)
+    key.cmd    = false // FIXME
     key.super  = Boolean(state & Gdk.ModifierType.SUPER_MASK)
     key.name   = name
     key.string = string
@@ -91,6 +93,7 @@ class Key {
     }
 
     const key = new Key()
+    key.cmd = false // FIXME
     key.ctrl = event.ctrlKey
     key.shift = shift || event.shiftKey
     key.alt = event.altKey
@@ -105,10 +108,16 @@ class Key {
   static fromDescription = (description) => {
     const key = new Key()
 
-    const parts = description.split('-')
+    const parts =
+      description === '-' ?
+        ['minus'] :
+        description.split('-')
 
     for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
+      let part = parts[i]
+      if (part in KeySymbols.CORRECTIONS)
+        part = KeySymbols.CORRECTIONS[part]
+
       const lcPart = part.toLowerCase()
 
       if (lcPart === 'ctrl') {
@@ -120,6 +129,9 @@ class Key {
       else if (lcPart === 'alt') {
         key.alt = true
       }
+      else if (lcPart === 'cmd') {
+        key.cmd = true
+      }
       else if (lcPart === 'super') {
         key.super = true
       }
@@ -128,7 +140,6 @@ class Key {
         let string = part
 
         const keymapEntry = keymap.find(k => k.withShift === string)
-
         if (keymapEntry) {
           name = keymapEntry.value
           key.shift = true

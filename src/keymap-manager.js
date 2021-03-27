@@ -28,13 +28,11 @@ class KeymapManager {
   keymapsByName = {}
   keymapsBySource = {}
 
-  constructor() {
-    xedel.loaded.then(() => {
-      this.controller = new Gtk.EventControllerKey()
-      this.controller.setPropagationPhase(Gtk.PropagationPhase.CAPTURE)
-      this.controller.on('key-pressed', this.onWindowKeyPressEvent)
-      xedel.mainWindow.addController(this.controller)
-    })
+  initialize() {
+    this.controller = new Gtk.EventControllerKey()
+    this.controller.setPropagationPhase(Gtk.PropagationPhase.CAPTURE)
+    this.controller.on('key-pressed', this.onWindowKeyPressEvent)
+    xedel.window.addController(this.controller)
   }
 
   addListener(listener) {
@@ -146,14 +144,21 @@ class KeymapManager {
 
   runEffect(effect, element) {
     // console.log({ effect })
+    let commandName
 
     if (typeof effect === 'string') {
+      commandName = effect
       const command = xedel.commands.get(element.constructor.name, effect)
       effect = command.effect
     }
 
     if (typeof effect === 'function') {
       return effect.call(element, element)
+    }
+
+    if (typeof effect === 'object' && typeof effect.didDispatch === 'function') {
+      const event = new CommandEvent(commandName)
+      return effect.didDispatch.call(element, event)
     }
 
     if (Array.isArray(effect)) {
@@ -172,7 +177,7 @@ KeymapManager.MATCH = MATCH
 module.exports = KeymapManager
 
 function getElementsStack() {
-  const activeElement = xedel.mainWindow.getFocus()
+  const activeElement = xedel.window.getFocus()
   if (!activeElement)
     return []
   const elements = [activeElement]
@@ -227,4 +232,16 @@ function matchKeybinding(queuedKeystrokes, keymap, element) {
   }
 
   return results
+}
+
+class CommandEvent {
+  stopPropagationCalled = false
+
+  constructor(type) {
+    this.type = type
+  }
+
+  stopPropagation() {
+    this.stopPropagationCalled = true
+  }
 }

@@ -10,7 +10,6 @@ const Gdk = gi.require('Gdk', '4.0')
 const GdkX11 = gi.require('GdkX11', '4.0')
 const GLib = gi.require('GLib', '2.0')
 
-const xedel = require('../globals')
 const TextEditor = require('./index.js')
 
 const grammars = require('../grammars')

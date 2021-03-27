@@ -20,7 +20,22 @@ const MODIFIERS = new Set([
 ])
 
 const CORRECTIONS = {
+  // for Gdk keys
   ISO_Left_Tab: "Tab",
+
+  // for atom packages
+  enter: 'Return',
+  numpad0: '0',
+  numpad1: '1',
+  numpad2: '2',
+  numpad3: '3',
+  numpad4: '4',
+  numpad5: '5',
+  numpad6: '6',
+  numpad7: '7',
+  numpad8: '8',
+  numpad9: '9',
+  altgraph: 'alt',
 }
 
 const LOWER_TO_UPPER = {

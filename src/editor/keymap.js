@@ -2,7 +2,6 @@
  * keymap.js
  */
 
-const xedel = require('../globals')
 const TextEditorComponent = require('./text-editor-component')
 
 
@@ -40,9 +39,9 @@ const editorKeymap = {
   }
 }
 
-xedel.loaded.then(() => {
+module.exports.register = () => {
   xedel.commands.add('editor', editorCommands)
   xedel.keymaps.add(__filename, editorKeymap)
-})
+}
 
 

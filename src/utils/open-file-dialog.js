@@ -5,8 +5,6 @@
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
 
-const xedel = require('../globals')
-
 module.exports = function openFileDialog(callback) {
   // FIXME: dialog.getFile() returns a GLocalFile that doesn't
   // have any useful method -.-

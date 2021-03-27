@@ -16,7 +16,6 @@ const Pango = gi.require('Pango')
 const PangoCairo = gi.require('PangoCairo')
 const Graphene = gi.require('Graphene', '1.0')
 
-const xedel = require('../globals')
 const Font = require('../utils/font')
 const Color = require('../utils/color')
 const Key = require('../key')
@@ -4112,7 +4111,7 @@ class CursorsComponent extends Gtk.DrawingArea {
     const { element } = this.props
     const blinkOff = element.cursorsBlinkedOff
     const hasFocus = element.hasFocus()
-    const isActive = xedel.mainWindow ? xedel.mainWindow.isActive() : true
+    const isActive = xedel.window ? xedel.window.isActive() : true
     const model = element.getModel()
     const cursors = model.getCursors()
     const { measurements } = element

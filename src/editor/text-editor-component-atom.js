@@ -889,13 +889,13 @@ module.exports = class TextEditorComponent {
       for (let i = 0; i < oldClassList.length; i++) {
         const className = oldClassList[i];
         if (!newClassList.includes(className)) {
-          this.element.classList.remove(className);
+          this.element.removeCssClass(className);
         }
       }
     }
 
     for (let i = 0; i < newClassList.length; i++) {
-      this.element.classList.add(newClassList[i]);
+      this.element.addCssClass(newClassList[i]);
     }
 
     this.classList = newClassList;
@@ -4881,14 +4881,14 @@ class HighlightComponent {
     if (this.timeoutsByClassName.has(flashClass)) {
       window.clearTimeout(this.timeoutsByClassName.get(flashClass));
       this.timeoutsByClassName.delete(flashClass);
-      this.element.classList.remove(flashClass);
+      this.element.removeCssClass(flashClass);
       requestAnimationFrame(() => this.performFlash());
     } else {
-      this.element.classList.add(flashClass);
+      this.element.addCssClass(flashClass);
       this.timeoutsByClassName.set(
         flashClass,
         window.setTimeout(() => {
-          this.element.classList.remove(flashClass);
+          this.element.removeCssClass(flashClass);
         }, flashDuration)
       );
     }
@@ -4977,7 +4977,7 @@ class OverlayComponent {
     this.props = props;
     this.element = document.createElement('atom-overlay');
     if (this.props.className != null)
-      this.element.classList.add(this.props.className);
+      this.element.addCssClass(this.props.className);
     this.element.appendChild(this.props.element);
     this.element.style.position = 'fixed';
     this.element.style.zIndex = 4;
@@ -5037,9 +5037,9 @@ class OverlayComponent {
       this.element.style.left = this.props.pixelLeft + 'px';
     if (newProps.className !== oldProps.className) {
       if (oldProps.className != null)
-        this.element.classList.remove(oldProps.className);
+        this.element.removeCssClass(oldProps.className);
       if (newProps.className != null)
-        this.element.classList.add(newProps.className);
+        this.element.addCssClass(newProps.className);
     }
 
     if (this.resolveNextUpdatePromise) this.resolveNextUpdatePromise();
