@@ -1,4 +1,6 @@
 dependencies:
+  '@atom/nsfw': 1.0.27
+  '@atom/watcher': 1.3.5
   chalk: 3.0.0
   chokidar: 3.4.3
   clipboardy: 2.3.0
@@ -7,6 +9,7 @@ dependencies:
   event-kit: 2.5.3
   first-mate: 7.4.1
   fs-plus: 3.1.1
+  git-utils: 5.7.1
   grim: 2.0.3
   idle-callback: 1.0.3
   jest: 25.5.4
@@ -20,6 +23,7 @@ dependencies:
   postcss-selector-parser: 6.0.4
   scoped-property-store: 0.17.0
   season: 6.0.2
+  service-hub: 0.7.4
   superstring: 2.4.4
   text-buffer: 13.17.4
   tree-sitter-bash: 0.16.1
@@ -41,6 +45,25 @@ devDependencies:
   '@babel/plugin-proposal-class-properties': 7.12.1
 lockfileVersion: 5.2
 packages:
+  /@atom/nsfw/1.0.27:
+    dependencies:
+      fs-extra: 7.0.1
+      nan: 2.14.2
+    dev: false
+    requiresBuild: true
+    resolution:
+      integrity: sha512-2LehwAL1dZDklhdyW8Cw0//k/8jIhtZkZpymFWAKpvW5H7ltGabQ3EcKcV8XvWpulY7qPXLrFrTlRe/8SBVu9w==
+  /@atom/watcher/1.3.5:
+    dependencies:
+      event-kit: 2.5.3
+      fs-extra: 7.0.1
+      nan: 2.14.1
+      prebuild-install: 5.3.3
+    dev: false
+    hasBin: true
+    requiresBuild: true
+    resolution:
+      integrity: sha512-QP95EnVtpQmlNVL3ravmVBbTDFteRi99CGvlP925d0+WvjPHSPOKYLxDUP3WyT+fCKqW0sboKrpPSwnbMZvCJw==
   /@babel/code-frame/7.12.11:
     dependencies:
       '@babel/highlight': 7.10.4
@@ -1760,6 +1783,16 @@ packages:
     dev: false
     resolution:
       integrity: sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow==
+  /fs-extra/7.0.1:
+    dependencies:
+      graceful-fs: 4.2.6
+      jsonfile: 4.0.0
+      universalify: 0.1.2
+    dev: false
+    engines:
+      node: '>=6 <7 || >=8'
+    resolution:
+      integrity: sha512-YJDaCJZEnBmcbw13fvdAM9AwNOJwOzrE4pqMqBq5nFiEqXUqHwlK4B+3pUw6JNvfSPtX05xFHtYy/1ni01eGCw==
   /fs-plus/3.1.1:
     dependencies:
       async: 1.5.2
@@ -1861,6 +1894,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-Xv+OPmhNVprkyysSgmBOi6YhSfo=
+  /git-utils/5.7.1:
+    dependencies:
+      fs-plus: 3.1.1
+      nan: 2.14.2
+    dev: false
+    requiresBuild: true
+    resolution:
+      integrity: sha512-+mWdJDq9emWoq6GzzrGEB7SIBmAk0lNNv2wgNkgwTVZUkAFkWvgRsJ+Kvs3d1QQD6WG6vczti2WLpjmh2Twtlw==
   /github-from-package/0.0.0:
     dev: false
     resolution:
@@ -1893,6 +1934,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-WjKPNJF79dtJAVniUlGGWHYGz2jWxT6VhN/4m1NdkbZ2nOsEF+cI1Edgql5zCRhs/VsQYRvrXctxktVXZUkixw==
+  /graceful-fs/4.2.6:
+    dev: false
+    resolution:
+      integrity: sha512-nTnJ528pbqxYanhpDYsi4Rd8MAeaBA67+RZ10CM1m3bTAVFEDcd5AuA4a6W5YkGZ1iNXHzZz8T6TBKLeBuNriQ==
   /grim/1.5.0:
     dependencies:
       emissary: 1.3.3
@@ -2824,6 +2869,12 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-KXPvOm8K9IJKFM0bmdn8QXh7udDh1g/giieX0NLCaMnb4hEiVFqnop2ImTXCc5e0/oHz3LTqmHGtExn5hfMkOA==
+  /jsonfile/4.0.0:
+    dev: false
+    optionalDependencies:
+      graceful-fs: 4.2.6
+    resolution:
+      integrity: sha1-h3Gq4HmbZAdrdmQPygWPnBDjPss=
   /jsprim/1.4.1:
     dependencies:
       assert-plus: 1.0.0
@@ -3063,6 +3114,10 @@ packages:
   /ms/2.1.2:
     resolution:
       integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
+  /nan/2.14.1:
+    dev: false
+    resolution:
+      integrity: sha512-isWHgVjnFjh2x2yuJ/tj3JbwoHu3UC2dX5G/88Cm24yB6YopVgxvBObDY7n5xW6ExmFhJpSEQqFPvq9zaXc8Jw==
   /nan/2.14.2:
     dev: false
     resolution:
@@ -3836,6 +3891,13 @@ packages:
     dev: false
     resolution:
       integrity: sha1-ClqLa3d3yyRUTfEab4iabSs+EYk=
+  /service-hub/0.7.4:
+    dependencies:
+      event-kit: 1.5.0
+      semver: 5.7.1
+    dev: false
+    resolution:
+      integrity: sha1-ttodHn6SkcpW1PPLPVwfzjKFoWI=
   /set-blocking/2.0.0:
     dev: false
     resolution:
@@ -4491,6 +4553,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-sxxa6CVIRKOoKBVBzisEuGWnNP8=
+  /universalify/0.1.2:
+    dev: false
+    engines:
+      node: '>= 4.0.0'
+    resolution:
+      integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==
   /unset-value/1.0.0:
     dependencies:
       has-value: 0.3.1
@@ -4740,6 +4808,8 @@ packages:
     resolution:
       integrity: sha1-AwiOnr+edWtpdRYR0qXvWRSCyZU=
 specifiers:
+  '@atom/nsfw': ^1.0.27
+  '@atom/watcher': ^1.3.5
   '@babel/plugin-proposal-class-properties': ^7.8.3
   chalk: ^3.0.0
   chokidar: ^3.3.1
@@ -4749,6 +4819,7 @@ specifiers:
   event-kit: ^2.5.3
   first-mate: ^7.4.1
   fs-plus: ^3.1.1
+  git-utils: ^5.7.1
   grim: ^2.0.3
   idle-callback: ^1.0.3
   jest: ^25.2.3
@@ -4762,6 +4833,7 @@ specifiers:
   postcss-selector-parser: ^6.0.4
   scoped-property-store: ^0.17.0
   season: ^6.0.2
+  service-hub: ^0.7.4
   superstring: ^2.4.2
   text-buffer: ^13.17.4
   tree-sitter-bash: ^0.16.1
