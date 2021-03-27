@@ -8,5 +8,6 @@ module.exports = {
 }
 
 function unreachable() {
+  debugger
   throw new Error('unreachable')
 }
