@@ -9,10 +9,10 @@ const TextEditorComponent = require('./text-editor-component')
 const callWithModel = fn => element => element.model[fn]()
 
 const editorCommands = {
-  'core:down':  callWithModel('moveDown'),
-  'core:up':    callWithModel('moveUp'),
-  'core:left':  callWithModel('moveLeft'),
-  'core:right': callWithModel('moveRight'),
+  'core:move-down':  callWithModel('moveDown'),
+  'core:move-up':    callWithModel('moveUp'),
+  'core:move-left':  callWithModel('moveLeft'),
+  'core:move-right': callWithModel('moveRight'),
   'editor:move-to-top': callWithModel('moveToTop'),
   'editor:move-to-bottom': callWithModel('moveToBottom'),
   'editor:move-to-next-subword-boundary': callWithModel('moveToNextSubwordBoundary'),
@@ -26,10 +26,10 @@ const editorCommands = {
 
 const editorKeymap = {
   TextEditor: {
-    'j': 'core:down',
-    'k': 'core:up',
-    'h': 'core:left',
-    'l': 'core:right',
+    'j': 'core:move-down',
+    'k': 'core:move-up',
+    'h': 'core:move-left',
+    'l': 'core:move-right',
     'g g': 'editor:move-to-top',
     'G': 'editor:move-to-bottom',
 
