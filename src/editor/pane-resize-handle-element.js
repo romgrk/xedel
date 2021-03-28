@@ -28,7 +28,7 @@ class PaneResizeHandleElement extends Gtk.Box {
     // element has been detached, so we ignore the callback when a parent element
     // can't be found.
     if (this.parentElement) {
-      this.isHorizontal = this.parentElement.classList.contains("horizontal");
+      this.isHorizontal = this.parentElement.hasCssClass("horizontal");
       return this.addCssClass(this.isHorizontal ? 'horizontal' : 'vertical');
     }
   }

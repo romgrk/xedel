@@ -293,7 +293,7 @@ module.exports = class OperationStack {
     if (this.count[mode] == null) this.count[mode] = 0
     this.count[mode] = this.count[mode] * 10 + number
     this.vimState.hover.set(this.buildCountString())
-    this.editorElement.classList.toggle('with-count', true)
+    this.editorElement.toggleCssClass('with-count', true)
   }
 
   buildCountString () {

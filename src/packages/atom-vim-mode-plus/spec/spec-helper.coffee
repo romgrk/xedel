@@ -482,11 +482,11 @@ class VimEditor
 
     mode[0] = "#{mode[0]}-mode"
     mode = mode.filter((m) -> m)
-    expect(@editorElement.classList.contains('vim-mode-plus')).toBe(true)
+    expect(@editorElement.hasCssClass('vim-mode-plus')).toBe(true)
     for m in mode
-      expect(@editorElement.classList.contains(m)).toBe(true)
+      expect(@editorElement.hasCssClass(m)).toBe(true)
     shouldNotContainClasses = _.difference(supportedModeClass, mode)
     for m in shouldNotContainClasses
-      expect(@editorElement.classList.contains(m)).toBe(false)
+      expect(@editorElement.hasCssClass(m)).toBe(false)
 
 module.exports = {getVimState, getView, dispatch, TextData, withMockPlatform}

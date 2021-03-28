@@ -2,12 +2,14 @@
  * commands-manager.js
  */
 
-const { Disposable } = require('event-kit');
+const { Emitter, Disposable } = require('event-kit');
 const { translateSelector } = require('./utils/atom-compatibility')
+const { unreachable } = require('./utils/assert')
 
 class CommandsManager {
   commandsByName = {}
   sources = {}
+  emitter = new Emitter()
 
   get(element, command) {
     if (this.commandsByName[element]?.[command] === undefined)
@@ -48,6 +50,28 @@ class CommandsManager {
     })
     delete this.sources[source]
   }
+
+  dispatch(element, commandName) {
+    const event = new CommandEvent(commandName)
+    const command = this.get(element.constructor.name, commandName)
+    const effect = command.effect
+
+    if (typeof effect === 'function') {
+      effect.call(element, event, element)
+    }
+    else if (typeof effect === 'object' && typeof effect.didDispatch === 'function') {
+      effect.didDispatch.call(element, event, element)
+    }
+    else {
+      unreachable()
+    }
+
+    this.emitter.emit('did-dispatch', event)
+  }
+
+  onDidDispatch(fn) {
+    return this.emitter.on('did-dispatch', fn)
+  }
 }
 
 module.exports = CommandsManager
@@ -84,4 +108,16 @@ function getSource() {
   Error.prepareStackTrace = prepare
 
   return result
+}
+
+class CommandEvent {
+  stopPropagationCalled = false
+
+  constructor(type) {
+    this.type = type
+  }
+
+  stopPropagation() {
+    this.stopPropagationCalled = true
+  }
 }

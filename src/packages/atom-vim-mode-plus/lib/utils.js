@@ -533,7 +533,7 @@ function smartScrollToBufferPosition (editor, point) {
 }
 
 function matchScopes ({classList}, scopes = []) {
-  return scopes.some(scope => scope.split('.').every(name => classList.contains(name)))
+  return scopes.some(scope => scope.split('.').every(name => hasCssClass(name)))
 }
 
 function isSingleLineText (text) {

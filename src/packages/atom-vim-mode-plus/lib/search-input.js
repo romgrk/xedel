@@ -112,7 +112,7 @@ module.exports = class SearchInput {
   }
 
   updateOptionSettings ({useRegexp} = {}) {
-    this.regexSearchStatus.classList.toggle('btn-primary', useRegexp)
+    this.regexSearchStatus.toggleCssClass('btn-primary', useRegexp)
   }
 
   setCursorWord () {

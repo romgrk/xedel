@@ -1321,7 +1321,7 @@ When disabled, changes are not bundled and user can undo more granular level(sma
 - Internal: Allow Operation specific command scope #147.
 - Internal: New `swrawp::switchToLinewise()` util to switch selection temporarily.
 - Internal: Now `countTime()` is Base methods.
-- Internal: Remove `toggleClassByCondition()` utils. Instead, use native `classList.toggle()`.
+- Internal: Remove `toggleClassByCondition()` utils. Instead, use native `toggleCssClass()`.
 - Internal: `swrap::translate()` function arguments was inconsistent with wrapping `Range::translate()` function.
 
 # 0.19.0

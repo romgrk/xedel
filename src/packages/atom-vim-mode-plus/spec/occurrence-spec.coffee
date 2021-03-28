@@ -534,7 +534,7 @@ describe "Occurrence", ->
           expect(vimState.persistentSelection.getMarkers()).toHaveLength(10)
 
         waitsFor ->
-          classList.contains('has-persistent-selection')
+          hasCssClass('has-persistent-selection')
 
         runs ->
           ensure "ctrl-cmd-g I" # "select-persistent-selection" then "Insert at start of selection"
@@ -633,11 +633,11 @@ describe "Occurrence", ->
         describe "css class has-occurrence", ->
           describe "manually toggle by toggle-preset-occurrence command", ->
             it 'is auto-set/unset wheter at least one preset-occurrence was exists or not', ->
-              expect(classList.contains('has-occurrence')).toBe(false)
+              expect(hasCssClass('has-occurrence')).toBe(false)
               ensure 'g o', occurrenceText: 'This', cursor: [0, 0]
-              expect(classList.contains('has-occurrence')).toBe(true)
+              expect(hasCssClass('has-occurrence')).toBe(true)
               ensure 'g o', occurrenceCount: 0, cursor: [0, 0]
-              expect(classList.contains('has-occurrence')).toBe(false)
+              expect(hasCssClass('has-occurrence')).toBe(false)
 
           describe "change 'INSIDE' of marker", ->
             markerLayerUpdated = null
@@ -646,9 +646,9 @@ describe "Occurrence", ->
 
             it 'destroy marker and reflect to "has-occurrence" CSS', ->
               runs ->
-                expect(classList.contains('has-occurrence')).toBe(false)
+                expect(hasCssClass('has-occurrence')).toBe(false)
                 ensure 'g o', occurrenceText: 'This', cursor: [0, 0]
-                expect(classList.contains('has-occurrence')).toBe(true)
+                expect(hasCssClass('has-occurrence')).toBe(true)
 
                 ensure 'l i', mode: 'insert'
                 vimState.occurrenceManager.markerLayer.onDidUpdate ->
@@ -664,7 +664,7 @@ describe "Occurrence", ->
 
               runs ->
                 ensure null, occurrenceCount: 0
-                expect(classList.contains('has-occurrence')).toBe(false)
+                expect(hasCssClass('has-occurrence')).toBe(false)
 
       describe "in visual-mode", ->
         describe "add preset occurrence", ->
@@ -771,7 +771,7 @@ describe "Occurrence", ->
 
           it '[insert-at-start] apply operation to preset-marker intersecting selected target', ->
             ensure 'g o', occurrenceText: ['Vim', 'Vim', 'Vim', 'Vim']
-            classList.contains('has-occurrence')
+            hasCssClass('has-occurrence')
             ensure 'v k I', mode: 'insert', numCursors: 2
             editor.insertText("pure-")
             ensure 'escape',
@@ -786,7 +786,7 @@ describe "Occurrence", ->
           it '[insert-after-start] apply operation to preset-marker intersecting selected target', ->
             set cursor: [1, 1]
             ensure 'g o', occurrenceText: ['Vim', 'Vim', 'Vim', 'Vim']
-            classList.contains('has-occurrence')
+            hasCssClass('has-occurrence')
             ensure 'v j A', mode: 'insert', numCursors: 2
             editor.insertText(" and Emacs")
             ensure 'escape',
@@ -900,7 +900,7 @@ describe "Occurrence", ->
               OOO: xxx: OOO:
               """
               occurrenceCount: 0
-            expect(classList.contains('has-occurrence')).toBe(false)
+            expect(hasCssClass('has-occurrence')).toBe(false)
 
           it "[o-modifier] operate on next occurrence and repeatable", ->
             ensure "escape",
@@ -955,7 +955,7 @@ describe "Occurrence", ->
               OOO: xxx: OOO:
               """
               occurrenceCount: 0
-            expect(classList.contains('has-occurrence')).toBe(false)
+            expect(hasCssClass('has-occurrence')).toBe(false)
 
       describe "excude particular occurence by `.` repeat", ->
         it "clear preset-occurrence and move to next", ->

@@ -449,20 +449,22 @@ class TextEditorComponent extends Gtk.Widget {
   onKeyPressEvent = (keyval, keycode, state) => {
     // TODO: clean this
     console.log(keyval, Gdk.keyvalName(keyval), keycode, state)
-    switch (keyval) {
-      case Gdk.KEY_g: this.model.moveToTop(); break
-      case Gdk.KEY_G: this.model.moveToBottom(); break
-      case Gdk.KEY_j: this.model.moveDown(); break
-      case Gdk.KEY_k: this.model.moveUp(); break
-      case Gdk.KEY_h: this.model.moveLeft(); break
-      case Gdk.KEY_l: this.model.moveRight(); break
-      case Gdk.KEY_BackSpace: this.model.backspace(); break
-      case Gdk.KEY_Return: this.model.insertText('\n'); break
-      default: {
-        const key = Key.fromArgs(keyval, keycode, state)
-        if (key.string && Text.isPrintable(key.string.charCodeAt(0))) {
-          console.log('inserting', JSON.stringify(key.string))
-          this.model.insertText(key.string)
+    const key = Key.fromArgs(keyval, keycode, state)
+    if (!key.ctrl && !key.alt && !key.cmd && !key.super) {
+      switch (keyval) {
+        // case Gdk.KEY_g: this.model.moveToTop(); break
+        // case Gdk.KEY_G: this.model.moveToBottom(); break
+        // case Gdk.KEY_j: this.model.moveDown(); break
+        // case Gdk.KEY_k: this.model.moveUp(); break
+        // case Gdk.KEY_h: this.model.moveLeft(); break
+        // case Gdk.KEY_l: this.model.moveRight(); break
+        // case Gdk.KEY_BackSpace: this.model.backspace(); break
+        case Gdk.KEY_Return: this.model.insertText('\n'); break
+        default: {
+          const key = Key.fromArgs(keyval, keycode, state)
+          if (key.string && Text.isPrintable(key.string.charCodeAt(0))) {
+            this.model.insertText(key.string)
+          }
         }
       }
     }

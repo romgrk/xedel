@@ -33,8 +33,8 @@ describe "vim-mode-plus", ->
   describe ".deactivate", ->
     it "removes the vim classes from the editor", ->
       atom.packages.deactivatePackage(packageName)
-      expect(editorElement.classList.contains("vim-mode-plus")).toBe(false)
-      expect(editorElement.classList.contains("normal-mode")).toBe(false)
+      expect(editorElement.hasCssClass("vim-mode-plus")).toBe(false)
+      expect(editorElement.hasCssClass("normal-mode")).toBe(false)
 
     it "removes the vim commands from the editor element", ->
       vimCommands = ->

@@ -12,7 +12,7 @@ module.exports = class PersistentSelectionManager {
 
     // Update css on every marker update.
     this.markerLayer.onDidUpdate(() => {
-      editor.element.classList.toggle('has-persistent-selection', this.hasMarkers())
+      editor.element.toggleCssClass('has-persistent-selection', this.hasMarkers())
     })
   }
 

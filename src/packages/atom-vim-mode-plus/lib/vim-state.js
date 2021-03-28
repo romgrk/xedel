@@ -242,12 +242,12 @@ module.exports = class VimState {
     if (this.editor.isAlive()) {
       this.resetNormalMode()
       this.reset()
-      if (this.editorElement.component) this.editorElement.component.setInputEnabled(true)
+      if (this.editorElement) this.editorElement.setInputEnabled(true)
 
       // Disable `readOnly` state of which possibly be changed by `autoDisableInputMethodWhenLeavingInsertMode`.
-      if (this.editor.component.getHiddenInput().readOnly) {
-        this.editor.component.getHiddenInput().readOnly = false
-      }
+      // if (this.editor.component.getHiddenInput().readOnly) {
+      //   this.editor.component.getHiddenInput().readOnly = false
+      // }
       this.editorElement.removeCssClass('vim-mode-plus', 'normal-mode')
     }
     this.emitter.emit('did-destroy')
@@ -468,11 +468,12 @@ module.exports = class VimState {
     }
 
     if (newMode === 'normal') this.activateNormalMode()
-    else if (newMode === 'insert') this.editorElement.component.setInputEnabled(true)
+    else if (newMode === 'insert') this.editorElement.setInputEnabled(true)
     else if (newMode === 'visual') this.modeDeactivator = this.activateVisualMode(newSubmode)
 
     if (this.getConfig('autoDisableInputMethodWhenLeavingInsertMode')) {
-      this.editor.component.getHiddenInput().readOnly = newMode !== 'insert'
+      // FIXME: validate that we can remove this
+      // this.editor.component.getHiddenInput().readOnly = newMode !== 'insert'
     }
 
     this.editorElement.removeCssClass(`${this.mode}-mode`)
@@ -508,8 +509,8 @@ module.exports = class VimState {
   activateNormalMode () {
     this.reset()
     // Component is not necessary avaiable see #98.
-    if (this.editorElement.component) {
-      this.editorElement.component.setInputEnabled(false)
+    if (this.editorElement) {
+      this.editorElement.setInputEnabled(false)
     }
 
     // In visual-mode, cursor can place at EOL. move left if cursor is at EOL
@@ -565,11 +566,11 @@ module.exports = class VimState {
     const isSingleRowSelection = this.isMode('visual', 'blockwise')
       ? this.getLastBlockwiseSelection().isSingleRow()
       : this.swrap(this.editor.getLastSelection()).isSingleRow()
-    this.editorElement.classList.toggle('is-narrowed', !isSingleRowSelection)
+    this.editorElement.toggleCssClass('is-narrowed', !isSingleRowSelection)
   }
 
   isNarrowed () {
-    return this.editorElement.classList.contains('is-narrowed')
+    return this.editorElement.hasCssClass('is-narrowed')
   }
 
   // Other

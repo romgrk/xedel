@@ -39,7 +39,7 @@ module.exports = class RegisterManager {
 
   reset () {
     this.name = null
-    this.editorElement.classList.toggle('with-register', false)
+    this.editorElement.toggleCssClass('with-register', false)
   }
 
   destroy () {
@@ -217,7 +217,7 @@ module.exports = class RegisterManager {
   setName (name) {
     if (name != null) {
       this.name = name
-      this.editorElement.classList.toggle('with-register', true)
+      this.editorElement.toggleCssClass('with-register', true)
       this.vimState.hover.set('"' + this.name)
     } else {
       this.vimState.hover.set('"')

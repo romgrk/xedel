@@ -29,7 +29,7 @@ describe "VimState", ->
     it "removes the mode classes from the editor", ->
       ensure null, mode: 'normal'
       vimState.destroy()
-      expect(editorElement.classList.contains("normal-mode")).toBeFalsy()
+      expect(editorElement.hasCssClass("normal-mode")).toBeFalsy()
 
     it "is a noop when the editor is already destroyed", ->
       editorElement.getModel().destroy()

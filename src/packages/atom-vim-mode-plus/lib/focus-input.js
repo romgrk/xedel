@@ -57,7 +57,7 @@ module.exports = function focusInput (
 
   didChangeTextDisposable = editor.buffer.onDidChangeText(() => {
     const text = editor.getText()
-    editor.element.classList.toggle('has-text', text.length)
+    editor.element.toggleCssClass('has-text', text.length)
     if (text.length >= charsMax) {
       confirm(text)
     } else {

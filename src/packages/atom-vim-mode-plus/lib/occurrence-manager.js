@@ -73,7 +73,7 @@ module.exports = class OccurrenceManager {
   }
 
   updateEditorElement () {
-    this.vimState.editorElement.classList.toggle('has-occurrence', this.hasMarkers())
+    this.vimState.editorElement.toggleCssClass('has-occurrence', this.hasMarkers())
   }
 
   // Callback get passed following object

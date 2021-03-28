@@ -15,7 +15,6 @@ const UI_FILE = path.join(__dirname, './ui.glade')
 const windowKeymap = {
   Window: {
     'ctrl-o': () => openFileDialog(filepath => xedel.workspace.open(filepath)),
-    'ctrl-w q': ['destroy'],
   },
   Workspace: {
     'alt-,': 'pane:show-previous-item',

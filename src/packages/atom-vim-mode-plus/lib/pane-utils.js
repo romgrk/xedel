@@ -112,7 +112,7 @@ function equalizePanes () {
 }
 
 function isMaximized () {
-  return atom.workspace.getElement().classList.contains('vim-mode-plus--pane-maximized')
+  return atom.workspace.getElement().hasCssClass('vim-mode-plus--pane-maximized')
 }
 
 function maximizePane (centerPane) {

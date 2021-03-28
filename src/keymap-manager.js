@@ -112,7 +112,7 @@ class KeymapManager {
 
     const fullMatch = matches.find(m => m.match === MATCH.FULL)
 
-    if (fullMatch && matches.length === 1) {
+    if (fullMatch) {
       const { keybinding, effect, source, element } = fullMatch
       const keymap = this.keymapsByName[element.constructor.name].find(k => k.name === source)
 
@@ -144,27 +144,12 @@ class KeymapManager {
 
   runEffect(effect, element) {
     // console.log({ effect })
-    let commandName
 
     if (typeof effect === 'string') {
-      commandName = effect
-      const command = xedel.commands.get(element.constructor.name, effect)
-      effect = command.effect
+      return xedel.commands.dispatch(element, effect)
     }
-
-    if (typeof effect === 'function') {
+    else if (typeof effect === 'function') {
       return effect.call(element, element)
-    }
-
-    if (typeof effect === 'object' && typeof effect.didDispatch === 'function') {
-      const event = new CommandEvent(commandName)
-      return effect.didDispatch.call(element, event)
-    }
-
-    if (Array.isArray(effect)) {
-      const [signalDetail, ...args] = effect
-      element.emit(signalDetail, ...args)
-      return
     }
 
     console.log({ effect, element })
@@ -232,16 +217,4 @@ function matchKeybinding(queuedKeystrokes, keymap, element) {
   }
 
   return results
-}
-
-class CommandEvent {
-  stopPropagationCalled = false
-
-  constructor(type) {
-    this.type = type
-  }
-
-  stopPropagation() {
-    this.stopPropagationCalled = true
-  }
 }
