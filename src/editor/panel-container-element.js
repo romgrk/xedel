@@ -28,7 +28,6 @@ class PanelContainerElement extends Gtk.Box {
     );
     this.subscriptions.add(this.model.onDidDestroy(this.destroyed.bind(this)));
     this.addCssClass(this.model.getLocation());
-    this.append(new Gtk.Label({ label: this.model.getLocation() }))
 
     // Add the dock.
     if (this.model.dock != null) {
