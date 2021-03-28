@@ -92,9 +92,20 @@ const decorationStyleByClass = Color.parseObject({
   ...doomOne,
 })
 
+const CursorType = {
+  BEAM: 0,
+  BLOCK: 1,
+  UNDER: 2,
+}
+
+const defaultProps = {
+  cursorType: CursorType.BLOCK,
+  cursorBlink: false,
+}
 
 class TextEditorComponent extends Gtk.Widget {
   static name = 'TextEditor'
+  static CursorType = CursorType
 
   theme = theme
 
@@ -181,6 +192,7 @@ class TextEditorComponent extends Gtk.Widget {
     super()
 
     this.model = props.model
+    this.props = Object.assign({}, defaultProps, props)
 
     this.vexpand = true
     this.hexpand = true
@@ -218,6 +230,7 @@ class TextEditorComponent extends Gtk.Widget {
     this.textWindowContainer.put(this.cursorArea,     0, 0)
 
     this.box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0)
+    this.box.canFocus = false
     this.box.append(this.gutterContainer)
     this.box.append(this.textWindowContainer)
     this.box.insertBefore(this)
@@ -400,7 +413,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   hasFocus() {
-    return this.textContainer.isFocus()
+    return this.isFocus()
   }
 
   /*
@@ -622,6 +635,18 @@ class TextEditorComponent extends Gtk.Widget {
     }
     this.props = props;
     this.scheduleUpdate();
+  }
+
+  setCursorType(cursorType) {
+    this.props.cursorType = cursorType
+  }
+
+  setCursorBlink(cursorBlink) {
+    this.props.cursorBlink = cursorBlink
+    if (cursorBlink)
+      this.startCursorBlinking()
+    else
+      this.stopCursorBlinking()
   }
 
   pixelPositionForScreenPosition({ row, column }) {
@@ -2182,7 +2207,7 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   startCursorBlinking() {
-    if (!this.cursorsBlinking) {
+    if (!this.cursorsBlinking && this.props.cursorBlink) {
       this.cursorBlinkIntervalHandle = setInterval(() => {
         this.cursorsBlinkedOff = !this.cursorsBlinkedOff;
         this.scheduleUpdate(true);
@@ -4146,17 +4171,43 @@ class CursorsComponent extends Gtk.DrawingArea {
 
 
       if (hasFocus && isActive) {
-        cx.rectangle(
-          coords.left,
-          coords.top,
-          measurements.baseCharacterWidth,
-          measurements.lineHeight
-        )
-        cx.setColor(theme.cursorColor)
-        cx.fill()
-        cx.setColor(theme.backgroundColor)
-        cx.moveTo(coords.left, coords.top)
-        Font.draw(element.font.description, cx, character)
+        if (element.props.cursorType === CursorType.BLOCK) {
+          cx.rectangle(
+            coords.left,
+            coords.top,
+            measurements.baseCharacterWidth,
+            measurements.lineHeight
+          )
+          cx.setColor(theme.cursorColor)
+          cx.fill()
+          cx.setColor(theme.backgroundColor)
+          cx.moveTo(coords.left, coords.top)
+          Font.draw(element.font.description, cx, character)
+        }
+        else if (element.props.cursorType === CursorType.BEAM) {
+          cx.rectangle(
+            coords.left,
+            coords.top,
+            2,
+            measurements.lineHeight
+          )
+          cx.setColor(theme.cursorColor)
+          cx.fill()
+        }
+        else if (element.props.cursorType === CursorType.UNDER) {
+          const height = 5
+          cx.rectangle(
+            coords.left,
+            coords.top + measurements.lineHeight - height,
+            measurements.baseCharacterWidth,
+            height
+          )
+          cx.setColor(theme.cursorColor)
+          cx.fill()
+          cx.setColor(theme.backgroundColor)
+          cx.moveTo(coords.left, coords.top)
+          Font.draw(element.font.description, cx, character)
+        }
       }
       else {
         cx.rectangle(
