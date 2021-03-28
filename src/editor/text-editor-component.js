@@ -2207,7 +2207,11 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   startCursorBlinking() {
-    if (!this.cursorsBlinking && this.props.cursorBlink) {
+    if (!this.props.cursorBlink) {
+      this.cursorsBlinkedOff = false;
+      return
+    }
+    if (!this.cursorsBlinking) {
       this.cursorBlinkIntervalHandle = setInterval(() => {
         this.cursorsBlinkedOff = !this.cursorsBlinkedOff;
         this.scheduleUpdate(true);
