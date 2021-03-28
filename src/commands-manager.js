@@ -19,7 +19,8 @@ class CommandsManager {
 
   add(element, commands) {
     const source = getSource()
-    const name = translateSelector(element)
+    const selector = typeof element === 'string' ? element : element.constructor.name
+    const name = translateSelector(selector)
 
     if (!this.commandsByName[name])
       this.commandsByName[name] = {}
