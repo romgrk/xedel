@@ -24,7 +24,10 @@ const readFile = fs.promises.readFile
 gi.startLoop()
 Gtk.init([])
 
+const userCacheHome  = process.env.XDG_CACHE_HOME  || `${process.env.HOME}/.cache`
 const userConfigHome = process.env.XDG_CONFIG_HOME || `${process.env.HOME}/.config`
+
+const cacheDirPath  = path.join(userCacheHome, 'xedel')
 const configDirPath = path.join(userConfigHome, 'xedel')
 const pluginsPath   = path.join(configDirPath, 'plugins')
 
@@ -71,11 +74,11 @@ function main() {
       // document,
       // blobStore,
       configDirPath,
+      cacheDirPath,
       env: process.env
     });
 
     require('./window').register()
-    require('./editor-view').register()
     require('./editor/keymap').register()
 
     // return global.atom.startEditorWindow().then(function() {

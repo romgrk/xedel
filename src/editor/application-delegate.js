@@ -5,6 +5,9 @@ const { Emitter, Disposable } = require('event-kit');
 // const getWindowLoadSettings = require('./get-window-load-settings');
 
 const ipcRenderer = new Emitter()
+ipcRenderer.send = (...args) => {
+  console.warn('unimplemented ipc send', args)
+}
 const ipcHelpers = {
   call: (...args) => {
     console.warn('unimplemented ipc call', args)

@@ -29,11 +29,15 @@ class WorkspaceElement extends Gtk.Box {
   initializeContent() {
     this.addCssClass('workspace');
 
-    this.verticalAxis = new Gtk.Box(Gtk.Orientation.VERTICAL);
+    this.verticalAxis = new Gtk.Box();
+    this.verticalAxis.setOrientation(Gtk.Orientation.VERTICAL);
     this.verticalAxis.addCssClass('vertical');
+    this.verticalAxis.addCssClass('axis');
 
-    this.horizontalAxis = new Gtk.Box(Gtk.Orientation.HORIZONTAL);
+    this.horizontalAxis = new Gtk.Box();
+    this.horizontalAxis.setOrientation(Gtk.Orientation.HORIZONTAL);
     this.horizontalAxis.addCssClass('horizontal');
+    this.horizontalAxis.addCssClass('axis');
     this.horizontalAxis.append(this.verticalAxis);
 
     this.append(this.horizontalAxis);

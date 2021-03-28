@@ -3,6 +3,7 @@ const path = require('path');
 const util = require('util');
 
 const _ = require('underscore-plus');
+const mkdirp = require('mkdirp')
 const { deprecate } = require('grim');
 const { CompositeDisposable, Disposable, Emitter } = require('event-kit');
 const fs = require('fs-plus');
@@ -10,6 +11,7 @@ const fs = require('fs-plus');
 // const WindowEventHandler = require('./window-event-handler');
 const StateStore = require('./state-store');
 const registerDefaultCommands = require('./register-default-commands');
+const registerDefaultKeymaps = require('./register-default-keymaps');
 const { updateProcessEnv } = require('./update-process-env');
 const ConfigSchema = require('./config-schema');
 
@@ -205,6 +207,7 @@ class Environment {
     //   this.keymaps.loadBundledKeymaps();
     // }
 
+    this.registerDefaultKeymaps();
     this.registerDefaultCommands();
     this.registerDefaultOpeners();
     this.registerDefaultDeserializers();
@@ -243,6 +246,11 @@ class Environment {
     this.document = params.document;
     this.blobStore = params.blobStore;
     this.configDirPath = params.configDirPath;
+    this.cacheDirPath = params.cacheDirPath;
+
+    // FIXME: handle failure & loading
+    mkdirp(this.configDirPath)
+    mkdirp(this.cacheDirPath)
 
     const {
       devMode,
@@ -370,6 +378,16 @@ class Environment {
     this.deserializers.add(Project);
     this.deserializers.add(TextEditor);
     this.deserializers.add(TextBuffer);
+  }
+
+  registerDefaultKeymaps() {
+    registerDefaultKeymaps({
+      keymaps: this.keymaps,
+      config: this.config,
+      notificationManager: this.notifications,
+      project: this.project,
+      clipboard: this.clipboard
+    });
   }
 
   registerDefaultCommands() {

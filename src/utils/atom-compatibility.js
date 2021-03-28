@@ -11,7 +11,7 @@ function translateSelector(selector) {
     return 'TextEditor'
 
   if (selector.includes('atom-workspace'))
-    return 'Window'
+    return 'Workspace'
 
   if (selector.includes('atom'))
     console.warn(`Untranslated selector: ${selector}`)

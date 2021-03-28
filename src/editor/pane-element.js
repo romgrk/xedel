@@ -11,69 +11,75 @@ class PaneElement extends Gtk.Box {
     this.dataset = {}
     this.attached = false;
     this.subscriptions = new CompositeDisposable();
-    this.inlineDisplayStyles = new WeakMap();
+    this.subscriptionsByItem = new Map();
     this.initializeContent();
-    // this.subscribeToDOMEvents(); // FIXME
+    this.subscribeToEvents(); // FIXME
   }
 
-  attachedCallback() {
+  attachedCallback = () => {
     this.attached = true;
     if (this.model.isFocused()) {
-      this.focus();
+      this.grabFocus();
     }
   }
 
-  detachedCallback() {
+  detachedCallback = () => {
     this.attached = false;
   }
 
   initializeContent() {
     this.addCssClass('pane');
-    this.itemViews = new Gtk.Box(Gtk.Orientation.HORIZONTAL);
+    this.itemViews = new Gtk.Notebook();
     this.append(this.itemViews);
     this.itemViews.addCssClass('item-views');
   }
 
-  subscribeToDOMEvents() {
-    const handleFocus = event => {
-      if (
-        !(
-          this.isActivating ||
-          this.model.isDestroyed() ||
-          this.contains(event.relatedTarget)
-        )
-      ) {
-        this.model.focus();
-      }
-      if (event.target !== this) return;
-      const view = this.getActiveView();
-      if (view) {
-        view.focus();
-        event.stopPropagation();
-      }
-    };
-    const handleBlur = event => {
-      if (!this.contains(event.relatedTarget)) {
-        this.model.blur();
-      }
-    };
-    const handleDragOver = event => {
-      event.preventDefault();
-      event.stopPropagation();
-    };
-    const handleDrop = event => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.getModel().activate();
-      const pathsToOpen = [...event.dataTransfer.files].map(file => file.path);
-      if (pathsToOpen.length > 0) {
-        this.applicationDelegate.open({ pathsToOpen, here: true });
-      }
-    };
-    this.addEventListener('focus', handleFocus, { capture: true });
-    this.addEventListener('blur', handleBlur, { capture: true });
-    this.addEventListener('dragover', handleDragOver);
-    this.addEventListener('drop', handleDrop);
+  subscribeToEvents() {
+    // FIXME: implement these
+
+    // const handleFocus = event => {
+    //   if (
+    //     !(
+    //       this.isActivating ||
+    //       this.model.isDestroyed() ||
+    //       this.contains(event.relatedTarget)
+    //     )
+    //   ) {
+    //     this.model.focus();
+    //   }
+    //   if (event.target !== this) return;
+    //   const view = this.getActiveView();
+    //   if (view) {
+    //     view.focus();
+    //     event.stopPropagation();
+    //   }
+    // };
+    // const handleBlur = event => {
+    //   if (!this.contains(event.relatedTarget)) {
+    //     this.model.blur();
+    //   }
+    // };
+    // const handleDragOver = event => {
+    //   event.preventDefault();
+    //   event.stopPropagation();
+    // };
+    // const handleDrop = event => {
+    //   event.preventDefault();
+    //   event.stopPropagation();
+    //   this.getModel().activate();
+    //   const pathsToOpen = [...event.dataTransfer.files].map(file => file.path);
+    //   if (pathsToOpen.length > 0) {
+    //     this.applicationDelegate.open({ pathsToOpen, here: true });
+    //   }
+    // };
+
+    // this.addEventListener('focus', handleFocus, { capture: true });
+    // this.addEventListener('blur', handleBlur, { capture: true });
+    // this.addEventListener('dragover', handleDragOver);
+    // this.addEventListener('drop', handleDrop);
+
+    this.on('realize', this.attachedCallback)
+    this.on('unrealize', this.detachedCallback)
   }
 
   initialize(model, { views, applicationDelegate }) {
@@ -153,51 +159,59 @@ class PaneElement extends Gtk.Box {
         });
       }
     }
-    if (itemView.getParent() !== this.itemViews) {
-      this.itemViews.append(itemView);
+
+    let index
+    if (itemView.getParent() === null) {
+      index = this.addItem(itemView);
     }
-    // FIXME: this
-    // for (const child of this.itemViews.children) {
-    //   if (child === itemView) {
-    //     if (this.attached) {
-    //       this.showItemView(child);
-    //     }
-    //   } else {
-    //     this.hideItemView(child);
-    //   }
-    // }
+    else {
+      index = this.findItemIndex(itemView)
+      if (index === -1)
+        throw new Error('Page not found')
+    }
+
+    this.itemViews.setCurrentPage(index)
+
     if (hasFocus) {
       itemView.grabFocus();
     }
   }
 
-  showItemView(itemView) {
-    const inlineDisplayStyle = this.inlineDisplayStyles.get(itemView);
-    if (inlineDisplayStyle != null) {
-      itemView.style.display = inlineDisplayStyle;
-    } else {
-      itemView.style.display = '';
-    }
+  addItem(itemView) {
+    const index = this.itemViews.appendPage(
+      itemView,
+      new Gtk.Label({ label: itemView.model.getTitle() })
+    );
+    const disposable = itemView.model.onDidChangeTitle(title => {
+      const label = this.itemViews.getTabLabel(itemView)
+      label.setText(title)
+    })
+    this.subscriptionsByItem.set(itemView, disposable)
+    return index
   }
 
-  hideItemView(itemView) {
-    const inlineDisplayStyle = itemView.style.display;
-    if (inlineDisplayStyle !== 'none') {
-      if (inlineDisplayStyle != null) {
-        this.inlineDisplayStyles.set(itemView, inlineDisplayStyle);
-      }
-      itemView.style.display = 'none';
+  findItemIndex(itemView) {
+    const n = this.itemViews.getNPages()
+    for (let i = 0; i < n; i++) {
+      const page = this.itemViews.getNthPage(i)
+      if (page === itemView)
+        return i
     }
+    return -1
   }
 
-  itemRemoved({ item, index, destroyed }) {
+  itemRemoved({ item, /* index: not working, */ destroyed }) {
     const viewToRemove = this.views.getView(item);
     if (viewToRemove) {
-      viewToRemove.remove();
+      const index = this.findItemIndex(viewToRemove)
+      this.itemViews.removePage(index)
     }
+    this.subscriptionsByItem.get(viewToRemove).dispose()
+    this.subscriptionsByItem.delete(viewToRemove)
   }
 
   paneDestroyed() {
+    this.subscriptionsByItem.forEach(d => d.dispose());
     this.subscriptions.dispose();
     if (this.changePathDisposable != null) {
       this.changePathDisposable.dispose();

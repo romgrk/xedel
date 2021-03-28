@@ -742,7 +742,7 @@ module.exports = class TextEditorModel {
     this.gutterContainer.destroy();
     this.emitter.emit('did-destroy');
     this.emitter.clear();
-    if (this.component) this.component.element.component = null;
+    // if (this.component) this.component.element.component = null;
     this.component = null;
     this.lineNumberGutter.element = null;
   }

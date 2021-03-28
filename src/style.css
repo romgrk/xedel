@@ -2,6 +2,20 @@
  * style.css
  */
 
+/*
+ * Debugging styles
+ */
+
+/* box {
+ *   border: 1px solid red;
+ * }
+ */
+
+
+/*
+ * Elements
+ */
+
 notebook tab {
   margin: 0;
 }

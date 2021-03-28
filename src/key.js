@@ -108,13 +108,15 @@ class Key {
   static fromDescription = (description) => {
     const key = new Key()
 
-    const parts =
-      description === '-' ?
-        ['minus'] :
-        description.split('-')
+    const parts = description.split('-')
 
     for (let i = 0; i < parts.length; i++) {
       let part = parts[i]
+      if (part === '') {
+        part = '-'
+        i += 1
+      }
+
       if (part in KeySymbols.CORRECTIONS)
         part = KeySymbols.CORRECTIONS[part]
 

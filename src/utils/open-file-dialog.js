@@ -2,8 +2,15 @@
  * open-file-dialog.js
  */
 
+const fs = require('fs')
+const path = require('path')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
+
+const basePath = path.join(__dirname, '..')
+const files =
+  fs.readdirSync(basePath).filter(f => f.endsWith('.js'))
+                          .map(f => path.join(basePath, f))
 
 module.exports = function openFileDialog(callback) {
   // FIXME: dialog.getFile() returns a GLocalFile that doesn't
@@ -28,5 +35,7 @@ module.exports = function openFileDialog(callback) {
   // })
 
   // dialog.show()
-  setImmediate(() => callback(__filename))
+
+  const file = files[~~(Math.random() * files.length)]
+  setImmediate(() => callback(file))
 }

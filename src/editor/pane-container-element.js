@@ -10,7 +10,6 @@ class PaneContainerElement extends Gtk.Box {
     super(Gtk.Orientation.HORIZONTAL)
     this.subscriptions = new CompositeDisposable();
     this.addCssClass('panes');
-    this.append(new Gtk.Label({ label: 'PaneContainer' }))
   }
 
   initialize(model, { views }) {
