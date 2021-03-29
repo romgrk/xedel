@@ -24,6 +24,7 @@ const Text = require('./text-utils')
 const { isPairedCharacter } = require('./text-utils');
 const TextEditor = require('./text-editor')
 const TextBuffer = require('./text-buffer')
+const { Point, Range } = TextBuffer
 
 const TreeSitterLanguageMode = require('./tree-sitter-language-mode')
 const doomOne = require('./theme-doom-one')
@@ -2723,7 +2724,6 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   screenPositionForPixelPosition({ top, left }) {
-    // FIXME: not working anymore (textNodes gone)
     const { model } = this;
 
     const row = Math.min(
@@ -2739,77 +2739,82 @@ class TextEditorComponent extends Gtk.Widget {
       screenLine = this.renderedScreenLineForRow(row);
     }
 
-    const linesClientLeft = this.refs.lineTiles.getBoundingClientRect().left;
-    const targetClientLeft = linesClientLeft + Math.max(0, left);
-    const { textNodes } = this.lineComponentsByScreenLineId.get(screenLine.id);
+    // FIXME: handle column correctly, see commented code
+    const column = Math.round(left / this.measurements.baseCharacterWidth)
+    return new Point(row, column)
 
-    let containingTextNodeIndex;
-    {
-      let low = 0;
-      let high = textNodes.length - 1;
-      while (low <= high) {
-        const mid = low + ((high - low) >> 1);
-        const textNode = textNodes[mid];
-        const textNodeRect = clientRectForRange(textNode, 0, textNode.length);
+    // const linesClientLeft = this.refs.lineTiles.getBoundingClientRect().left;
+    // const targetClientLeft = linesClientLeft + Math.max(0, left);
+    // const lineComponent = this.lineComponentsByScreenLineId.get(screenLine.id);
+    // const { textNodes } = lineComponent;
 
-        if (targetClientLeft < textNodeRect.left) {
-          high = mid - 1;
-          containingTextNodeIndex = Math.max(0, mid - 1);
-        } else if (targetClientLeft > textNodeRect.right) {
-          low = mid + 1;
-          containingTextNodeIndex = Math.min(textNodes.length - 1, mid + 1);
-        } else {
-          containingTextNodeIndex = mid;
-          break;
-        }
-      }
-    }
-    const containingTextNode = textNodes[containingTextNodeIndex];
-    let characterIndex = 0;
-    {
-      let low = 0;
-      let high = containingTextNode.length - 1;
-      while (low <= high) {
-        const charIndex = low + ((high - low) >> 1);
-        const nextCharIndex = isPairedCharacter(
-          containingTextNode.textContent,
-          charIndex
-        )
-          ? charIndex + 2
-          : charIndex + 1;
+    // let containingTextNodeIndex;
+    // {
+    //   let low = 0;
+    //   let high = textNodes.length - 1;
+    //   while (low <= high) {
+    //     const mid = low + ((high - low) >> 1);
+    //     const textNode = textNodes[mid];
+    //     const textNodeRect = clientRectForRange(textNode, 0, textNode.length);
 
-        const rangeRect = clientRectForRange(
-          containingTextNode,
-          charIndex,
-          nextCharIndex
-        );
-        if (targetClientLeft < rangeRect.left) {
-          high = charIndex - 1;
-          characterIndex = Math.max(0, charIndex - 1);
-        } else if (targetClientLeft > rangeRect.right) {
-          low = nextCharIndex;
-          characterIndex = Math.min(
-            containingTextNode.textContent.length,
-            nextCharIndex
-          );
-        } else {
-          if (targetClientLeft <= (rangeRect.left + rangeRect.right) / 2) {
-            characterIndex = charIndex;
-          } else {
-            characterIndex = nextCharIndex;
-          }
-          break;
-        }
-      }
-    }
+    //     if (targetClientLeft < textNodeRect.left) {
+    //       high = mid - 1;
+    //       containingTextNodeIndex = Math.max(0, mid - 1);
+    //     } else if (targetClientLeft > textNodeRect.right) {
+    //       low = mid + 1;
+    //       containingTextNodeIndex = Math.min(textNodes.length - 1, mid + 1);
+    //     } else {
+    //       containingTextNodeIndex = mid;
+    //       break;
+    //     }
+    //   }
+    // }
+    // const containingTextNode = textNodes[containingTextNodeIndex];
+    // let characterIndex = 0;
+    // {
+    //   let low = 0;
+    //   let high = containingTextNode.length - 1;
+    //   while (low <= high) {
+    //     const charIndex = low + ((high - low) >> 1);
+    //     const nextCharIndex = isPairedCharacter(
+    //       containingTextNode.textContent,
+    //       charIndex
+    //     )
+    //       ? charIndex + 2
+    //       : charIndex + 1;
 
-    let textNodeStartColumn = 0;
-    for (let i = 0; i < containingTextNodeIndex; i++) {
-      textNodeStartColumn = textNodeStartColumn + textNodes[i].length;
-    }
-    const column = textNodeStartColumn + characterIndex;
+    //     const rangeRect = clientRectForRange(
+    //       containingTextNode,
+    //       charIndex,
+    //       nextCharIndex
+    //     );
+    //     if (targetClientLeft < rangeRect.left) {
+    //       high = charIndex - 1;
+    //       characterIndex = Math.max(0, charIndex - 1);
+    //     } else if (targetClientLeft > rangeRect.right) {
+    //       low = nextCharIndex;
+    //       characterIndex = Math.min(
+    //         containingTextNode.textContent.length,
+    //         nextCharIndex
+    //       );
+    //     } else {
+    //       if (targetClientLeft <= (rangeRect.left + rangeRect.right) / 2) {
+    //         characterIndex = charIndex;
+    //       } else {
+    //         characterIndex = nextCharIndex;
+    //       }
+    //       break;
+    //     }
+    //   }
+    // }
 
-    return Point(row, column);
+    // let textNodeStartColumn = 0;
+    // for (let i = 0; i < containingTextNodeIndex; i++) {
+    //   textNodeStartColumn = textNodeStartColumn + textNodes[i].length;
+    // }
+    // const column = textNodeStartColumn + characterIndex;
+
+    // return Point(row, column);
   }
 
   didResetDisplayLayer() {
