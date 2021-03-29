@@ -26,6 +26,9 @@ const isLetter = code =>
 const isValidKeyvalName = name =>
   Gdk.keyvalName(Gdk.keyvalFromName(name)) === name
 
+
+const keyByDescription = new Map()
+
 class Key {
   ctrl = false
   shift = false
@@ -102,10 +105,15 @@ class Key {
     key.string = event.string
     key.event = event
 
+    Object.freeze(key)
     return key
   }
 
   static fromDescription = (description) => {
+    const cachedKey = keyByDescription.get(description)
+    if (cachedKey !== undefined)
+      return cachedKey
+
     const key = new Key()
 
     const parts = description.split('-')
@@ -160,6 +168,7 @@ class Key {
         else {
           if (!isValidKeyvalName(name) && !KeySymbols.LOWER_TO_UPPER[name.toLowerCase()]) {
             console.warn(`Couldn't parse key: "${description}"`)
+            keyByDescription.set(description, null)
             return null
           }
 
@@ -180,10 +189,13 @@ class Key {
       }
       else {
         console.warn(`Couldn't parse key: "${description}"`)
+        keyByDescription.set(description, null)
         return null
       }
     }
 
+    Object.freeze(key)
+    keyByDescription.set(description, key)
     return key
   }
 
