@@ -55,7 +55,7 @@ class Clipboard {
   //
   // Returns a {String}.
   read() {
-    return clipboard.readSync();
+    return clipboardy.readSync();
   }
 
   // Public: Read the text from the clipboard and return both the text and the
