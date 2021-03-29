@@ -467,9 +467,13 @@ module.exports = class VimState {
       this.emitter.emit('did-deactivate-mode', {mode: this.mode, submode: this.submode})
     }
 
-    if (newMode === 'normal') this.activateNormalMode()
-    else if (newMode === 'insert') this.editorElement.setInputEnabled(true)
-    else if (newMode === 'visual') this.modeDeactivator = this.activateVisualMode(newSubmode)
+    if (newMode === 'normal') {
+      this.activateNormalMode()
+    } else if (newMode === 'insert') {
+      this.activateInsertMode()
+    } else if (newMode === 'visual') {
+      this.modeDeactivator = this.activateVisualMode(newSubmode)
+    }
 
     if (this.getConfig('autoDisableInputMethodWhenLeavingInsertMode')) {
       // FIXME: validate that we can remove this
@@ -493,6 +497,11 @@ module.exports = class VimState {
     } else {
       if (this.__swrap) this.swrap.clearProperties(this.editor)
     }
+
+    this.editorElement.setCursorType(
+      this.mode === 'insert' ?
+        this.editorElement.constructor.CursorType.BEAM :
+        this.editorElement.constructor.CursorType.BLOCK)
 
     this.editorElement.addCssClass(`${this.mode}-mode`)
     if (this.submode) this.editorElement.addCssClass(this.submode)
@@ -524,6 +533,10 @@ module.exports = class VimState {
         if (goalColumn != null) cursor.goalColumn = goalColumn
       }
     }
+  }
+
+  activateInsertMode () {
+    this.editorElement.setInputEnabled(true)
   }
 
   // Visual mode
