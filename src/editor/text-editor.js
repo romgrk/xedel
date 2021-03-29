@@ -16,7 +16,7 @@ const Cursor = require('./cursor');
 const Selection = require('./selection');
 const NullGrammar = require('./null-grammar');
 // const TextMateLanguageMode = require('./text-mate-language-mode');
-// const ScopeDescriptor = require('./scope-descriptor');
+const ScopeDescriptor = require('./scope-descriptor');
 
 // const TextMateScopeSelector = require('first-mate').ScopeSelector;
 const GutterContainer = require('./gutter-container');
@@ -4375,7 +4375,12 @@ module.exports = class TextEditorModel {
   // e.g. `['.source.ruby']`, or `['.source.coffee']`. You can use this with
   // {Config::get} to get language specific config values.
   getRootScopeDescriptor() {
-    return this.buffer.getLanguageMode().rootScopeDescriptor;
+    const languageMode = this.buffer.getLanguageMode()
+    if (!languageMode.rootScopeDescriptor)
+      languageMode.rootScopeDescriptor = new ScopeDescriptor({
+        scopes: [NullGrammar.scopeName]
+      })
+    return languageMode.rootScopeDescriptor;
   }
 
   // Essential: Get the syntactic {ScopeDescriptor} for the given position in buffer
