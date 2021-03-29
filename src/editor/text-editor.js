@@ -4376,6 +4376,7 @@ module.exports = class TextEditorModel {
   // {Config::get} to get language specific config values.
   getRootScopeDescriptor() {
     const languageMode = this.buffer.getLanguageMode()
+    // FIXME: this should be removed, all LMs should have a scope descriptor
     if (!languageMode.rootScopeDescriptor)
       languageMode.rootScopeDescriptor = new ScopeDescriptor({
         scopes: [NullGrammar.scopeName]
