@@ -252,7 +252,7 @@ class TextEditorComponent extends Gtk.Widget {
 
     this.didChange = this.didChange.bind(this);
     this.didChangeCursorPosition = this.didChangeCursorPosition.bind(this);
-    this.didScrollDummyScrollbar = this.didScrollDummyScrollbar.bind(this);
+    this.didScroll = this.didScroll.bind(this);
     this.didMouseDownOnContent = this.didMouseDownOnContent.bind(this);
     this.debouncedResumeCursorBlinking = debounce(
       this.resumeCursorBlinking.bind(this),
@@ -274,8 +274,8 @@ class TextEditorComponent extends Gtk.Widget {
     // TODO: implement these
     // this.textContainer.on('button-press-event', this.didMouseDownOnContent)
 
-    this.textWindow.getVadjustment().on('value-changed', this.didScrollDummyScrollbar)
-    this.textWindow.getHadjustment().on('value-changed', this.didScrollDummyScrollbar)
+    this.textWindow.getVadjustment().on('value-changed', this.didScroll)
+    this.textWindow.getHadjustment().on('value-changed', this.didScroll)
 
 
     this.emitter = new Emitter();
@@ -665,7 +665,12 @@ class TextEditorComponent extends Gtk.Widget {
       this.nextUpdateOnlyBlinksCursors !== false &&
       nextUpdateOnlyBlinksCursors === true;
 
-    this.updateSync();
+    if (!this.updateScheduled) {
+      this.updateScheduled = true
+      process.nextTick(() => {
+        this.updateSync();
+      })
+    }
   }
 
   updateSync(useScheduler = false) {
@@ -1723,16 +1728,16 @@ class TextEditorComponent extends Gtk.Widget {
 
   didChange() {
     // FIXME: granularize updates
-    this.updateSync()
+    this.scheduleUpdate()
   }
 
   didChangeCursorPosition() {
     // FIXME: granularize updates
-    this.updateSync()
+    this.scheduleUpdate()
   }
 
-  didScrollDummyScrollbar() {
-    this.updateSync()
+  didScroll() {
+    this.scheduleUpdate()
     // this.renderGutter()
     this.derivedDimensionsCache = {};
   }
