@@ -2,7 +2,6 @@
 const path = require('path');
 const fs = require('fs-plus');
 const { CompositeDisposable, Disposable } = require('event-kit');
-// const scrollbarStyle = require('scrollbar-style');
 const _ = require('underscore-plus');
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
@@ -42,23 +41,6 @@ class WorkspaceElement extends Gtk.Box {
 
     this.append(this.horizontalAxis);
   }
-
-  // observeScrollbarStyle() {
-  //   this.subscriptions.add(
-  //     scrollbarStyle.observePreferredScrollbarStyle(style => {
-  //       switch (style) {
-  //         case 'legacy':
-  //           this.removeCssClass('scrollbars-visible-when-scrolling');
-  //           this.addCssClass('scrollbars-visible-always');
-  //           break;
-  //         case 'overlay':
-  //           this.removeCssClass('scrollbars-visible-always');
-  //           this.addCssClass('scrollbars-visible-when-scrolling');
-  //           break;
-  //       }
-  //     })
-  //   );
-  // }
 
   observeTextEditorFontConfig() {
     this.updateGlobalTextEditorStyleSheet();
@@ -161,7 +143,6 @@ class WorkspaceElement extends Gtk.Box {
       )
     );
     this.initializeContent();
-    // this.observeScrollbarStyle();
     this.observeTextEditorFontConfig();
 
     this.paneContainer = this.model.getCenter().paneContainer.getElement();
