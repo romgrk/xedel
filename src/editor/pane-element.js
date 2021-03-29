@@ -5,6 +5,8 @@ const path = require('path');
 const { CompositeDisposable } = require('event-kit');
 
 class PaneElement extends Gtk.Box {
+  static name = 'Pane'
+
   constructor(props) {
     super(Gtk.Orientation.HORIZONTAL)
 

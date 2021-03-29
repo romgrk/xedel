@@ -3,7 +3,7 @@
  */
 
 const { Emitter, Disposable } = require('event-kit');
-const { translateSelector } = require('./utils/atom-compatibility')
+const { parseSelector, matchesRule } = require('./utils/selectors')
 const { unreachable } = require('./utils/assert')
 
 class CommandsManager {
@@ -12,31 +12,44 @@ class CommandsManager {
   emitter = new Emitter()
 
   get(element, command) {
-    if (this.commandsByName[element]?.[command] === undefined)
-      throw new Error(`Command '${command}' is not registered`)
-    return this.commandsByName[element][command]
+    const commandBundles = this.commandsByName[element.constructor.name] || []
+
+    for (let i = 0; i < commandBundles.length; i++) {
+      const bundle = commandBundles[i]
+      if (!matchesRule(element, bundle.rule))
+        continue
+      if (command in bundle.commands)
+        return bundle.commands[command]
+    }
+
+    console.warn(`Command '${command}' is not registered for ${element.constructor.name}`)
   }
 
   add(element, commands) {
     const source = getSource()
     const selector = typeof element === 'string' ? element : element.constructor.name
-    const name = translateSelector(selector)
+    const rules = parseSelector(selector)
 
-    if (!this.commandsByName[name])
-      this.commandsByName[name] = {}
+    rules.forEach(rule => {
+      const name = rule.element
 
-    const elementCommands = this.commandsByName[name]
-
-    for (let command in commands) {
-      if (command in elementCommands) {
-        console.warn(new Error(`Command '${command}' already exists`))
+      if (!name) {
+        console.warn('No name for rule', rule)
+        return
       }
-      const effect = commands[command]
-      elementCommands[command] = { element: name, effect, source }
-    }
+
+      if (!this.commandsByName[name])
+        this.commandsByName[name] = []
+
+      this.commandsByName[name].push({
+        source,
+        rule,
+        commands,
+      })
+    })
 
     this.sources[source] =
-      (this.sources[source] || []).concat({ element, commands })
+      (this.sources[source] || []).concat({ selector, commands })
 
     return new Disposable(() => {
       this.remove(source)
@@ -44,18 +57,28 @@ class CommandsManager {
   }
 
   remove(source) {
-    this.sources[source].forEach(({ element, commands }) => {
-      for (let command in commands) {
-        delete this.commandsByName[element][command]
-      }
-    })
+    for (let name in this.commandsByName) {
+      this.commandsByName[name] =
+        this.commandsByName[name].filter(c => c.source === source)
+    }
     delete this.sources[source]
   }
 
   dispatch(element, commandName) {
     const event = new CommandEvent(commandName)
-    const command = this.get(element.constructor.name, commandName)
-    const effect = command.effect
+    let effect
+
+    if (typeof commandName === 'string') {
+      effect = this.get(element, commandName)
+      if (!effect)
+        return false
+    }
+    else if (typeof commandName === 'function') {
+      effect = commandName
+    }
+    else {
+      unreachable()
+    }
 
     if (typeof effect === 'function') {
       effect.call(element, event, element)
@@ -67,7 +90,10 @@ class CommandsManager {
       unreachable()
     }
 
-    this.emitter.emit('did-dispatch', event)
+    const didDispatch = event.aborted === false
+    if (didDispatch)
+      this.emitter.emit('did-dispatch', event)
+    return didDispatch
   }
 
   onDidDispatch(fn) {
@@ -113,6 +139,7 @@ function getSource() {
 
 class CommandEvent {
   stopPropagationCalled = false
+  aborted = false
 
   constructor(type) {
     this.type = type
@@ -120,5 +147,9 @@ class CommandEvent {
 
   stopPropagation() {
     this.stopPropagationCalled = true
+  }
+
+  abortKeyBinding() {
+    this.aborted = true
   }
 }

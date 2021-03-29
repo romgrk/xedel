@@ -25,6 +25,8 @@ const CORRECTIONS = {
 
   // for atom packages
   enter: 'Return',
+  pageup: 'Page_Up',
+  pagedown: 'Page_Down',
   numpad0: '0',
   numpad1: '1',
   numpad2: '2',

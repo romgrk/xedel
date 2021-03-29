@@ -6,14 +6,14 @@ const { Disposable } = require('event-kit')
 
 const Key = require('./key')
 const { unreachable } = require('./utils/assert')
-const { translateSelector } = require('./utils/atom-compatibility')
+const { parseSelector, matchesRule } = require('./utils/selectors')
 
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
 const Gdk = gi.require('Gdk', '4.0')
 
-const CONTINUE = false
-const STOP_PROPAGATION = true
+const EVENT_CONTINUE         = false
+const EVENT_STOP_PROPAGATION = true
 
 const MATCH = {
   PARTIAL: 'PARTIAL',
@@ -42,16 +42,22 @@ class KeymapManager {
   removeListener(listener) {
     this.listeners = this.listeners.filter(l => l !== listener)
   }
+
   // add: (source, keyBindingsBySelector, priority=0, throwOnInvalidSelector=true)
   add(source, keymapBySelector, priority = 0, throwOnInvalidSelector = true) {
-    Object.keys(keymapBySelector).forEach(name => {
-      const keymap = keymapBySelector[name]
-      const selector = translateSelector(name)
+    Object.keys(keymapBySelector).forEach(selector => {
 
-      if (this.keymapsByName[selector] === undefined)
-        this.keymapsByName[selector] = []
+      const keymap = keymapBySelector[selector]
+      const rules = parseSelector(selector)
 
-      this.keymapsByName[selector].push(keymap)
+      console.log(rules)
+
+      rules.forEach(rule => {
+        const elementName = rule.element
+        if (this.keymapsByName[elementName] === undefined)
+          this.keymapsByName[elementName] = []
+        this.keymapsByName[elementName].push({ rule, keymap })
+      })
     })
 
     this.keymapsBySource[source] = keymapBySelector
@@ -67,31 +73,32 @@ class KeymapManager {
     if (!keymapBySelector)
       return
 
-    Object.keys(keymapBySelector).forEach(name => {
-      const keymap = keymapBySelector[name]
-      const selector = translateSelector(name)
+    Object.keys(keymapBySelector).forEach(selector => {
+      const keymap = keymapBySelector[selector]
+      const rules = parseSelector(selector)
 
-      if (this.keymapsByName[selector] === undefined)
-        return
-
-      this.keymapsByName[selector] =
-        this.keymapsByName[selector].filter(k => k !== keymap)
+      rules.forEach(rule => {
+        const elementName = rule.element
+        this.keymapsByName[elementName] =
+          this.keymapsByName[elementName].filter(k => k.keymap !== keymap)
+      })
     })
+
+    delete this.keymapsBySource[source]
   }
 
   onWindowKeyPressEvent = (keyval, keycode, state) => {
-    const keyname = Gdk.keyvalName(keyval)
     const key = Key.fromArgs(keyval, keycode, state)
 
     const elements = getElementsStack()
 
     for (let listener of this.listeners) {
-      if (listener(key, elements[0], elements) === STOP_PROPAGATION)
-        return STOP_PROPAGATION
+      if (listener(key, elements[0], elements) === EVENT_STOP_PROPAGATION)
+        return EVENT_STOP_PROPAGATION
     }
 
     if (key.isModifier())
-      return CONTINUE
+      return EVENT_CONTINUE
 
     const keystrokes = this.queuedKeystrokes.concat(key)
     const matches = []
@@ -102,29 +109,36 @@ class KeymapManager {
       if (!keymaps)
         continue
 
-      matches.push(
-        ...keymaps.map(keymap => matchKeybinding(keystrokes, keymap, element))
-                  .reduce((list, current) => list.concat(current), []))
+      const matchingKeymaps = keymaps.filter(k => matchesRule(element, k.rule))
+      const matchingKeybindings =
+        matchingKeymaps.map(k => matchKeybinding(keystrokes, k.keymap, element)).flat()
+
+      if (matchingKeybindings.length === 0)
+        continue
+
+      matches.push(...matchingKeybindings)
     }
 
     let didCapture = false
     let shouldStopPropagation = true
 
-    const fullMatch = matches.find(m => m.match === MATCH.FULL)
+    const fullMatches = matches.filter(m => m.match === MATCH.FULL)
 
-    if (fullMatch) {
-      const { keybinding, effect, source, element } = fullMatch
-      const keymap = this.keymapsByName[element.constructor.name].find(k => k.name === source)
+    if (fullMatches.length > 0) {
+      for (const fullMatch of fullMatches) {
+        const { keybinding, effect, element } = fullMatch
 
-      console.log(`${element.constructor.name}.${source}: [${keybinding}]: ${effect}`)
+        const didDispatch = xedel.commands.dispatch(element, effect)
+        if (!didDispatch)
+          continue
 
-      this.runEffect(effect, element)
-      this.queuedKeystrokes = []
+        console.log(`${element.constructor.name}: [${keybinding}]: ${effect}`)
 
-      didCapture = true
-      shouldStopPropagation =
-        keymap.options && ('preventPropagation' in keymap.options) ?
-          keymap.options.preventPropagation : true
+        this.queuedKeystrokes = []
+        didCapture = true
+        shouldStopPropagation = true
+        break
+      }
     }
     else if (matches.length > 0) {
       this.queuedKeystrokes = keystrokes
@@ -137,23 +151,9 @@ class KeymapManager {
 
     return (
       didCapture && shouldStopPropagation ?
-        STOP_PROPAGATION :
-        CONTINUE
+        EVENT_STOP_PROPAGATION :
+        EVENT_CONTINUE
     )
-  }
-
-  runEffect(effect, element) {
-    // console.log({ effect })
-
-    if (typeof effect === 'string') {
-      return xedel.commands.dispatch(element, effect)
-    }
-    else if (typeof effect === 'function') {
-      return effect.call(element, element)
-    }
-
-    console.log({ effect, element })
-    unreachable()
   }
 }
 

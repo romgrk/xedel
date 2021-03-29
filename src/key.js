@@ -159,7 +159,8 @@ class Key {
         // key name, eg "grave", "Escape", "escape"
         else {
           if (!isValidKeyvalName(name) && !KeySymbols.LOWER_TO_UPPER[name.toLowerCase()]) {
-            throw new Error(`Couldn't parse key: "${description}"`)
+            console.warn(`Couldn't parse key: "${description}"`)
+            return null
           }
 
           string = String.fromCharCode(Gdk.keyvalToUnicode(Gdk.keyvalFromName(name)))
@@ -178,7 +179,8 @@ class Key {
         key.name = name
       }
       else {
-        throw new Error(`Couldn't parse key: "${description}"`)
+        console.warn(`Couldn't parse key: "${description}"`)
+        return null
       }
     }
 
