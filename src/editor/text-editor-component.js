@@ -429,16 +429,10 @@ class TextEditorComponent extends Gtk.Widget {
     )
 
     setImmediate(() => {
-      // TODO: clean this when node-gtk handles setImmediate correctly
-      try {
-        if (this.attached)
-          this.didSizeAllocate()
-        else
-          this.didAttach()
-      } catch (err) {
-        console.error(err)
-        process.exit(1)
-      }
+      if (this.attached)
+        this.didSizeAllocate()
+      else
+        this.didAttach()
     })
   }
 
@@ -448,6 +442,7 @@ class TextEditorComponent extends Gtk.Widget {
 
   onKeyPressEvent = (keyval, keycode, state) => {
     // TODO: clean this
+    // TODO: use didTextInput()
     console.log(keyval, Gdk.keyvalName(keyval), keycode, state)
     const key = Key.fromArgs(keyval, keycode, state)
     if (!key.ctrl && !key.alt && !key.cmd && !key.super) {
@@ -1767,7 +1762,7 @@ class TextEditorComponent extends Gtk.Widget {
       // situation, we automatically reset the scroll position to 0,0 after
       // typing a space. None of this can really be tested.
       if (event.data === ' ') {
-        window.setImmediate(() => {
+        setImmediate(() => {
           this.refs.scrollContainer.scrollTop = 0;
           this.refs.scrollContainer.scrollLeft = 0;
         });
@@ -2831,30 +2826,31 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   didChangeSelectionRange() {
-    const { model } = this;
+    // FIXME: implement setting selection on linux
+    // const { model } = this;
+    //
+    // if (this.getPlatform() === 'linux') {
+    //   if (this.selectionClipboardImmediateId) {
+    //     clearImmediate(this.selectionClipboardImmediateId);
+    //   }
 
-    if (this.getPlatform() === 'linux') {
-      if (this.selectionClipboardImmediateId) {
-        clearImmediate(this.selectionClipboardImmediateId);
-      }
+    //   this.selectionClipboardImmediateId = setImmediate(() => {
+    //     this.selectionClipboardImmediateId = null;
 
-      this.selectionClipboardImmediateId = setImmediate(() => {
-        this.selectionClipboardImmediateId = null;
+    //     if (model.isDestroyed()) return;
 
-        if (model.isDestroyed()) return;
-
-        const selectedText = model.getSelectedText();
-        if (selectedText) {
-          // This uses ipcRenderer.send instead of clipboard.writeText because
-          // clipboard.writeText is a sync ipcRenderer call on Linux and that
-          // will slow down selections.
-          electron.ipcRenderer.send(
-            'write-text-to-selection-clipboard',
-            selectedText
-          );
-        }
-      });
-    }
+    //     const selectedText = model.getSelectedText();
+    //     if (selectedText) {
+    //       // This uses ipcRenderer.send instead of clipboard.writeText because
+    //       // clipboard.writeText is a sync ipcRenderer call on Linux and that
+    //       // will slow down selections.
+    //       electron.ipcRenderer.send(
+    //         'write-text-to-selection-clipboard',
+    //         selectedText
+    //       );
+    //     }
+    //   });
+    // }
   }
 
   observeBlockDecorations() {
