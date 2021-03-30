@@ -233,7 +233,7 @@ class Settings {
 module.exports = new Settings('vim-mode-plus', {
   keymapYToYankToLastCharacterOfLine: {
     title: 'keymap `Y` to `yank-to-last-character-of-line`',
-    default: false,
+    default: true,
     description:
       '[Can]: `Y` behave as `y $` instead of default `y y`, This make `Y` consistent with `C`(works as `c $`) and `D`(works as `d $`).'
   },
@@ -251,7 +251,7 @@ module.exports = new Settings('vim-mode-plus', {
   },
   keymapPToPutWithAutoIndent: {
     title: 'keymap `p` and `P` to `put-after-with-auto-indent` and `put-before-with-auto-indent`',
-    default: false,
+    default: true,
     description:
       'Remap `p` and `P` to auto indent version.<br>`p` remapped to `put-after-with-auto-indent` from original `put-after`<br>`P` remapped to `put-before-with-auto-indent` from original `put-before`<br>[Conflicts]: Original `put-after` and `put-before` become unavailable unless you set different keymap by yourself.'
   },
@@ -377,12 +377,12 @@ module.exports = new Settings('vim-mode-plus', {
       'Custom surround in JSON string with following key value pair.<br>- key: character to map<br>- value: array with `[openText:string, closeText:string, addSpace:boolean]`<br><br>Pasting pre-formatted JSON text is way easier than directly edit here.<br><br>e.g. `{"p": ["<?php", "?>", true], "s": ["\\"", "\\""]}`<br>With above example and `y s` is mapped to `surround`, `y s i w p` surround word with PHP tag, also `y s i w s` surround word with double quotes without padding space.'
   },
   sequentialPaste: {
-    default: false,
+    default: true,
     description:
       'When enabled `put-after`(`p`), `put-before`(`P`), and `replace-with-register` pop older register entry on each sequential execution<br>The sequential execution is activated if next execution is **whithin** 1seconds(flash is not yet disappar).'
   },
   sequentialPasteMaxHistory: {
-    default: 3,
+    default: 10,
     minimum: 1
   },
   findCharsMax: {
@@ -414,7 +414,7 @@ module.exports = new Settings('vim-mode-plus', {
       'When enabled, can repeat last-find by `f` and `F`( backwards ), you still can use normal `,` and `;`.<br>e.g. `f a f` move cursor to 2nd `a`.<br>Affects to: `f`, `F`, `t`, `T`.'
   },
   findAcrossLines: {
-    default: false,
+    default: true,
     description: 'When enabled, `f` searches over next lines.<br>Affects `f`, `F`, `t`, `T`.'
   },
   ignoreCaseForSearch: {
