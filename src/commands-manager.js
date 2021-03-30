@@ -5,18 +5,23 @@
 const { Emitter, Disposable } = require('event-kit');
 const { parseSelector, matchesRule } = require('./utils/selectors')
 const { unreachable } = require('./utils/assert')
+const gi = require('node-gtk')
+const Gtk = gi.require('Gtk', '4.0')
 
 class CommandsManager {
   commandsByName = {}
+  commandsByElement = new WeakMap()
   sources = {}
   emitter = new Emitter()
 
   get(element, command) {
-    const commandBundles = this.commandsByName[element.constructor.name] || []
+    const commandBundles =
+      (this.commandsByName[element.constructor.name] || [])
+        .concat(this.commandsByElement.get(element) || [])
 
     for (let i = 0; i < commandBundles.length; i++) {
       const bundle = commandBundles[i]
-      if (!matchesRule(element, bundle.rule))
+      if (bundle.rule !== true && !matchesRule(element, bundle.rule))
         continue
       if (command in bundle.commands)
         return bundle.commands[command]
@@ -27,41 +32,70 @@ class CommandsManager {
 
   add(element, commands) {
     const source = getSource()
-    const selector = typeof element === 'string' ? element : element.constructor.name
-    const rules = parseSelector(selector)
 
-    rules.forEach(rule => {
-      const name = rule.element
+    if (typeof element === 'string') {
+      const selector = element
+      const rules = parseSelector(selector)
 
-      if (!name) {
-        console.warn('No name for rule', rule)
-        return
-      }
+      rules.forEach(rule => {
+        const name = rule.element
 
-      if (!this.commandsByName[name])
-        this.commandsByName[name] = []
+        if (!name) {
+          console.warn('No name for rule', rule)
+          return
+        }
 
-      this.commandsByName[name].push({
+        if (!this.commandsByName[name])
+          this.commandsByName[name] = []
+
+        this.commandsByName[name].push({
+          source,
+          rule,
+          commands,
+        })
+      })
+
+      this.sources[source] =
+        (this.sources[source] || []).concat({ selector, commands })
+
+      return new Disposable(() => {
+        this.remove(source)
+      })
+    }
+    else if (element instanceof Gtk.Widget) {
+      if (!this.commandsByElement.has(element))
+        this.commandsByElement.set(element, [])
+
+      this.commandsByElement.get(element).push({
         source,
-        rule,
+        rule: true,
         commands,
       })
-    })
 
-    this.sources[source] =
-      (this.sources[source] || []).concat({ selector, commands })
+      return new Disposable(() => {
+        this.remove(source, element)
+      })
+    }
+    else {
+      unreachable()
+    }
 
-    return new Disposable(() => {
-      this.remove(source)
-    })
   }
 
-  remove(source) {
-    for (let name in this.commandsByName) {
-      this.commandsByName[name] =
-        this.commandsByName[name].filter(c => c.source === source)
+  remove(source, element) {
+    if (!element) {
+      for (let name in this.commandsByName) {
+        this.commandsByName[name] =
+          this.commandsByName[name].filter(c => c.source === source)
+      }
+      delete this.sources[source]
     }
-    delete this.sources[source]
+    else {
+      const bundles = this.commandsByElement.get(element)
+      this.commandsByElement.set(element,
+        bundles.filter(k => k.source === source)
+      )
+    }
   }
 
   dispatch(element, commandName) {
