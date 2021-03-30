@@ -40,7 +40,7 @@ const CURSOR_BLINK_PERIOD = 1400;
 
 // const DEFAULT_FONT_FAMILY = 'SauceCodePro Nerd Font'
 const DEFAULT_FONT_FAMILY = 'DejaVu Sans Mono for Powerline'
-const DEFAULT_FONT_SIZE = 16
+const DEFAULT_FONT_SIZE = 18
 
 // Colors, for debugging
 const RED = Gdk.RGBA.create('#ff0000')
@@ -4244,7 +4244,7 @@ class CursorsComponent extends Gtk.DrawingArea {
           cx.rectangle(
             coords.left,
             coords.top,
-            2,
+            1,
             measurements.lineHeight
           )
           cx.setColor(theme.cursorColor)
