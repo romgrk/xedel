@@ -699,9 +699,9 @@
   'ctrl-[': 'core:cancel'
 
 # Find editor
-"atom-text-editor.vim-mode-plus-input.find":
-  "tab": "vim-mode-plus:find-next-pre-confirmed"
-  "shift-tab": "vim-mode-plus:find-previous-pre-confirmed"
+'atom-text-editor.vim-mode-plus-input.find':
+  'tab': 'vim-mode-plus:find-next-pre-confirmed'
+  'shift-tab': 'vim-mode-plus:find-previous-pre-confirmed'
 
 # Search mini editor
 # -------------------------
