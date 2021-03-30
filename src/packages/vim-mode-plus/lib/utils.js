@@ -197,8 +197,10 @@ function getRows (editor, bufferOrScreen, {startRow, direction}) {
 // ends with newline char.
 // But in Vim, curor can NOT past last newline. EOF is next position of very last character.
 function getVimEofBufferPosition (editor) {
+  // FIXME: logic described above disabled
   const eof = editor.getEofBufferPosition()
-  return eof.row === 0 || eof.column > 0 ? eof : getEndOfLineForBufferRow(editor, eof.row - 1)
+  // return eof.row === 0 || eof.column > 0 ? eof : getEndOfLineForBufferRow(editor, eof.row - 1)
+  return eof
 }
 
 function getVimEofScreenPosition (editor) {

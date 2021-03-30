@@ -422,7 +422,7 @@ module.exports = new Settings('vim-mode-plus', {
     description: 'For `/` and `?`'
   },
   useSmartcaseForSearch: {
-    default: false,
+    default: true,
     description: 'For `/` and `?`. Override `ignoreCaseForSearch`'
   },
   ignoreCaseForSearchCurrentWord: {
