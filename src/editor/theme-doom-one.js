@@ -28,6 +28,8 @@ const cyan       = '#46D9FF'
 const dark_cyan  = '#5699AF'
 const white      = '#efefef'
 
+const comment = base6
+
 const theme = {
   'syntax--keyword': { foreground: blue },
     /* syntax--control
@@ -43,12 +45,20 @@ const theme = {
      *   syntax--package,
      *   syntax--import */
 
+  'syntax--support': { foreground: yellow },
+    /* syntax--support
+     *   syntax--class
+     *   syntax--type
+     *   syntax--function 
+     *     syntax--any-method */
+
   'syntax--constant': { foreground: violet },
     /* syntax--variable
      * syntax--charactersyntax--escape
      * syntax--numeric
      * syntax--othersyntax--color
      * syntax--othersyntax--symbol */
+  'syntax--numeric': { foreground: red },
 
   'syntax--string': { foreground: green },
     /* > syntax--source, syntax--embedded
@@ -56,12 +66,14 @@ const theme = {
      *     syntax--sourcesyntax--rubysyntax--embedded
      *   syntax--othersyntax--link */
 
-  'syntax--comment': { foreground: base6 },
+  'syntax--comment': { foreground: comment },
     /* 'syntax--markup': {},
      * 'syntax--link': {},
      * 'syntax--entity': {}, */
     /* syntax--namesyntax--type
      * syntax--othersyntax--inherited-class */
+
+  'syntax--punctuation': { foreground: blue },
     /* syntax--punctuation
      *   syntax--definition
      *     syntax--comment
@@ -82,16 +94,25 @@ const theme = {
      *     syntax--method,
      *     syntax--class,
      *     syntax--inner-class */
+
+  'syntax--method-call': { foreground: yellow },
+    /* syntax--meta
+     *   syntax--class
+     *     syntax--body
+     *   syntax--method-call,
+     *   syntax--method
+     *   syntax--definition
+     *     syntax--variable
+     *   syntax--link
+     *   syntax--require
+     *   syntax--selector
+     *   syntax--separator
+     *   syntax--tag */
 }
 
 /* syntax--variable
  *   syntax--interpolation
  *   syntax--parameter */
-/* syntax--support
- *   syntax--class
- *   syntax--type
- *   syntax--function 
- *     syntax--any-method */
 /* syntax--entity
  *   syntax--namesyntax--function
  *   syntax--namesyntax--class,
@@ -100,18 +121,6 @@ const theme = {
  *   syntax--namesyntax--tag
  *   syntax--othersyntax--attribute-name
  *     syntax--id */
-/* syntax--meta
- *   syntax--class
- *     syntax--body
- *   syntax--method-call,
- *   syntax--method
- *   syntax--definition
- *     syntax--variable
- *   syntax--link
- *   syntax--require
- *   syntax--selector
- *   syntax--separator
- *   syntax--tag */
 /* syntax--underline
  *   text-decoration: underline;
  * syntax--none
