@@ -6,12 +6,16 @@ const _ = require('underscore-plus');
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
 
-class WorkspaceElement extends Gtk.Box {
+class WorkspaceElement extends Gtk.Overlay {
   static name = 'Workspace'
 
   constructor() {
-    super(Gtk.Orientation.VERTICAL)
-    this.setOrientation(Gtk.Orientation.VERTICAL)
+    super()
+    this.overlayPositions = new WeakMap()
+    this.container = new Gtk.Box()
+    this.container.setOrientation(Gtk.Orientation.VERTICAL)
+    this.setChild(this.container)
+    this.on('get-child-position', (widget, allocation) => this.onGetChildPosition(widget, allocation))
   }
 
   attachedCallback() {
@@ -39,7 +43,22 @@ class WorkspaceElement extends Gtk.Box {
     this.horizontalAxis.addCssClass('axis');
     this.horizontalAxis.append(this.verticalAxis);
 
-    this.append(this.horizontalAxis);
+    this.container.append(this.horizontalAxis);
+  }
+
+  put(element, x, y, width, height) {
+    this.overlayPositions.set(element, { x, y, width, height })
+    this.addOverlay(element)
+  }
+
+  remove(element) {
+    this.removeOverlay(element)
+    this.overlayPositions.delete(element)
+  }
+
+  onGetChildPosition(element, allocation) {
+    const rect = this.overlayPositions.get(element)
+    Object.assign(allocation, rect)
   }
 
   observeTextEditorFontConfig() {
@@ -66,10 +85,10 @@ class WorkspaceElement extends Gtk.Box {
 
   updateGlobalTextEditorStyleSheet() {
     const styleSheetSource = `atom-workspace {
-  --editor-font-size: ${this.config.get('editor.fontSize')}px;
-  --editor-font-family: ${this.config.get('editor.fontFamily')};
-  --editor-line-height: ${this.config.get('editor.lineHeight')};
-}`;
+      --editor-font-size: ${this.config.get('editor.fontSize')}px;
+      --editor-font-family: ${this.config.get('editor.fontFamily')};
+      --editor-line-height: ${this.config.get('editor.lineHeight')};
+    }`;
     this.styleManager.addStyleSheet(styleSheetSource, {
       sourcePath: 'global-text-editor-styles',
       priority: -1
@@ -176,9 +195,9 @@ class WorkspaceElement extends Gtk.Box {
     );
     this.verticalAxis.append(this.panelContainers.bottom);
 
-    this.panelContainers.header.insertBefore(this, this.horizontalAxis)
-    this.append(this.panelContainers.footer);
-    this.append(this.panelContainers.modal);
+    this.panelContainers.header.insertBefore(this.container, this.horizontalAxis)
+    this.container.append(this.panelContainers.footer);
+    this.container.append(this.panelContainers.modal);
 
     // FIXME
     // this.paneContainer.addEventListener('mouseenter', this.handleCenterEnter);

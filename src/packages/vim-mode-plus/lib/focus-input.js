@@ -11,11 +11,20 @@ module.exports = function focusInput (
   vimState.inputEditor = editor // set ref for test
   editor.element.addCssClass('vim-mode-plus-input')
   if (purpose) editor.element.addCssClass(purpose)
-  editor.element.setAttribute('mini', '')
 
   // So that I can skip jasmine.attachToDOM in test.
   if (atom.inSpecMode()) atom.workspace.getElement().appendChild(editor.element)
-  else vimState.editorElement.parentNode.appendChild(editor.element)
+  else {
+    const { measurements } = vimState.editorElement
+    const width = measurements.baseCharacterWidth * 10
+    const height = measurements.lineHeight
+    editor.element.on('realize', () => {
+      editor.element.grabFocus()
+    })
+    const parent = xedel.workspace.getElement()
+    // FIXME: use correct coordinates when overlay is working
+    parent.put(editor.element, 100, 100, width, height)
+  }
 
   let autoConfirmTimeoutID
   const clearAutoConfirmTimer = () => {
@@ -25,10 +34,12 @@ module.exports = function focusInput (
 
   const unfocus = () => {
     clearAutoConfirmTimer()
-    vimState.editorElement.focus() // focus
+    vimState.editorElement.grabFocus() // focus
     vimState.inputEditor = null // unset ref for test
     vimState.editorElement.removeCssClass(...classListToAdd)
-    editor.element.remove()
+    const parent = editor.element.getParent()
+    if (parent)
+      parent.remove(editor.element)
     editor.destroy()
   }
 
@@ -88,6 +99,4 @@ module.exports = function focusInput (
     }
     atom.commands.add(editor.element, wrappedCommands)
   }
-
-  editor.element.focus()
 }
