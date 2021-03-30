@@ -100,6 +100,8 @@ const CursorType = {
 }
 
 const defaultProps = {
+  mini: false,
+  readOnly: false,
   cursorType: CursorType.BLOCK,
   cursorBlink: false,
 }
@@ -192,8 +194,11 @@ class TextEditorComponent extends Gtk.Widget {
   constructor(props) {
     super()
 
-    this.model = props.model
-    this.props = Object.assign({}, defaultProps, props)
+    // For text-editor.js, that still assumes component != element in some places
+    this.component = this
+
+    this.props = {}
+    this.update(Object.assign({}, defaultProps, props))
 
     this.vexpand = true
     this.hexpand = true
@@ -213,26 +218,29 @@ class TextEditorComponent extends Gtk.Widget {
       })
 
     this.gutterContainer = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0)
+    this.gutterContainer.focusable = false
     this.gutterContainer.append(this.lineNumberGutterArea)
 
     this.textContainer = new Gtk.Fixed()
-    this.textContainer.focusable = true
-    this.textContainer.focusOnClick = true
+    this.textContainer.focusable = false
 
     this.textWindow = new Gtk.ScrolledWindow()
+    this.textWindow.focusable = false
     this.textWindow.hexpand = true
     this.textWindow.vexpand = true
     this.textWindow.setChild(this.textContainer)
 
     this.textWindowContainer = new Gtk.Fixed()
+    this.textWindowContainer.focusable = false
     this.textWindowContainer.put(this.backgroundArea, 0, 0)
     this.textWindowContainer.put(this.highlightsArea, 0, 0)
     this.textWindowContainer.put(this.textWindow,     0, 0)
     this.textWindowContainer.put(this.cursorArea,     0, 0)
 
     this.box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0)
-    this.box.canFocus = false
-    this.box.append(this.gutterContainer)
+    this.box.focusable = false
+    if (!this.props.mini)
+      this.box.append(this.gutterContainer)
     this.box.append(this.textWindowContainer)
     this.box.insertBefore(this)
 
@@ -417,6 +425,14 @@ class TextEditorComponent extends Gtk.Widget {
     return this.isFocus()
   }
 
+  setMini(mini) {
+    this.update({ mini })
+  }
+
+  setReadOnly(readOnly) {
+    this.update({ readOnly })
+  }
+
   /*
    * Virtual functions
    */
@@ -478,6 +494,8 @@ class TextEditorComponent extends Gtk.Widget {
   }
 
   renderGutter() {
+    if (this.props.mini)
+      return
     this.gutterContainer.setSizeRequest(
       this.measurements.gutterContainerWidth,
       this.getAllocatedHeight()
@@ -627,11 +645,26 @@ class TextEditorComponent extends Gtk.Widget {
   /* copied functions below */
 
   update(props) {
-    if (props.model !== this.model) {
-      this.model.component = null;
-      props.model.component = this;
+    const newProps = Object.assign({}, this.props, props);
+    if (newProps.model !== this.model) {
+      if (this.model)
+        this.model.component = null;
+      newProps.model.component = this;
+      this.model = props.model
     }
-    this.props = props;
+    if (newProps.mini !== this.props.mini) {
+      if (newProps.mini)
+        this.addCssClass('mini')
+      else
+        this.removeCssClass('mini')
+    }
+    if (newProps.readOnly !== this.props.readOnly) {
+      if (newProps.readOnly)
+        this.addCssClass('readonly')
+      else
+        this.removeCssClass('readonly')
+    }
+    this.props = newProps;
     this.scheduleUpdate();
   }
 
@@ -2463,6 +2496,14 @@ class TextEditorComponent extends Gtk.Widget {
   measureGutterDimensions() {
     let dimensionsChanged = false;
 
+    if (this.props.mini) {
+      dimensionsChanged = this.measurements.lineNumberGutterWidth !== 0
+                       || this.measurements.gutterContainerWidth  !== 0;
+      this.measurements.lineNumberGutterWidth = 0;
+      this.measurements.gutterContainerWidth = 0;
+      return dimensionsChanged;
+    }
+
     const lineNumberGutterWidth = this.measurements.baseCharacterWidth * (this.lineNumbersToRender.maxDigits + 2)
     if (lineNumberGutterWidth !== this.measurements.lineNumberGutterWidth) {
       dimensionsChanged = true;
@@ -3411,6 +3452,7 @@ class LinesTileComponent extends Gtk.Widget {
   constructor(props) {
     super()
     this.props = props;
+    this.focusable = false
     this.lineComponents = []
     this.styleContext = this.getStyleContext()
     this.createLines();
@@ -3909,6 +3951,7 @@ class LineNumberGutterComponent extends Gtk.Widget {
   constructor(props) {
     super()
     this.props = props;
+    this.focusable = false
     // TODO: implement mousedown handlers
     // TODO: render decorations
   }
@@ -4099,6 +4142,7 @@ class BackgroundComponent extends Gtk.Widget {
 
   constructor(props) {
     super()
+    this.focusable = false
     this.update(props)
   }
 
@@ -4247,6 +4291,7 @@ class HighlightsComponent extends Gtk.DrawingArea {
 
   constructor(props) {
     super()
+    this.focusable = false
     this.update(props)
     this.setDrawFunc(this.onDraw.bind(this))
   }

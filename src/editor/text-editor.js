@@ -5097,6 +5097,7 @@ module.exports = class TextEditorModel {
 
       this._element = new TextEditorElement({
         model: this,
+        mini: this.mini,
         // updatedSynchronously: TextEditorElement.prototype.updatedSynchronously,
         initialScrollTopRow: this.initialScrollTopRow,
         initialScrollLeftColumn: this.initialScrollLeftColumn
