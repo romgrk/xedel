@@ -81,9 +81,11 @@ const decorationStyleByClass = Color.parseObject({
     fontWeight: 'bold',
   },
 
+  'selection': {
+    background: 'rgba(255, 255, 255, 0.2)',
+  },
   'highlight': {
-    borderWidth: 1,
-    background: 'rgba(255, 255, 255, 0.3)',
+    background: 'rgba(255, 255, 255, 0.2)',
   },
 
   'invisible-character': {
@@ -2552,11 +2554,11 @@ class TextEditorComponent extends Gtk.Widget {
 
   measureLongestLineWidth() {
     if (this.longestLineToMeasure) {
-      const lineComponent = this.lineComponentsByScreenLineId.get(
-        this.longestLineToMeasure.id
-      );
-      this.measurements.longestLineWidth =
-        Font.measure(this.font.description, this.longestLineToMeasure.lineText)
+      const [width] = Font.measure(
+        this.font.description,
+        this.longestLineToMeasure.lineText
+      )
+      this.measurements.longestLineWidth = width
       this.longestLineToMeasure = null;
     }
   }
