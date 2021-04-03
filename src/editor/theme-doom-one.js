@@ -45,14 +45,17 @@ const theme = {
      *   syntax--package,
      *   syntax--import */
 
+  'syntax--property': { foreground: magenta },
+
   'syntax--support': { foreground: yellow },
+  'syntax--function': { foreground: yellow },
     /* syntax--support
      *   syntax--class
      *   syntax--type
      *   syntax--function 
      *     syntax--any-method */
 
-  'syntax--constant': { foreground: violet },
+  'syntax--constant': { foreground: violet, fontWeight: 'bold' },
     /* syntax--variable
      * syntax--charactersyntax--escape
      * syntax--numeric

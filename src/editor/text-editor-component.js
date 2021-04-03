@@ -82,9 +82,12 @@ const decorationStyleByClass = Color.parseObject({
   },
 
   'selection': {
-    background: 'rgba(255, 255, 255, 0.2)',
+    background: 'rgba(255, 255, 255, 0.15)',
   },
   'highlight': {
+    background: 'rgba(255, 255, 255, 0.15)',
+  },
+  'vim-mode-plus-find-char': {
     background: 'rgba(255, 255, 255, 0.2)',
   },
 
@@ -400,6 +403,7 @@ class TextEditorComponent extends Gtk.Widget {
     if (!this.alive) return;
     this.alive = false;
     this.disposables.dispose();
+    this.highlightsArea.destroy();
     this.model.destroy()
   }
 
@@ -540,7 +544,11 @@ class TextEditorComponent extends Gtk.Widget {
     } = this.measurements
 
     this.backgroundArea.update({ width, height })
-    this.cursorArea.update({ width, height })
+    this.cursorArea.update({
+      width,
+      height,
+      cursors: this.decorationsToRender.cursors,
+    })
 
     this.textWindow.setSizeRequest(width, height)
     this.textContainer.setSizeRequest(
@@ -625,18 +633,20 @@ class TextEditorComponent extends Gtk.Widget {
   renderHighlightDecorations() {
     const { measurements } = this
     const {
+      lineHeight,
+      horizontalPadding,
       textContainerWidth: width,
       textContainerHeight: height,
     } = measurements
-    const lineDecorations = this.decorationsToRender.lines
     const highlightDecorations = this.decorationsToRender.highlights
 
     this.highlightsArea.update({
       width,
       height,
-      lineDecorations,
-      highlightDecorations,
-      measurements,
+      lineHeight,
+      horizontalPadding,
+      highlightDecorations: highlightDecorations.slice(),
+      hasInitialMeasurements: this.hasInitialMeasurements,
     })
   }
 
@@ -759,6 +769,7 @@ class TextEditorComponent extends Gtk.Widget {
     this.measureBlockDecorations();
 
     this.updateSyncBeforeMeasuringContent();
+    this.updateAbsolutePositionedDecorations();
     this.render()
 
     const restartFrame = this.measureContentDuringUpdateSync();
@@ -849,7 +860,6 @@ class TextEditorComponent extends Gtk.Widget {
 
     this.measureLongestLineWidth();
     this.measureHorizontalPositions();
-    this.updateAbsolutePositionedDecorations();
 
     const isHorizontalScrollbarVisible =
       this.canScrollHorizontally() && this.getHorizontalScrollbarHeight() > 0;
@@ -1504,7 +1514,14 @@ class TextEditorComponent extends Gtk.Widget {
 
     this.decorationsToMeasure.cursors.forEach(cursor => {
       const { screenPosition, className, style } = cursor;
-      const { row, column } = screenPosition;
+      let { row, column } = screenPosition;
+
+      // FIXME: this is a hack to support vim-mode-plus cursor styles
+      if (style && style.left === '-1ch')
+        column -= 1;
+
+      if (style && style.top)
+        row += Math.round(parseInt(style.top.replace('px', ''), 10) / this.measurements.lineHeight)
 
       const pixelTop = this.pixelPositionAfterBlocksForRow(row);
       const pixelLeft = this.pixelLeftForRowAndColumn(row, column);
@@ -1515,12 +1532,20 @@ class TextEditorComponent extends Gtk.Widget {
         pixelWidth = this.pixelLeftForRowAndColumn(row, column + 1) - pixelLeft;
       }
 
+      const screenLine = this.model.screenLineForScreenRow(row)
+      const character =
+          column < screenLine.lineText.length ?  screenLine.lineText[column] :
+        column === screenLine.lineText.length ?  ' ' : 'X'
+
       const cursorPosition = {
+        row,
+        column,
         pixelTop,
         pixelLeft,
         pixelWidth,
+        character,
         className,
-        style
+        style,
       };
       this.decorationsToRender.cursors.push(cursorPosition);
       if (cursor.isLastCursor) this.hiddenInputPosition = cursorPosition;
@@ -2761,9 +2786,13 @@ class TextEditorComponent extends Gtk.Widget {
         screenLine.id
       );
       if (horizontalPositionsByColumn) {
-        return horizontalPositionsByColumn.get(column);
+        const left = horizontalPositionsByColumn.get(column);
+        if (typeof left === 'number')
+          return left;
       }
     }
+    // FIXME: this should not happen
+    return this.measurements.baseCharacterWidth * column;
   }
 
   screenPositionForPixelPosition({ top, left }) {
@@ -3938,10 +3967,23 @@ class LineComponent {
     const {
       index,
       measurements,
+      lineDecoration,
     } = this.props
 
     const x = measurements.horizontalPadding
     const y = index * measurements.lineHeight + marginTop
+
+    if (lineDecoration) {
+      const style = getStyle(null, lineDecoration)
+      if (style.background)
+        snapshot.appendColor(style.background,
+          Graphene.Rect.create(
+            0,
+            y,
+            measurements.textContainerWidth,
+            measurements.lineHeight,
+          ))
+    }
 
     /* Draw text */
     layout.setMarkup(this.getMarkup())
@@ -4191,12 +4233,10 @@ class CursorsComponent extends Gtk.DrawingArea {
   }
 
   onDraw(_, cx) {
-    const { element } = this.props
+    const { element, cursors } = this.props
     const blinkOff = element.cursorsBlinkedOff
     const hasFocus = element.hasFocus()
     const isActive = xedel.window ? xedel.window.isActive() : true
-    const model = element.getModel()
-    const cursors = model.getCursors()
     const { measurements } = element
 
     if (!element.hasInitialMeasurements)
@@ -4218,34 +4258,28 @@ class CursorsComponent extends Gtk.DrawingArea {
 
     for (let i = 0; i < cursors.length; i++) {
       const cursor = cursors[i]
-      const position = cursor.getScreenPosition()
-      const screenLine = model.screenLineForScreenRow(position.row)
-      const character =
-        position.column < screenLine.lineText.length ?
-          screenLine.lineText[position.column] :
-        position.column === screenLine.lineText.length ?
-          ' ' : 'X'
-      const coords = element.pixelPositionForScreenPosition(position)
-
+      const { character, pixelTop, pixelLeft, pixelWidth } = cursor;
 
       if (hasFocus && isActive) {
         if (element.props.cursorType === CursorType.BLOCK) {
           cx.rectangle(
-            coords.left,
-            coords.top,
-            measurements.baseCharacterWidth,
+            pixelLeft,
+            pixelTop,
+            pixelWidth,
             measurements.lineHeight
           )
           cx.setColor(theme.cursorColor)
           cx.fill()
-          cx.setColor(theme.backgroundColor)
-          cx.moveTo(coords.left, coords.top)
-          Font.draw(element.font.description, cx, character)
+          if (character) {
+            cx.setColor(theme.backgroundColor)
+            cx.moveTo(pixelLeft, pixelTop)
+            Font.draw(element.font.description, cx, character)
+          }
         }
         else if (element.props.cursorType === CursorType.BEAM) {
           cx.rectangle(
-            coords.left,
-            coords.top,
+            pixelLeft,
+            pixelTop,
             1,
             measurements.lineHeight
           )
@@ -4255,23 +4289,23 @@ class CursorsComponent extends Gtk.DrawingArea {
         else if (element.props.cursorType === CursorType.UNDER) {
           const height = 5
           cx.rectangle(
-            coords.left,
-            coords.top + measurements.lineHeight - height,
-            measurements.baseCharacterWidth,
+            pixelLeft,
+            pixelTop + measurements.lineHeight - height,
+            pixelWidth,
             height
           )
           cx.setColor(theme.cursorColor)
           cx.fill()
           cx.setColor(theme.backgroundColor)
-          cx.moveTo(coords.left, coords.top)
+          cx.moveTo(pixelLeft, pixelTop)
           Font.draw(element.font.description, cx, character)
         }
       }
       else {
         cx.rectangle(
-          coords.left + 0.5 - 1,
-          coords.top  + 0.5,
-          measurements.baseCharacterWidth,
+          pixelLeft + 0.5 - 1,
+          pixelTop  + 0.5,
+          pixelWidth,
           measurements.lineHeight
         )
         cx.setColor(theme.cursorColorInactive)
@@ -4283,105 +4317,219 @@ class CursorsComponent extends Gtk.DrawingArea {
 }
 
 class HighlightsComponent extends Gtk.DrawingArea {
-  props = {
-    element: null,
-    width: 0,
-    height: 0,
-    lineDecorations: [],
-    highlightDecorations: [],
-  }
-
   constructor(props) {
     super()
-    this.focusable = false
-    this.update(props)
-    this.setDrawFunc(this.onDraw.bind(this))
+    this.props = {};
+    this.highlightComponentsByKey = new Map();
+    this.onDraw = this.onDraw.bind(this)
+    this.update(props);
+    this.setDrawFunc(this.onDraw)
+  }
+
+  destroy() {
+    this.highlightComponentsByKey.forEach(highlightComponent => {
+      highlightComponent.destroy();
+    });
+    this.highlightComponentsByKey.clear();
   }
 
   update(newProps) {
-    const oldProps = this.props
-    this.props = Object.assign({}, this.props, newProps)
-    if (this.props.width !== oldProps.width || this.props.height !== oldProps.height)
-      this.setSizeRequest(newProps.width, newProps.height)
-    this.queueDraw()
+    // const should = this.shouldUpdate(newProps)
+    // console.log(should, this.props, newProps)
+    if (true) {
+      const oldProps = this.props;
+      this.props = newProps;
+      const { height, width, horizontalPadding, lineHeight, highlightDecorations } = this.props;
+
+      if (newProps.width !== oldProps.width || newProps.height !== oldProps.height)
+        this.setSizeRequest(width, height)
+
+      const visibleHighlightDecorations = new Set();
+      if (highlightDecorations) {
+        for (let i = 0; i < highlightDecorations.length; i++) {
+          const highlightDecoration = highlightDecorations[i];
+          const highlightProps = Object.assign(
+            {
+              lineHeight,
+              horizontalPadding,
+              fullWidth: width
+            },
+            highlightDecorations[i]
+          );
+
+          let highlightComponent = this.highlightComponentsByKey.get(
+            highlightDecoration.key
+          );
+          if (highlightComponent) {
+            highlightComponent.update(highlightProps);
+          } else {
+            highlightComponent = new HighlightComponent(highlightProps);
+            this.highlightComponentsByKey.set(
+              highlightDecoration.key,
+              highlightComponent
+            );
+          }
+
+          highlightDecorations[i].flashRequested = false;
+          visibleHighlightDecorations.add(highlightDecoration.key);
+        }
+      }
+
+      this.highlightComponentsByKey.forEach((highlightComponent, key) => {
+        if (!visibleHighlightDecorations.has(key)) {
+          highlightComponent.destroy();
+          this.highlightComponentsByKey.delete(key);
+        }
+      });
+
+      this.queueDraw();
+    }
   }
 
-  onDraw(self, cx) {
-    const {
-      element,
-      width,
-      lineDecorations,
-      highlightDecorations,
-      measurements
-    } = this.props
+  shouldUpdate(newProps) {
+    const oldProps = this.props;
 
-    const startRow   = element.getRenderedStartRow()
-    const scrollTop  = element.getScrollTop()
-    const scrollLeft = element.getScrollLeft()
+    if (!newProps.hasInitialMeasurements) return false;
 
-    /* Line decorations */
-    for (let i = 0; i < lineDecorations.length; i++) {
-      const decoration = lineDecorations[i]
-      if (!decoration)
-        continue
+    if (oldProps.width !== newProps.width) return true;
+    if (oldProps.height !== newProps.height) return true;
+    if (oldProps.lineHeight !== newProps.lineHeight) return true;
+    if (!oldProps.highlightDecorations && newProps.highlightDecorations)
+      return true;
+    if (oldProps.highlightDecorations && !newProps.highlightDecorations)
+      return true;
+    if (oldProps.highlightDecorations && newProps.highlightDecorations) {
+      if (
+        oldProps.highlightDecorations.length !==
+        newProps.highlightDecorations.length
+      )
+        return true;
 
-      const classNames = decoration.split(' ')
-
-      for (let j = 0; j < classNames.length; j++) {
-        const className = classNames[j]
-
-        const row = startRow + i
-
-        const x = 0 - scrollLeft
-        const y = element.pixelPositionAfterBlocksForRow(row) - scrollTop
-
-        const style = decorationStyleByClass[className]
-
-        if (style.background) {
-          cx.rectangle(x, y, width, measurements.lineHeight)
-          cx.setColor(style.background)
-          cx.fill()
-        }
-
-        if (style.borderWidth && style.borderColor) {
-          const isBorderWidthOdd = style.borderWidth % 2 === 1
-          if (isBorderWidthOdd)
-            cx.translate(0, 0.5)
-          cx.rectangle(x, y, width, measurements.lineHeight - (isBorderWidthOdd ? 1 : 0))
-          cx.setLineWidth(style.borderWidth)
-          cx.setColor(style.borderColor)
-          cx.stroke()
-          if (isBorderWidthOdd)
-            cx.translate(0, -0.5)
-        }
+      for (
+        let i = 0, length = oldProps.highlightDecorations.length;
+        i < length;
+        i++
+      ) {
+        const oldHighlight = oldProps.highlightDecorations[i];
+        const newHighlight = newProps.highlightDecorations[i];
+        if (oldHighlight.className !== newHighlight.className) return true;
+        if (newHighlight.flashRequested) return true;
+        if (oldHighlight.startPixelTop !== newHighlight.startPixelTop)
+          return true;
+        if (oldHighlight.startPixelLeft !== newHighlight.startPixelLeft)
+          return true;
+        if (oldHighlight.endPixelTop !== newHighlight.endPixelTop) return true;
+        if (oldHighlight.endPixelLeft !== newHighlight.endPixelLeft)
+          return true;
+        if (!oldHighlight.screenRange.isEqual(newHighlight.screenRange))
+          return true;
       }
     }
+    return false;
+  }
 
-    /* Highlight decorations */
-    for (let i = 0; i < highlightDecorations.length; i++) {
-      const decoration = highlightDecorations[i]
-      const x = decoration.startPixelLeft + measurements.horizontalPadding - scrollLeft
-      const y = decoration.startPixelTop  + measurements.verticalPadding - scrollTop
-      const width = decoration.endPixelLeft - decoration.startPixelLeft
-      const height = decoration.endPixelTop - decoration.startPixelTop
+  onDraw(_, cx) {
+    this.highlightComponentsByKey.forEach(highlightComponent => {
+      highlightComponent.onDraw(cx)
+    })
+  }
+}
 
-      const style = decorationStyleByClass['highlight']
+class HighlightComponent {
+  constructor(props) {
+    this.update(props)
+  }
 
-      if (style.background) {
-        cx.roundedRectangle(x, y, width, height, 5)
-        cx.setColor(style.background)
-        cx.fill()
+  destroy() {
+    if (this.timeoutsByClassName) {
+      this.timeoutsByClassName.forEach(timeout => {
+        window.clearTimeout(timeout);
+      });
+      this.timeoutsByClassName.clear();
+    }
+  }
+
+  update(newProps) {
+    this.props = newProps;
+    if (newProps.flashRequested) this.performFlash();
+  }
+
+  performFlash() {
+    // FIXME: implement this
+    return;
+    // const { flashClass, flashDuration } = this.props;
+    // if (!this.timeoutsByClassName) this.timeoutsByClassName = new Map();
+
+    // // If a flash of this class is already in progress, clear it early and
+    // // flash again on the next frame to ensure CSS transitions apply to the
+    // // second flash.
+    // if (this.timeoutsByClassName.has(flashClass)) {
+    //   window.clearTimeout(this.timeoutsByClassName.get(flashClass));
+    //   this.timeoutsByClassName.delete(flashClass);
+    //   this.element.removeCssClass(flashClass);
+    //   requestAnimationFrame(() => this.performFlash());
+    // } else {
+    //   this.element.addCssClass(flashClass);
+    //   this.timeoutsByClassName.set(
+    //     flashClass,
+    //     window.setTimeout(() => {
+    //       this.element.removeCssClass(flashClass);
+    //     }, flashDuration)
+    //   );
+    // }
+  }
+
+  onDraw(cx) {
+    const {
+      className,
+      screenRange,
+      fullWidth,
+      lineHeight,
+      horizontalPadding,
+      startPixelTop,
+      startPixelLeft,
+      endPixelTop,
+      endPixelLeft
+    } = this.props;
+    const style = getStyle(null, className);
+    // const regionClassName = 'region ' + className;
+
+    const x = startPixelLeft + horizontalPadding
+    const y = startPixelTop
+    const width  = endPixelLeft - startPixelLeft
+    const height = endPixelTop  - startPixelTop
+
+    if (screenRange.start.row === screenRange.end.row) {
+      drawRect(cx, style,
+        x,
+        y,
+        width,
+        lineHeight,
+      )
+    } else {
+      drawRect(cx, style,
+        x,
+        y,
+        fullWidth,
+        lineHeight,
+      )
+
+      if (screenRange.end.row - screenRange.start.row > 1) {
+        drawRect(cx, style,
+          horizontalPadding,
+          y + lineHeight,
+          fullWidth,
+          height - 2 * lineHeight,
+        )
       }
-      if (style.borderWidth && style.borderColor) {
-        const isBorderWidthOdd = style.borderWidth % 2 === 1
-        if (isBorderWidthOdd)
-          cx.translate(0, 0.5)
-        cx.roundedRectangle(x, y, width, height - (isBorderWidthOdd ? 1 : 0), 5)
-        cx.setLineWidth(style.borderWidth)
-        cx.setColor(style.borderColor)
-        cx.stroke()
-        if (isBorderWidthOdd)
-          cx.translate(0, -0.5)
+
+      if (endPixelLeft > 0) {
+        drawRect(cx, style,
+          horizontalPadding,
+          endPixelTop - lineHeight,
+          endPixelLeft,
+          lineHeight,
+        )
       }
     }
   }
@@ -4586,7 +4734,7 @@ function roundToPhysicalPixelBoundary(virtualPixelPosition) {
 
 function getStyle(baseStyle, classNames) {
   if (!classNames)
-    return baseStyle
+    return baseStyle || {}
 
   if (!baseStyle)
     baseStyle = {}
@@ -4602,4 +4750,23 @@ function getStyle(baseStyle, classNames) {
   }
 
   return baseStyle
+}
+
+function drawRect(cx, style, x, y, width, height) {
+  if (style.background) {
+    cx.roundedRectangle(x, y, width, height, 5)
+    cx.setColor(style.background)
+    cx.fill()
+  }
+  if (style.borderWidth && style.borderColor) {
+    const isBorderWidthOdd = style.borderWidth % 2 === 1
+    if (isBorderWidthOdd)
+      cx.translate(0, 0.5)
+    cx.roundedRectangle(x, y, width, height - (isBorderWidthOdd ? 1 : 0), 5)
+    cx.setLineWidth(style.borderWidth)
+    cx.setColor(style.borderColor)
+    cx.stroke()
+    if (isBorderWidthOdd)
+      cx.translate(0, -0.5)
+  }
 }
