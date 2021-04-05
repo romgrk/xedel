@@ -43,7 +43,8 @@ const DEFAULT_FONT_FAMILY = 'DejaVu Sans Mono for Powerline'
 const DEFAULT_FONT_SIZE = 18
 
 // Colors, for debugging
-const RED = Gdk.RGBA.create('#ff0000')
+// const RED  = Gdk.RGBA.create('#ff0000')
+// const BLUE = Gdk.RGBA.create('#8888ff')
 
 const theme = Color.parseObject({
   lineNumber:          '#888888',
@@ -68,7 +69,7 @@ const theme = Color.parseObject({
 
 const decorationStyleByClass = Color.parseObject({
   'cursor-line': {
-    background: 'rgba(255, 255, 255, 0.15)',
+    background: 'rgba(255, 255, 255, 0.10)',
   },
   'cursor-line-number': {
     foreground: '#599eff',
