@@ -701,6 +701,8 @@ class TextEditorComponent extends Gtk.Widget {
       this.updateSync();
       left = this.pixelLeftForRowAndColumn(row, column);
     }
+    // FIXME: normalize this among all pixel returning methods
+    left += this.measurements.horizontalPadding
     return { top, left };
   }
 
@@ -3473,6 +3475,15 @@ class TextEditorComponent extends Gtk.Widget {
 
   getPlatform() {
     return process.platform;
+  }
+
+  translateCoordinates(dest, srcX, srcY) {
+    const [_, x, y] = this.textWindow.translateCoordinates(
+      dest,
+      srcX,
+      srcY
+    )
+    return [x, y]
   }
 }
 

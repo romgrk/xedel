@@ -6,16 +6,18 @@ const _ = require('underscore-plus');
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
 
-class WorkspaceElement extends Gtk.Overlay {
+class WorkspaceElement extends Gtk.Box {
   static name = 'Workspace'
 
   constructor() {
     super()
     this.overlayPositions = new WeakMap()
+    this.overlay = new Gtk.Overlay()
     this.container = new Gtk.Box()
     this.container.setOrientation(Gtk.Orientation.VERTICAL)
-    this.setChild(this.container)
-    this.on('get-child-position', (widget, allocation) => this.onGetChildPosition(widget, allocation))
+    this.overlay.setChild(this.container)
+    this.overlay.on('get-child-position', (widget, allocation) => this.onGetChildPosition(widget, allocation))
+    this.append(this.overlay)
   }
 
   attachedCallback() {
@@ -48,17 +50,21 @@ class WorkspaceElement extends Gtk.Overlay {
 
   put(element, x, y, width, height) {
     this.overlayPositions.set(element, { x, y, width, height })
-    this.addOverlay(element)
+    this.overlay.addOverlay(element)
   }
 
   remove(element) {
-    this.removeOverlay(element)
+    this.overlay.removeOverlay(element)
     this.overlayPositions.delete(element)
   }
 
   onGetChildPosition(element, allocation) {
     const rect = this.overlayPositions.get(element)
+    if (!rect)
+      return false
+    element.setSizeRequest(rect.width, rect.height)
     Object.assign(allocation, rect)
+    return true
   }
 
   observeTextEditorFontConfig() {

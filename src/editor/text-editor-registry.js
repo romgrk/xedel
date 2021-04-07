@@ -120,18 +120,13 @@ module.exports = class TextEditorRegistry {
   // Returns the currently active text editor, or `null` if there is none.
   getActiveTextEditor() {
     for (let ed of this.editors) {
-      // fast path, works as long as there's a shadow DOM inside the text editor
-      if (ed.getElement() === document.activeElement) {
-        return ed;
-      } else {
-        let editorElement = ed.getElement();
-        let current = document.activeElement;
-        while (current) {
-          if (current === editorElement) {
-            return ed;
-          }
-          current = current.parentNode;
+      let editorElement = ed.getElement();
+      let current = xedel.window.getFocus();
+      while (current) {
+        if (current === editorElement) {
+          return ed;
         }
+        current = current.getParent();
       }
     }
     return null;
