@@ -171,6 +171,7 @@ function getSource() {
   return result
 }
 
+// FIXME: differentiate stop & stopImmediate
 class CommandEvent {
   stopPropagationCalled = false
   aborted = false
@@ -180,6 +181,10 @@ class CommandEvent {
   }
 
   stopPropagation() {
+    this.stopPropagationCalled = true
+  }
+
+  stopImmediatePropagation() {
     this.stopPropagationCalled = true
   }
 
