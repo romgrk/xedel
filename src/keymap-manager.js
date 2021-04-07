@@ -7,6 +7,7 @@ const { Disposable } = require('event-kit')
 const Key = require('./key')
 const { unreachable } = require('./utils/assert')
 const { parseSelector, matchesRule } = require('./utils/selectors')
+const getActiveElements = require('./utils/get-active-element')
 
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
@@ -90,7 +91,7 @@ class KeymapManager {
   onWindowKeyPressEvent = (keyval, keycode, state) => {
     const key = Key.fromArgs(keyval, keycode, state)
 
-    const elements = getElementsStack()
+    const elements = getActiveElements()
 
     for (let listener of this.listeners) {
       if (listener(key, elements[0], elements) === EVENT_STOP_PROPAGATION)
@@ -132,7 +133,7 @@ class KeymapManager {
         if (!didDispatch)
           continue
 
-        console.log(`${element.constructor.name}: [${keybinding}]: ${effect}`)
+        // console.log(`${element.constructor.name}: [${keybinding}]: ${effect}`)
 
         this.queuedKeystrokes = []
         didCapture = true
@@ -160,19 +161,6 @@ class KeymapManager {
 KeymapManager.MATCH = MATCH
 
 module.exports = KeymapManager
-
-function getElementsStack() {
-  const activeElement = xedel.window.getFocus()
-  if (!activeElement)
-    return []
-  const elements = [activeElement]
-  let current = activeElement
-  while (current && (current = current.getParent()) !== null) {
-    elements.push(current)
-  }
-
-  return elements
-}
 
 function matchKeybinding(queuedKeystrokes, keymap, element) {
   const keybindingKeys = Object.keys(keymap)
