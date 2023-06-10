@@ -16,6 +16,7 @@ const Cursor = require('./cursor');
 const Selection = require('./selection');
 const NullGrammar = require('./null-grammar');
 // const TextMateLanguageMode = require('./text-mate-language-mode');
+const TreeSitterLanguageMode = require('./tree-sitter-language-mode')
 const ScopeDescriptor = require('./scope-descriptor');
 
 // const TextMateScopeSelector = require('first-mate').ScopeSelector;
@@ -230,11 +231,16 @@ module.exports = class TextEditorModel {
           // return atom.config.get('core.closeDeletedFileTabs');
         }
       });
-      /*
-       * this.buffer.setLanguageMode(
-       *   new TextMateLanguageMode({ buffer: this.buffer, config: atom.config })
-       * );
-       */
+    }
+
+    // XXX: Proper language selection
+    if (true) {
+      this.buffer.setLanguageMode(new TreeSitterLanguageMode({
+        buffer: this.buffer,
+        grammar: xedel.grammars.grammarForScopeName('source.js'),
+        grammars: xedel.grammars,
+        config: xedel.config,
+      }));
     }
 
     const languageMode = this.buffer.getLanguageMode();

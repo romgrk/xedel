@@ -1,10 +1,10 @@
 # workspace
 # -------------------------
 # To maximize none-editor paneItem e.g. setting-view
-'atom-workspace:not(.editor)':
+# 'atom-workspace:not(.editor)':
   # conflicts insert-mode ctrl-w and ctr-w in mini editor, so comment out by default
   # 'ctrl-w z': 'vim-mode-plus:maximize-pane'
-  'cmd-enter': 'vim-mode-plus:maximize-pane'
+  # 'cmd-enter': 'vim-mode-plus:maximize-pane'
 
 'atom-workspace .tree-view':
   'cmd-enter': 'abort!'
@@ -215,7 +215,7 @@
 
   'ctrl-w z': 'vim-mode-plus:maximize-pane'
   'ctrl-w Z': 'vim-mode-plus:maximize-pane-without-center'
-  'cmd-enter': 'vim-mode-plus:maximize-pane'
+  # 'cmd-enter': 'vim-mode-plus:maximize-pane'
   # 'cmd-shift-enter': 'vim-mode-plus:maximize-pane-without-center'
 
   'ctrl-w =': 'vim-mode-plus:equalize-panes'

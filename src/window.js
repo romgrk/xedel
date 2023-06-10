@@ -2,21 +2,17 @@
  * window.js
  */
 
-const path = require('path')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
-const Gdk = gi.require('Gdk', '4.0')
 
 const openFileDialog = require('./utils/open-file-dialog')
-const getAbsolutePath = require('./utils/get-absolute-path')
-
-const UI_FILE = path.join(__dirname, './ui.glade')
 
 const windowKeymap = {
   Window: {
-    'ctrl-o': () => openFileDialog(filepath => xedel.workspace.open(filepath)),
+    // 'ctrl-o': () => openFileDialog(filepath => xedel.workspace.open(filepath)),
   },
   Workspace: {
+    'alt-o': () => openFileDialog(filepath => xedel.workspace.open(filepath)),
     'alt-,': 'pane:show-previous-item',
     'alt-.': 'pane:show-next-item',
   }
