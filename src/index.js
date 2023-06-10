@@ -24,6 +24,9 @@ const readFile = fs.promises.readFile
 gi.startLoop()
 Gtk.init([])
 
+const settings = Gtk.Settings.getDefault()
+settings.gtkApplicationPreferDarkTheme = true
+
 const userCacheHome  = process.env.XDG_CACHE_HOME  || `${process.env.HOME}/.cache`
 const userConfigHome = process.env.XDG_CONFIG_HOME || `${process.env.HOME}/.config`
 
