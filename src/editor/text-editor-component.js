@@ -41,7 +41,7 @@ const CURSOR_BLINK_PERIOD = 1400;
 // const DEFAULT_FONT_FAMILY = 'SauceCodePro Nerd Font'
 // const DEFAULT_FONT_FAMILY = 'DejaVu Sans Mono for Powerline'
 const DEFAULT_FONT_FAMILY = 'JetBrainsMono Nerd Font'
-const DEFAULT_FONT_SIZE = 12
+const DEFAULT_FONT_SIZE = 14
 
 // Colors, for debugging
 // const RED  = Gdk.RGBA.create('#ff0000')
