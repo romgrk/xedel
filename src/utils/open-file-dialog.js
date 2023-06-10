@@ -10,7 +10,7 @@ const Gtk = gi.require('Gtk', '4.0')
 
 let files
 function listFiles() {
-  return files ?? (files = cp.execSync('fd').toString().trim().split('\n'))
+  return files ?? (files = cp.execSync('fd -t f').toString().trim().split('\n'))
 }
 
 module.exports = function openFileDialog(callback) {
@@ -47,7 +47,7 @@ class Selector extends Gtk.Box {
 
     this.updateList()
 
-    xedel.workspace.getElement().put(this, 100, 100, 400, 300)
+    xedel.workspace.getElement().put(this, 100, 100, 500, 300)
     this.entry.grabFocus()
   }
 
@@ -56,7 +56,7 @@ class Selector extends Gtk.Box {
     this.currentEntries =
       fuzzy
         .filter(text, this.entries, {
-          pre: '<span foreground="#ff0000">',
+          pre: '<span foreground="__COLOR__">',
           post: '</span>',
         })
     this.currentEntries.sort((a, b) => {
@@ -75,7 +75,7 @@ class Selector extends Gtk.Box {
     this.currentEntries.forEach(entry => {
       const item = new Gtk.ListBoxRow()
       const label = new Gtk.Label()
-      label.setMarkup(entry.string)
+      label.setMarkup(`<span font_desc="mono">${colorize(entry.string)}</span>`)
       label.xalign = 0.0
       item.setChild(label)
       item.on('activate', () => onActivate(entry))
@@ -90,3 +90,41 @@ class Selector extends Gtk.Box {
 }
 
 gi.registerClass(Selector)
+
+/**
+ * @param {string} input
+ */
+function colorize(input) {
+  let index = 0
+  return input.replace(/__COLOR__/g, () => {
+    return colors[index++ % colors.length]
+  })
+}
+
+const colors = [
+  '#12C2E9',
+  '#30B5EA',
+  '#4DA7EA',
+  '#6B9AEB',
+  '#898CEC',
+  '#A67FEC',
+  '#C471ED',
+  '#CC6BD4',
+  '#D566BC',
+  '#DD60A3',
+  '#E55A8A',
+  '#EE5572',
+  '#F64F59',
+  '#EE5572',
+  '#E55A8A',
+  '#DD60A3',
+  '#D566BC',
+  '#CC6BD4',
+  '#C471ED',
+  '#A67FEC',
+  '#898CEC',
+  '#6B9AEB',
+  '#4DA7EA',
+  '#30B5EA',
+]
+
