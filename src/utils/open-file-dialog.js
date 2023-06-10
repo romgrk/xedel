@@ -23,6 +23,8 @@ class Selector extends Gtk.Box {
       orientation: Gtk.Orientation.VERTICAL,
     })
 
+    this.addCssClass('selector')
+
     this.entry = new Gtk.Entry()
     this.entry.on('changed', () => { this.onChange() })
     this.entry.on('activate', () => {
@@ -39,7 +41,7 @@ class Selector extends Gtk.Box {
     this.append(this.entry)
 
     this.view = new Gtk.ScrolledWindow()
-    this.view.setSizeRequest(-1, 200)
+    this.view.vexpand = true
     this.append(this.view)
 
     this.entries = listFiles()
@@ -47,7 +49,7 @@ class Selector extends Gtk.Box {
 
     this.updateList()
 
-    xedel.workspace.getElement().put(this, 100, 100, 500, 300)
+    xedel.workspace.getElement().put(this, 120, 80, 600, 300)
     this.entry.grabFocus()
   }
 

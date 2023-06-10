@@ -54,10 +54,33 @@ tab:selected {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-.main-toolbar {
-  padding: 0;
+
+.selector {
+  border: 1px solid alpha(white, 0.2);
+  border-radius: 12px;
 }
-.main-toolbar button {
-  border-radius: 0;
-  padding: 10px;
+.selector entry {
+  padding-top:    8px;
+  padding-bottom: 5px;
+  padding-left:  12px;
+  padding-right: 12px;
+  font-family: mono;
+
+  /* margin: 5px; */
+  border-top-left-radius:  12px;
+  border-top-right-radius: 12px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.selector scrolledwindow {
+  border-top-left-radius:     0;
+  border-top-right-radius:    0;
+  border-bottom-left-radius:  12px;
+  border-bottom-right-radius: 12px;
+}
+.selector row {
+  padding-top:    8px;
+  padding-bottom: 5px;
+  padding-left:  12px;
+  padding-right: 12px;
 }
