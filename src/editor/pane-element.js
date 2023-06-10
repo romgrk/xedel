@@ -1,5 +1,6 @@
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
+const Adw = gi.require('Adw', '1')
 
 const path = require('path');
 const { CompositeDisposable } = require('event-kit');
@@ -8,7 +9,7 @@ class PaneElement extends Gtk.Box {
   static name = 'Pane'
 
   constructor(props) {
-    super(Gtk.Orientation.HORIZONTAL)
+    super({ orientation: Gtk.Orientation.VERTICAL })
 
     this.dataset = {}
     this.attached = false;
@@ -31,9 +32,12 @@ class PaneElement extends Gtk.Box {
 
   initializeContent() {
     this.addCssClass('pane');
-    this.itemViews = new Gtk.Notebook();
-    this.append(this.itemViews);
+    this.itemBar = new Adw.TabBar();
+    this.itemViews = new Adw.TabView();
     this.itemViews.addCssClass('item-views');
+    this.itemBar.setView(this.itemViews)
+    this.append(this.itemBar);
+    this.append(this.itemViews);
   }
 
   subscribeToEvents() {
@@ -162,17 +166,17 @@ class PaneElement extends Gtk.Box {
       }
     }
 
-    let index
+    let page
     if (itemView.getParent() === null) {
-      index = this.addItem(itemView);
+      page = this.addItem(itemView);
     }
     else {
-      index = this.findItemIndex(itemView)
-      if (index === -1)
+      page = this.findPage(itemView)
+      if (page === -1)
         throw new Error('Page not found')
     }
 
-    this.itemViews.setCurrentPage(index)
+    this.itemViews.setSelectedPage(page)
 
     if (hasFocus) {
       itemView.grabFocus();
@@ -180,33 +184,32 @@ class PaneElement extends Gtk.Box {
   }
 
   addItem(itemView) {
-    const index = this.itemViews.appendPage(
-      itemView,
-      new Gtk.Label({ label: itemView.model.getTitle() })
-    );
+    const page = this.itemViews.addPage(itemView);
+    page.setTitle(itemView.model.getTitle())
+
     const disposable = itemView.model.onDidChangeTitle(title => {
-      const label = this.itemViews.getTabLabel(itemView)
-      label.setText(title)
+      page.setTitle(title)
     })
     this.subscriptionsByItem.set(itemView, disposable)
-    return index
+    return page
   }
 
-  findItemIndex(itemView) {
+  findPage(itemView) {
     const n = this.itemViews.getNPages()
     for (let i = 0; i < n; i++) {
       const page = this.itemViews.getNthPage(i)
-      if (page === itemView)
-        return i
+      if (page.getChild() === itemView)
+        return page
     }
-    return -1
+    return null
   }
 
   itemRemoved({ item, /* index: not working, */ destroyed }) {
     const viewToRemove = this.views.getView(item);
     if (viewToRemove) {
-      const index = this.findItemIndex(viewToRemove)
-      this.itemViews.removePage(index)
+      const page = this.findPage(viewToRemove)
+      this.itemViews.closePage(page)
+      this.itemViews.closePageFinish(page, true)
     }
     this.subscriptionsByItem.get(viewToRemove).dispose()
     this.subscriptionsByItem.delete(viewToRemove)
