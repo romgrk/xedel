@@ -49,8 +49,9 @@ const DEFAULT_FONT_SIZE = 14
 
 const theme = Color.parseObject({
   lineNumber:          '#888888',
-  backgroundColor:     '#1e1e1e',
+  backgroundColor:     'rgba(0, 0, 0, 0)', // '#262626',
   cursorColor:         '#f0f0f0',
+  cursorColorInverse:  '#000000',
   cursorColorInactive: 'rgba(255, 255, 255, 0.6)',
   cursorLineColor:     'rgba(255, 255, 255, 0.1)',
 })
@@ -324,7 +325,7 @@ class TextEditorComponent extends Gtk.Widget {
       textContainerHeight: 0,
       verticalScrollbarWidth: 0,
       horizontalScrollbarHeight: 0,
-      horizontalPadding: 10,
+      horizontalPadding: 5,
       verticalPadding: 0,
       longestLineWidth: 0
     };
@@ -4284,7 +4285,7 @@ class CursorsComponent extends Gtk.DrawingArea {
           cx.setColor(theme.cursorColor)
           cx.fill()
           if (character) {
-            cx.setColor(theme.backgroundColor)
+            cx.setColor(theme.cursorColorInverse)
             cx.moveTo(pixelLeft, pixelTop)
             Font.draw(element.font.description, cx, character)
           }
@@ -4309,7 +4310,7 @@ class CursorsComponent extends Gtk.DrawingArea {
           )
           cx.setColor(theme.cursorColor)
           cx.fill()
-          cx.setColor(theme.backgroundColor)
+          cx.setColor(theme.cursorColorInverse)
           cx.moveTo(pixelLeft, pixelTop)
           Font.draw(element.font.description, cx, character)
         }

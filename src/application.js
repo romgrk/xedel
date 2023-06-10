@@ -32,7 +32,7 @@ class Application extends Gtk.Application {
     Gtk.StyleContext.addProviderForDisplay(
       Gdk.Display.getDefault(),
       xedel.cssProvider,
-      9999
+      900
     )
 
     Promise.all([
