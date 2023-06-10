@@ -295,6 +295,8 @@ On linux there are currently problems with watch sizes. See
   }
 
   loadLessStylesheet(lessStylesheetPath, importFallbackVariables = false) {
+    console.log('theme-manager:skipping', lessStylesheetPath)
+    return
     if (this.lessCache == null) {
       this.lessCache = new LessCompileCache({
         resourcePath: this.resourcePath,

@@ -27,7 +27,7 @@ const packageJSON = require('../../package.json');
 //
 // Packages can be enabled/disabled via the `core.disabledPackages` config
 // settings and also by calling `enablePackage()/disablePackage()`.
-module.exports = class PackageManager {
+class PackageManager {
   constructor(params) {
     ({
       config: this.config,
@@ -1027,6 +1027,8 @@ module.exports = class PackageManager {
     }
   }
 };
+
+module.exports = PackageManager;
 
 const NullVersionRange = {
   test() {

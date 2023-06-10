@@ -1022,7 +1022,7 @@ class Environment {
       );
 
       // FIXME: these setup functions
-      // this.packages.activate();
+      this.packages.activate();
       // this.keymaps.loadUserKeymap();
       // if (!this.getLoadSettings().safeMode) this.requireUserInitScript();
 

@@ -5,14 +5,14 @@ const fs = require('fs-plus');
 const { Emitter, CompositeDisposable } = require('event-kit');
 const dedent = require('dedent');
 
-// const CompileCache = require('./compile-cache');
+const CompileCache = require('./compile-cache');
 const ModuleCache = require('./module-cache');
 // const BufferedProcess = require('./buffered-process');
-// const { requireModule } = require('./module-utils');
+const { requireModule } = require('./module-utils');
 
 // Extended: Loads and activates a package's main module and resources such as
 // stylesheets, keymaps, grammar, editor properties, and menus.
-module.exports = class Package {
+class Package {
   /*
   Section: Construction
   */
@@ -26,7 +26,7 @@ module.exports = class Package {
     this.notificationManager = params.notificationManager;
     this.grammarRegistry = params.grammarRegistry;
     this.themeManager = params.themeManager;
-    this.menuManager = params.menuManager;
+    this.menuManager = params.menuManager ?? { update: () => {} };
     this.contextMenuManager = params.contextMenuManager;
     this.deserializerManager = params.deserializerManager;
     this.viewRegistry = params.viewRegistry;
@@ -78,9 +78,9 @@ module.exports = class Package {
   }
 
   measure(key, fn) {
-    const startTime = window.performance.now();
+    const startTime = global.performance.now();
     const value = fn();
-    this[key] = Math.round(window.performance.now() - startTime);
+    this[key] = Math.round(global.performance.now() - startTime);
     return value;
   }
 
@@ -943,7 +943,8 @@ module.exports = class Package {
         : path.join(this.path, 'index');
       this.mainModulePath = fs.resolveExtension(mainModulePath, [
         '',
-        ...CompileCache.supportedExtensions
+        '.js',
+        // ...CompileCache.supportedExtensions
       ]);
     }
     return this.mainModulePath;
@@ -1342,7 +1343,9 @@ module.exports = class Package {
   }
 
   handleError(message, error) {
-    if (atom.inSpecMode()) throw error;
+    // XXX: remove this
+    if (true) throw error;
+    // if (atom.inSpecMode()) throw error;
 
     let detail, location, stack;
     if (error.filename && error.location && error instanceof SyntaxError) {
@@ -1372,6 +1375,8 @@ module.exports = class Package {
     });
   }
 };
+
+module.exports = Package;
 
 class SettingsFile {
   static load(path, callback) {

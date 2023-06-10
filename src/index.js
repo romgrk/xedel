@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const Module = require('module')
+const localStorage = require('localStorage')
 const CSON = require('season')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
@@ -14,6 +15,8 @@ const TextEditor = require('./editor/text-editor')
 const TreeSitterGrammar = require('./editor/tree-sitter-grammar')
 const clipboard = require('./editor/clipboard')
 // const grammars = require('./grammars')
+
+global.localStorage = localStorage
 
 require('./utils/cairo-prototype-extend')
 const getAbsolutePath = require('./utils/get-absolute-path')
@@ -41,7 +44,7 @@ process.env.NODE_PATH = exportsPath
 
 process.env.ATOM_HOME = configDirPath
 
-function main() {
+async function main() {
   TextEditor.setClipboard(clipboard);
   TextEditor.viewForItem = item => xedel.views.getView(item);
 
@@ -56,6 +59,9 @@ function main() {
     clipboard: clipboard,
     loadFile: loadFile,
   })
+
+  // TextEditor.setScheduler(global.atom.views);
+  global.atom.preloadPackages();
 
   loadPluginsFromPath(pluginsPath)
   loadPluginsFromPath(path.join(__dirname, './packages'))
@@ -96,7 +102,9 @@ function main() {
     // });
 
     xedel.loadedResolve()
-    xedel.startEditorWindow()
+    xedel.startEditorWindow().then(() => {
+      xedel.workspace.getElement().grabFocus()
+    })
   })
   xedel.app.run()
 }
@@ -105,49 +113,51 @@ function loadPluginsFromPath(pluginsPath) {
   const plugins = fs.readdirSync(pluginsPath)
 
   plugins.forEach(pluginName => {
-    // FIXME: handle disposables inside here
-    console.log('Loading ' + pluginName)
-    const pluginPath = path.join(pluginsPath, pluginName)
-    const plugin = require(pluginPath)
-    const pluginPackage = require(path.join(pluginPath, 'package.json'))
+    xedel.packages.loadPackage(path.join(pluginsPath, pluginName))
 
-    const grammarsPath = path.join(pluginPath, 'grammars')
-    const grammarPaths =
-      fs.existsSync(grammarsPath) ?
-        fs.readdirSync(grammarsPath).map(p => path.join(grammarsPath, p)) : []
-    grammarPaths.forEach(grammarPath => {
-      // FIXME: this line
-      if (!grammarPath.includes('tree-sitter'))
-        return
-      const params = CSON.parse(fs.readFileSync(grammarPath))
-      const grammar = new TreeSitterGrammar(xedel.grammars, grammarPath, params)
-      grammar.activate()
-      console.log('==> Added grammar ' + params.name)
-    })
-
-    const keymapsPath = path.join(pluginPath, 'keymaps')
-    const keymapPaths =
-      fs.existsSync(keymapsPath) ?
-        fs.readdirSync(keymapsPath).map(p => path.join(keymapsPath, p)) : []
-    keymapPaths.forEach(keymapPath => {
-      if (!keymapPath.endsWith('.cson'))
-        return
-      const keymap = CSON.parse(fs.readFileSync(keymapPath))
-      xedel.keymaps.add(keymapPath, keymap)
-      console.log('==> Added keymap ' + path.basename(keymapPath))
-    })
-
-    if (plugin.config) {
-      xedel.config.setSchema(pluginPackage.name, {
-        type: 'object',
-        properties: plugin.config,
-      })
-    }
-
-    if (plugin.activate)
-      plugin.activate()
-
-    console.log('==> Loaded ' + pluginName)
+    // // FIXME: handle disposables inside here
+    // console.log('Loading ' + pluginName)
+    // const pluginPath = path.join(pluginsPath, pluginName)
+    // const plugin = require(pluginPath)
+    // const pluginPackage = require(path.join(pluginPath, 'package.json'))
+    //
+    // const grammarsPath = path.join(pluginPath, 'grammars')
+    // const grammarPaths =
+    //   fs.existsSync(grammarsPath) ?
+    //     fs.readdirSync(grammarsPath).map(p => path.join(grammarsPath, p)) : []
+    // grammarPaths.forEach(grammarPath => {
+    //   // FIXME: this line
+    //   if (!grammarPath.includes('tree-sitter'))
+    //     return
+    //   const params = CSON.parse(fs.readFileSync(grammarPath))
+    //   const grammar = new TreeSitterGrammar(xedel.grammars, grammarPath, params)
+    //   grammar.activate()
+    //   console.log('==> Added grammar ' + params.name)
+    // })
+    //
+    // const keymapsPath = path.join(pluginPath, 'keymaps')
+    // const keymapPaths =
+    //   fs.existsSync(keymapsPath) ?
+    //     fs.readdirSync(keymapsPath).map(p => path.join(keymapsPath, p)) : []
+    // keymapPaths.forEach(keymapPath => {
+    //   if (!keymapPath.endsWith('.cson'))
+    //     return
+    //   const keymap = CSON.parse(fs.readFileSync(keymapPath))
+    //   xedel.keymaps.add(keymapPath, keymap)
+    //   console.log('==> Added keymap ' + path.basename(keymapPath))
+    // })
+    //
+    // if (plugin.config) {
+    //   xedel.config.setSchema(pluginPackage.name, {
+    //     type: 'object',
+    //     properties: plugin.config,
+    //   })
+    // }
+    //
+    // if (plugin.activate)
+    //   plugin.activate()
+    //
+    // console.log('==> Loaded ' + pluginName)
   })
 }
 
