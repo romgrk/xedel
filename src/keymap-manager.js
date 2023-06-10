@@ -51,8 +51,6 @@ class KeymapManager {
       const keymap = keymapBySelector[selector]
       const rules = parseSelector(selector)
 
-      console.log(rules)
-
       rules.forEach(rule => {
         const elementName = rule.element
         if (this.keymapsByName[elementName] === undefined)
@@ -133,7 +131,7 @@ class KeymapManager {
         if (!didDispatch)
           continue
 
-        // console.log(`${element.constructor.name}: [${keybinding}]: ${effect}`)
+        console.log(`${element.constructor.name}: [${keybinding}]: ${effect}`)
 
         this.queuedKeystrokes = []
         didCapture = true

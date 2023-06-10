@@ -13,6 +13,8 @@ const keymap =
     .filter(([name, description]) => !name.startsWith('Numpad'))
     .map(([name, description]) => ({ name, ...description }))
 
+const findKeymapShift = string => keymap.find(k => k.withShift === string && k.value !== string)
+
 const getKeyvalNameFromChar = c =>
   Gdk.keyvalName(Gdk.unicodeToKeyval(c.charCodeAt(0)))
 
@@ -50,7 +52,7 @@ class Key {
 
     const keymapEntry =
       string.charCodeAt(0) >= 0x20 ?
-        keymap.find(k => k.withShift === string) : undefined
+        findKeymapShift(string) : undefined
 
     if (keymapEntry) {
       name = keymapEntry.value
@@ -84,7 +86,7 @@ class Key {
 
     const keymapEntry =
       string.charCodeAt(0) >= 0x20 ?
-        keymap.find(k => k.withShift === string) : undefined
+        findKeymapShift(string) : undefined
 
     if (keymapEntry) {
       name = keymapEntry.value
@@ -149,7 +151,7 @@ class Key {
         let name = part
         let string = part
 
-        const keymapEntry = keymap.find(k => k.withShift === string)
+        const keymapEntry = findKeymapShift(string)
         if (keymapEntry) {
           name = keymapEntry.value
           key.shift = true
@@ -177,7 +179,7 @@ class Key {
 
           const keymapEntry =
             string.charCodeAt(0) >= 0x20 ?
-              keymap.find(k => k.withShift === string) : undefined
+              findKeymapShift(string) : undefined
 
           if (keymapEntry) {
             name = getKeyvalNameFromChar(keymapEntry.value)
