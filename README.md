@@ -1,6 +1,6 @@
 # xedel
 
-The goal of xedel is to be a modern text editor, that would be a spiritual successor to neovim.
+The goal of xedel is to be a modern text editor, that would be a spiritual GUI successor to neovim.
 I should note that this is currently very hypothetical, the core part of the editor is mostly
 working but there is still a lot of work to do to get it to a competitive point.
 
@@ -23,14 +23,13 @@ working but there is still a lot of work to do to get it to a competitive point.
  - tree-sitter via node-tree-sitter
  - Atom core
 
-While both Gtk+ and tree-sitter are usable from Rust, which could be an interesting language
-choice, I've chosen to start with javascript because 1) I've not used Rust a lot, and 2) Rust
-compile times are bad, Javascript offers a faster feedback loop. Besides, critical parts of
-the editor can be implemented in C/C++ or Rust with native modules.
+While both Gtk+ and tree-sitter are usable from Rust, which could be an interesting language choice, I've chosen to
+start with javascript because Javascript offers a faster feedback loop. Besides, critical parts of the editor can be
+implemented in C/C++ or Rust with native modules.
 
 Using node.js also provides a non-blocking model by default, being based on an event-loop at its
 core. It also makes it easy to create a plugin system where authors can use Javascript, which is
-the closest thing we have to a programming *lingua franca*.
+the closest thing we have to a programming *lingua franca* (and I hate python a lot).
 
 Finally, to save time, I've decided to use as a base the now deprecated Atom editor.
 
