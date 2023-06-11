@@ -132,7 +132,7 @@ module.exports = class ApplicationDelegate {
   }
 
   isWindowFullScreen() {
-    return remote.getCurrentWindow().isFullScreen();
+    return xedel.window.isFullscreen();
   }
 
   setWindowFullScreen(fullScreen = false) {
@@ -242,48 +242,51 @@ module.exports = class ApplicationDelegate {
   }
 
   confirm(options, callback) {
-    if (typeof callback === 'function') {
-      // Async version: pass options directly to Electron but set sane defaults
-      options = Object.assign(
-        { type: 'info', normalizeAccessKeys: true },
-        options
-      );
-      remote.dialog
-        .showMessageBox(remote.getCurrentWindow(), options)
-        .then(result => {
-          callback(result.response, result.checkboxChecked);
-        });
-    } else {
-      // Legacy sync version: options can only have `message`,
-      // `detailedMessage` (optional), and buttons array or object (optional)
-      let { message, detailedMessage, buttons } = options;
-
-      let buttonLabels;
-      if (!buttons) buttons = {};
-      if (Array.isArray(buttons)) {
-        buttonLabels = buttons;
-      } else {
-        buttonLabels = Object.keys(buttons);
-      }
-
-      const chosen = remote.dialog.showMessageBoxSync(
-        remote.getCurrentWindow(),
-        {
-          type: 'info',
-          message,
-          detail: detailedMessage,
-          buttons: buttonLabels,
-          normalizeAccessKeys: true
-        }
-      );
-
-      if (Array.isArray(buttons)) {
-        return chosen;
-      } else {
-        const callback = buttons[buttonLabels[chosen]];
-        if (typeof callback === 'function') return callback();
-      }
-    }
+    console.error('UNIMPLEMENTED: confirm dialog', options)
+    setTimeout(() => callback(options?.buttons?.[0], true))
+    return
+    // if (typeof callback === 'function') {
+    //   // Async version: pass options directly to Electron but set sane defaults
+    //   options = Object.assign(
+    //     { type: 'info', normalizeAccessKeys: true },
+    //     options
+    //   );
+    //   remote.dialog
+    //     .showMessageBox(remote.getCurrentWindow(), options)
+    //     .then(result => {
+    //       callback(result.response, result.checkboxChecked);
+    //     });
+    // } else {
+    //   // Legacy sync version: options can only have `message`,
+    //   // `detailedMessage` (optional), and buttons array or object (optional)
+    //   let { message, detailedMessage, buttons } = options;
+    //
+    //   let buttonLabels;
+    //   if (!buttons) buttons = {};
+    //   if (Array.isArray(buttons)) {
+    //     buttonLabels = buttons;
+    //   } else {
+    //     buttonLabels = Object.keys(buttons);
+    //   }
+    //
+    //   const chosen = remote.dialog.showMessageBoxSync(
+    //     remote.getCurrentWindow(),
+    //     {
+    //       type: 'info',
+    //       message,
+    //       detail: detailedMessage,
+    //       buttons: buttonLabels,
+    //       normalizeAccessKeys: true
+    //     }
+    //   );
+    //
+    //   if (Array.isArray(buttons)) {
+    //     return chosen;
+    //   } else {
+    //     const callback = buttons[buttonLabels[chosen]];
+    //     if (typeof callback === 'function') return callback();
+    //   }
+    // }
   }
 
   showMessageDialog(params) {}

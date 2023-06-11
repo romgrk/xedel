@@ -32,15 +32,15 @@ module.exports = class StateStore {
   }
 
   save(key, value) {
-    this.dbPromise.then(store => store.set(key, value))
+    return this.dbPromise.then(store => store.set(key, value))
   }
 
   load(key) {
-    this.dbPromise.then(store => store.get(key))
+    return this.dbPromise.then(store => store.get(key))
   }
 
   delete(key) {
-    this.dbPromise.then(store => store.delete(key))
+    return this.dbPromise.then(store => store.delete(key))
   }
 
   clear() {

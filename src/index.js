@@ -11,10 +11,9 @@ const GdkX11 = gi.require('GdkX11', '4.0')
 const Environment = require('./editor/atom-environment')
 const ApplicationDelegate = require('./editor/application-delegate')
 const Application = require('./application')
+const FileSystemBlobStore = require('./editor/file-system-blob-store');
 const TextEditor = require('./editor/text-editor')
-const TreeSitterGrammar = require('./editor/tree-sitter-grammar')
 const clipboard = require('./editor/clipboard')
-// const grammars = require('./grammars')
 
 global.localStorage = localStorage
 
@@ -43,6 +42,11 @@ Module.globalPaths.push(exportsPath);
 process.env.NODE_PATH = exportsPath
 
 process.env.ATOM_HOME = configDirPath
+process.env.XEDEL_HOME = configDirPath
+
+const blobStore = FileSystemBlobStore.load(
+  path.join(process.env.XEDEL_HOME, 'blob-store')
+);
 
 async function main() {
   TextEditor.setClipboard(clipboard);
@@ -81,29 +85,20 @@ async function main() {
     global.xedel.initialize({
       window,
       // document,
-      // blobStore,
+      blobStore,
       configDirPath,
       cacheDirPath,
-      env: process.env
+      env: process.env,
     });
 
     require('./window').register()
     require('./editor/keymap').register()
 
-    // return global.atom.startEditorWindow().then(function() {
-    //   // Workaround for focus getting cleared upon window creation
-    //   const windowFocused = function() {
-    //     window.removeEventListener('focus', windowFocused);
-    //     setTimeout(() => document.querySelector('atom-workspace').focus(), 0);
-    //   };
-    //   window.addEventListener('focus', windowFocused);
-
-    //   ipcRenderer.on('environment', (event, env) => updateProcessEnv(env));
-    // });
-
     xedel.loadedResolve()
     xedel.startEditorWindow().then(() => {
-      xedel.workspace.getElement().grabFocus()
+      setTimeout(() => xedel.workspace.getElement().grabFocus(), 100)
+
+      //   ipcRenderer.on('environment', (event, env) => updateProcessEnv(env));
     })
   })
   xedel.app.run()
@@ -114,50 +109,6 @@ function loadPluginsFromPath(pluginsPath) {
 
   plugins.forEach(pluginName => {
     xedel.packages.loadPackage(path.join(pluginsPath, pluginName))
-
-    // // FIXME: handle disposables inside here
-    // console.log('Loading ' + pluginName)
-    // const pluginPath = path.join(pluginsPath, pluginName)
-    // const plugin = require(pluginPath)
-    // const pluginPackage = require(path.join(pluginPath, 'package.json'))
-    //
-    // const grammarsPath = path.join(pluginPath, 'grammars')
-    // const grammarPaths =
-    //   fs.existsSync(grammarsPath) ?
-    //     fs.readdirSync(grammarsPath).map(p => path.join(grammarsPath, p)) : []
-    // grammarPaths.forEach(grammarPath => {
-    //   // FIXME: this line
-    //   if (!grammarPath.includes('tree-sitter'))
-    //     return
-    //   const params = CSON.parse(fs.readFileSync(grammarPath))
-    //   const grammar = new TreeSitterGrammar(xedel.grammars, grammarPath, params)
-    //   grammar.activate()
-    //   console.log('==> Added grammar ' + params.name)
-    // })
-    //
-    // const keymapsPath = path.join(pluginPath, 'keymaps')
-    // const keymapPaths =
-    //   fs.existsSync(keymapsPath) ?
-    //     fs.readdirSync(keymapsPath).map(p => path.join(keymapsPath, p)) : []
-    // keymapPaths.forEach(keymapPath => {
-    //   if (!keymapPath.endsWith('.cson'))
-    //     return
-    //   const keymap = CSON.parse(fs.readFileSync(keymapPath))
-    //   xedel.keymaps.add(keymapPath, keymap)
-    //   console.log('==> Added keymap ' + path.basename(keymapPath))
-    // })
-    //
-    // if (plugin.config) {
-    //   xedel.config.setSchema(pluginPackage.name, {
-    //     type: 'object',
-    //     properties: plugin.config,
-    //   })
-    // }
-    //
-    // if (plugin.activate)
-    //   plugin.activate()
-    //
-    // console.log('==> Loaded ' + pluginName)
   })
 }
 
@@ -170,17 +121,5 @@ function loadFile(filepath) {
     xedel.currentView.openBuffer({ text, filepath: realpath })
   })
 }
-
-function onExit() {
-  if (onExit.didExit)
-    return
-  onExit.didExit = true
-  xedel.app.exit()
-  console.log('Exiting gracefully...')
-}
-
-process.on('exit',    onExit)
-process.on('SIGTERM', onExit)
-process.on('SIGHUP',  onExit)
 
 main()

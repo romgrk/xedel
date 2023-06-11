@@ -76,7 +76,7 @@ const DEFAULT_NON_WORD_CHARACTERS = '/\\()"\':,.;<>~!@#$%^&*|+=[]{}`?-…';
 //
 // **When in doubt, just default to buffer coordinates**, then experiment with
 // soft wraps and folds to ensure your code interacts with them correctly.
-module.exports = class TextEditorModel {
+module.exports = class TextEditor {
   static setClipboard(clipboard) {
     this.clipboard = clipboard;
   }

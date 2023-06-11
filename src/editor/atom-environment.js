@@ -49,6 +49,8 @@ const TextEditorRegistry = require('./text-editor-registry');
 const StartupTime = require('./startup-time');
 // const getReleaseChannel = require('./get-release-channel');
 
+const DEFAULT_CACHE_KEY = '__default__'
+
 const stat = util.promisify(fs.stat);
 
 let nextId = 0;
@@ -326,7 +328,7 @@ class Environment {
     // this.keymaps.subscribeToFileReadFailure(); // FIXME: keymap-extensions
 
     // this.installUncaughtErrorHandler();
-    // this.attachSaveStateListeners();
+    this.attachSaveStateListeners();
     // this.windowEventHandler.initialize(this.window, this.document);
 
     this.workspace.initialize();
@@ -349,25 +351,18 @@ class Environment {
     return this.packages.preloadPackages();
   }
 
-  // attachSaveStateListeners() {
-  //   const saveState = _.debounce(() => {
-  //     this.window.requestIdleCallback(() => {
-  //       if (!this.unloading) this.saveState({ isUnloading: false });
-  //     });
-  //   }, this.saveStateDebounceInterval);
-  //   this.document.addEventListener('mousedown', saveState, { capture: true });
-  //   this.document.addEventListener('keydown', saveState, { capture: true });
-  //   this.disposables.add(
-  //     new Disposable(() => {
-  //       this.document.removeEventListener('mousedown', saveState, {
-  //         capture: true
-  //       });
-  //       this.document.removeEventListener('keydown', saveState, {
-  //         capture: true
-  //       });
-  //     })
-  //   );
-  // }
+  attachSaveStateListeners() {
+    const saveState = _.debounce(() => {
+      if (!this.unloading) this.saveState({ isUnloading: false });
+    }, this.saveStateDebounceInterval);
+    const timer = setInterval(saveState, 10_000)
+    timer.unref()
+    this.disposables.add(
+      new Disposable(() => {
+        clearInterval(timer)
+      })
+    );
+  }
 
   registerDefaultDeserializers() {
     this.deserializers.add(Workspace);
@@ -745,21 +740,24 @@ class Environment {
 
   // Extended: Returns a {Boolean} that is `true` if the current window is maximized.
   isMaximized() {
-    return this.applicationDelegate.isWindowMaximized();
+    return this.window.isMaximized();
   }
 
   maximize() {
-    return this.applicationDelegate.maximizeWindow();
+    this.window.maximize()
   }
 
   // Extended: Returns a {Boolean} that is `true` if the current window is in full screen mode.
   isFullScreen() {
-    return this.applicationDelegate.isWindowFullScreen();
+    return this.window.isFullscreen();
   }
 
   // Extended: Set the full screen state of the current window.
   setFullScreen(fullScreen = false) {
-    return this.applicationDelegate.setWindowFullScreen(fullScreen);
+    if (fullScreen)
+      this.window.fullscreen()
+    else
+      this.window.unfullscreen()
   }
 
   // Extended: Toggle the full screen state of the current window.
@@ -1406,23 +1404,14 @@ class Environment {
     return this.deserialize(state);
   }
 
-  showSaveDialogSync(options = {}) {
-    deprecate(`atom.showSaveDialogSync is deprecated and will be removed soon.
-Please, implement ::saveAs and ::getSaveDialogOptions instead for pane items
-or use Pane::saveItemAs for programmatic saving.`);
-    return this.applicationDelegate.showSaveDialog(options);
-  }
-
   async saveState(options, storageKey) {
     if (this.enablePersistence && this.project) {
       const state = this.serialize(options);
       if (!storageKey)
         storageKey = this.getStateKey(this.project && this.project.getPaths());
-      if (storageKey) {
-        await this.stateStore.save(storageKey, state);
-      } else {
-        await this.applicationDelegate.setTemporaryWindowState(state);
-      }
+      if (!storageKey)
+        storageKey = DEFAULT_CACHE_KEY;
+      await this.stateStore.save(storageKey, state);
     }
   }
 
@@ -1430,6 +1419,8 @@ or use Pane::saveItemAs for programmatic saving.`);
     if (this.enablePersistence) {
       if (!stateKey)
         stateKey = this.getStateKey(this.getLoadSettings().initialProjectRoots);
+      if (!stateKey)
+        stateKey = DEFAULT_CACHE_KEY;
       if (stateKey) {
         return this.stateStore.load(stateKey);
       } else {

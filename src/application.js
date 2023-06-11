@@ -18,6 +18,7 @@ const STYLE_FILE = path.join(__dirname, './style.css')
 
 let styleFileWatcher
 let _callback
+let _isExiting = false
 
 class Application extends Adw.Application {
   constructor(callback) {
@@ -26,6 +27,7 @@ class Application extends Adw.Application {
     // think that we're passing it an initialize props object rather than
     // a GtkApplication object.
     _callback = callback
+    _isExiting = false
     this.on('activate', () => this.onActivate())
   }
 
@@ -38,14 +40,13 @@ class Application extends Adw.Application {
 
     Promise.all([
       initializeStyle(),
-      // grammars.loaded[>.then(() => loadFile('./src/editor/TextEditor.js'))<],
     ])
     .then(() => {})
 
     const mainWindow = new MainWindow(this)
     mainWindow.on('close-request', () => {
-      this.loop.quit()
-      process.exit(0)
+      this.exit()
+      return false
     })
     mainWindow.on('show', () => {
       _callback(mainWindow)
@@ -55,12 +56,25 @@ class Application extends Adw.Application {
     this.loop.run()
   }
 
-  exit() {
+  async exit() {
+    if (_isExiting)
+      return
+    _isExiting = true
+
     if (styleFileWatcher) {
       styleFileWatcher.close()
       styleFileWatcher = null
     }
+
+    await xedel.prepareToUnloadEditorWindow()
+    xedel.unloadEditorWindow()
+    xedel.app.exit()
+
+    console.log('Exiting gracefully...')
+
+    process.exit(0)
   }
+
 }
 
 function initializeStyle() {

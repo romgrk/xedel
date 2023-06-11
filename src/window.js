@@ -28,7 +28,6 @@ class Window extends Adw.ApplicationWindow {
     super(app)
     this.focusable = false
     this.setDefaultSize(800, 800)
-    this.on('destroy', () => this.onDestroy())
 
     this.container = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL })
     this.headerBar = new Adw.HeaderBar()
@@ -40,10 +39,6 @@ class Window extends Adw.ApplicationWindow {
 
   setChild(child) {
     this.childContent.append(child)
-  }
-
-  onDestroy() {
-    process.exit(0)
   }
 }
 
