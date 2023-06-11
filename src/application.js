@@ -14,7 +14,7 @@ const readFile = fs.promises.readFile
 
 const MainWindow = require('./window')
 
-const STYLE_FILE = path.join(__dirname, './style.css')
+const STYLE_FILE = path.join(__dirname, '../static/style.css')
 
 let styleFileWatcher
 let _callback

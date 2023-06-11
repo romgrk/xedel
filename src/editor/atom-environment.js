@@ -4,7 +4,6 @@ const util = require('util');
 
 const _ = require('underscore-plus');
 const mkdirp = require('mkdirp')
-const { deprecate } = require('grim');
 const { CompositeDisposable, Disposable, Emitter } = require('event-kit');
 const fs = require('fs-plus');
 // const { mapSourcePosition } = require('@atom/source-map-support');

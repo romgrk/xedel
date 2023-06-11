@@ -1,4 +1,4 @@
-const {Emitter, CompositeDisposable} = require('atom')
+const {Emitter, CompositeDisposable} = require('xedel')
 
 let Base
 const settings = require('./settings')

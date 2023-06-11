@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "esModuleInterop": true,
+    "allowJs": true,
+    "noImplicitAny": false,
+    "removeComments": false,
+    "preserveConstEnums": true,
+    "rootDir": "./src",
+    "outDir": "./build",
+    "target": "esnext",
+    "lib": ["esnext"],
+    "types": ["./types/xedel.d.ts"],
+    "sourceMap": true
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "node_modules/**",
+    "**/*.spec.ts"
+  ]
+}

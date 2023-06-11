@@ -27,7 +27,7 @@ const { Point, Range } = TextBuffer
 const TreeSitterLanguageMode = require('./tree-sitter-language-mode')
 const doomOne = require('./theme-doom-one')
 
-const DEFAULT_ROWS_PER_TILE = 6;
+const DEFAULT_ROWS_PER_TILE = 12;
 
 const SPACE_CHARACTER = ' ';
 const ZERO_WIDTH_NBSP_CHARACTER = '\ufeff';
@@ -2534,7 +2534,7 @@ class TextEditorComponent extends Gtk.Widget {
       return dimensionsChanged;
     }
 
-    const lineNumberGutterWidth = this.measurements.baseCharacterWidth * (this.lineNumbersToRender.maxDigits + 2)
+    const lineNumberGutterWidth = this.measurements.baseCharacterWidth * (Math.max(this.lineNumbersToRender.maxDigits, 4) + 2)
     if (lineNumberGutterWidth !== this.measurements.lineNumberGutterWidth) {
       dimensionsChanged = true;
       this.measurements.lineNumberGutterWidth = lineNumberGutterWidth;

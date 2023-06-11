@@ -13,7 +13,8 @@ const FileSystemBlobStore = require('./editor/file-system-blob-store');
 const TextEditor = require('./editor/text-editor')
 const clipboard = require('./editor/clipboard')
 
-global.localStorage = localStorage
+const g = global as any
+g.localStorage = localStorage
 
 require('./utils/cairo-prototype-extend')
 const getAbsolutePath = require('./utils/get-absolute-path')
@@ -63,7 +64,7 @@ async function main() {
   global.atom.preloadPackages();
 
   loadPluginsFromPath(pluginsPath)
-  loadPluginsFromPath(path.join(__dirname, './packages'))
+  loadPluginsFromPath(path.join(__dirname, '../default-packages'))
 
   xedel.app = new Application(window => {
 
