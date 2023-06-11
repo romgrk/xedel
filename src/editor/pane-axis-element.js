@@ -36,10 +36,12 @@ class PaneAxisElement extends Gtk.Box {
 
     switch (this.model.getOrientation()) {
       case 'horizontal':
-        this.addCssClass('horizontal', 'pane-row');
+        this.addCssClass('horizontal');
+        this.addCssClass('pane-row');
         break;
       case 'vertical':
-        this.addCssClass('vertical', 'pane-column');
+        this.addCssClass('vertical');
+        this.addCssClass('pane-column');
         break;
     }
     return this;

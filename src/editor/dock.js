@@ -183,9 +183,10 @@ module.exports = class Dock {
     // Render immediately if the dock becomes visible or the size changes in case people are
     // measuring after opening, for example.
     if (this.element != null) {
-      if ((visible && !prevState.visible) || this.state.size !== prevState.size)
-        etch.updateSync(this);
-      else etch.update(this);
+      // XXX: fix here to implement docks
+      // if ((visible && !prevState.visible) || this.state.size !== prevState.size)
+      //   etch.updateSync(this);
+      // else etch.update(this);
     }
 
     if (hovered !== prevState.hovered) {
@@ -276,7 +277,8 @@ module.exports = class Dock {
 
   update(props) {
     // Since we're interopping with non-etch stuff, this method's actually never called.
-    return etch.update(this);
+    // XXX: fix here to implement docks
+    // return etch.update(this);
   }
 
   handleDidAddPaneItem() {
@@ -763,7 +765,8 @@ module.exports = class Dock {
 class DockResizeHandle {
   constructor(props) {
     this.props = props;
-    etch.initialize(this);
+    // XXX: fix here to implement docks
+    // etch.initialize(this);
   }
 
   render() {
@@ -806,7 +809,8 @@ class DockResizeHandle {
 class DockToggleButton {
   constructor(props) {
     this.props = props;
-    etch.initialize(this);
+    // XXX: fix here to implement docks
+    // etch.initialize(this);
   }
 
   render() {
@@ -845,7 +849,8 @@ class DockToggleButton {
 
   update(newProps) {
     this.props = Object.assign({}, this.props, newProps);
-    return etch.update(this);
+    // XXX: fix here to implement docks
+    // return etch.update(this);
   }
 
   handleClick() {

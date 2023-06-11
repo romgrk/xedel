@@ -3,20 +3,21 @@ const Gtk = gi.require('Gtk', '4.0')
 const Adw = gi.require('Adw', '1')
 
 const path = require('path');
-const { CompositeDisposable } = require('event-kit');
+const { CompositeDisposable, Disposable } = require('event-kit');
 
 class PaneElement extends Gtk.Box {
   static name = 'Pane'
 
-  constructor(props) {
+  constructor() {
     super({ orientation: Gtk.Orientation.VERTICAL })
 
     this.dataset = {}
     this.attached = false;
     this.subscriptions = new CompositeDisposable();
     this.subscriptionsByItem = new Map();
+
     this.initializeContent();
-    this.subscribeToEvents(); // FIXME
+    this.subscribeToEvents();
   }
 
   attachedCallback = () => {
@@ -35,36 +36,15 @@ class PaneElement extends Gtk.Box {
     this.itemBar = new Adw.TabBar();
     this.itemViews = new Adw.TabView();
     this.itemViews.addCssClass('item-views');
+    this.itemBar.setAutohide(false)
     this.itemBar.setView(this.itemViews)
     this.append(this.itemBar);
     this.append(this.itemViews);
   }
 
   subscribeToEvents() {
-    // FIXME: implement these
 
-    // const handleFocus = event => {
-    //   if (
-    //     !(
-    //       this.isActivating ||
-    //       this.model.isDestroyed() ||
-    //       this.contains(event.relatedTarget)
-    //     )
-    //   ) {
-    //     this.model.focus();
-    //   }
-    //   if (event.target !== this) return;
-    //   const view = this.getActiveView();
-    //   if (view) {
-    //     view.focus();
-    //     event.stopPropagation();
-    //   }
-    // };
-    // const handleBlur = event => {
-    //   if (!this.contains(event.relatedTarget)) {
-    //     this.model.blur();
-    //   }
-    // };
+    // FIXME: implement these
     // const handleDragOver = event => {
     //   event.preventDefault();
     //   event.stopPropagation();
@@ -78,14 +58,52 @@ class PaneElement extends Gtk.Box {
     //     this.applicationDelegate.open({ pathsToOpen, here: true });
     //   }
     // };
-
-    // this.addEventListener('focus', handleFocus, { capture: true });
-    // this.addEventListener('blur', handleBlur, { capture: true });
+    //
     // this.addEventListener('dragover', handleDragOver);
     // this.addEventListener('drop', handleDrop);
 
+    const handleFocus = () => {
+      const activeElement = xedel.window.getFocus()
+      if (
+        !(
+          this.isActivating ||
+          this.model.isDestroyed() ||
+          this.containsChild(activeElement)
+        )
+      ) {
+        this.model.focus();
+      }
+      if (activeElement !== this) return;
+      const view = this.getActiveView();
+      if (view) {
+        // FIXME: Can't prevent the propagation of this signal, this is the best we can do.
+        setTimeout(() => {
+          view.focus();
+        }, 100)
+      }
+    };
+    const handleBlur = () => {
+      if (!this.containsChild(xedel.window.getFocus())) {
+        this.model.blur();
+      }
+    };
+
+    this.controller = new Gtk.EventControllerFocus()
+    this.controller.setPropagationPhase(Gtk.PropagationPhase.CAPTURE)
+    this.controller.on('enter', handleFocus)
+    this.controller.on('leave', handleBlur)
+    this.addController(this.controller)
+
     this.on('realize', this.attachedCallback)
     this.on('unrealize', this.detachedCallback)
+
+    this.subscriptions.add(new Disposable(() => {
+      this.controller.off('enter', handleFocus)
+      this.controller.off('leave', handleBlur)
+
+      this.off('realize', this.attachedCallback)
+      this.off('unrealize', this.detachedCallback)
+    }))
   }
 
   initialize(model, { views, applicationDelegate }) {
@@ -190,7 +208,9 @@ class PaneElement extends Gtk.Box {
     const disposable = itemView.model.onDidChangeTitle(title => {
       page.setTitle(title)
     })
+
     this.subscriptionsByItem.set(itemView, disposable)
+
     return page
   }
 

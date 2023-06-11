@@ -25,25 +25,25 @@ class PaneContainerElement extends Gtk.Box {
   }
 
   rootChanged(root) {
-    // FIXME
-    // const focusedElement = this.hasFocus() ? document.activeElement : null;
-    // if (this.firstChild != null) {
-    //   this.firstChild.remove();
-    // }
+    const focusedElement = this.hasFocus() ? xedel.window.getFocus() : null;
+    if (this.getFirstChild() != null) {
+      this.remove(this.getFirstChild())
+    }
     if (root != null) {
       const view = this.views.getView(root);
       this.append(view);
-      // if (focusedElement != null) {
-      //   focusedElement.focus();
-      // }
+      if (focusedElement != null) {
+        focusedElement.grabFocus();
+      }
     }
   }
 
-  // hasFocus() {
-  //   return (
-  //     this === document.activeElement || this.contains(document.activeElement)
-  //   );
-  // }
+  hasFocus() {
+    const activeElement = xedel.window.getFocus()
+    return (
+      this === activeElement || this.containsChild(activeElement)
+    );
+  }
 }
 
 gi.registerClass(PaneContainerElement)
