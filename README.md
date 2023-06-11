@@ -63,6 +63,41 @@ to be the best future-proof option.
  - [ ] Language Server Protocol
  - [ ] Debug Adapter Protocol
 
+### Why did X fail.../Why not...
+
+#### onivim
+
+Very talented developer, but the lack of resources combined with the technological choices made this project unlikely
+to succeed. Trying to develop a UI framework from scratch for a language with low adoption is a big task. The choice
+to preserve vim as the underlying engine also meant that the project was preserving vim's limitations, such as
+the impossible multi-cursors or the terrible plugin language.
+
+#### lapce
+
+Similar to the above, trying to use an experimental & still WIP UI framework means the editor doesn't have a polished
+look. It also diverts resources from implementing the core editor logic, which is modal editing.
+
+#### xi
+
+Very cool in theory, but in practice the model doesn't work. It has the same limitations as neovim GUIs: keypress
+latency is higher than it needs to, and the required IPC between the core & the frontend makes it hard to have a good
+execution/implementation of the features. A code editor isn't just an abstract backend model; it's a very tangible
+interface that users need to intuitively understand very deeply. Loose coupling is a good principle in general, but in
+this particular case it doesn't work.
+
+#### atom
+
+Even early in the vscode vs atom war, it was very clear that vscode was going to win (and I say this as an early atom
+fanboy). They got a lot of stuff right (this project is based on atom!), but they left too many details to external
+plugins. Why was it necessary to install `autocomplete-plus`? The code editor should have the best possible autocomplete
+implementation to start with. A strong core & an unified vision is necessary. Plugins should be there for edge cases.
+
+#### vscode
+
+I love vscode so much, if I could I would be using it. They have a great execution, great vision, they understand
+precisely what developers need. The only missing detail is that they haven't made modal editing a central tennet of the
+editor. And they have decided that all plugins must run in separated processes, which although good in theory, means
+that plugins with high latency requirements (aka vim mode, which runs on each keypress) have an unacceptable feel.
 
 ### License
 
