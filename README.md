@@ -1,4 +1,3 @@
-
 # xedel
 
 The goal of xedel is to be a modern text editor, that would be a spiritual successor to neovim.
@@ -22,6 +21,7 @@ working but there is still a lot of work to do to get it to a competitive point.
  - Node.js
  - GTK+ via node-gtk
  - tree-sitter via node-tree-sitter
+ - Atom core
 
 While both Gtk+ and tree-sitter are usable from Rust, which could be an interesting language
 choice, I've chosen to start with javascript because 1) I've not used Rust a lot, and 2) Rust
@@ -32,31 +32,24 @@ Using node.js also provides a non-blocking model by default, being based on an e
 core. It also makes it easy to create a plugin system where authors can use Javascript, which is
 the closest thing we have to a programming *lingua franca*.
 
+Finally, to save time, I've decided to use as a base the now deprecated Atom editor.
+
 ### Current roadmap
 
 To save time, I've decided to re-use as much of Atom's editing capabilities as possible, and
-to replace the rendering code with a custom Gtk widget.
-After that, I plan to re-use as much [vim-mode-plus](https://github.com/t9md/atom-vim-mode-plus)
-code as possible for the core editing experience.
+to replace the rendering code with a custom Gtk widget. The [vim-mode-plus](https://github.com/t9md/atom-vim-mode-plus)
+plugin is used to provide the modal editing logic.
 
-Once the core editing is done, the most important part will be to offer autocompletion & code
-capabilities at the same level as VSCode. To do so, it could be wise to implement a compatibility
-layer for VSCode extensions. Even though much of the code will be based on Atom, VSCode seems
-to be the best future-proof option.
-
-### Open questions
-
- - How to implement packages/plugins
- - Should we offer compatibility with VSCode extensions?
 
 ### Functionalities
  - [x] Editor: rendering
  - [x] Editor: marks & decorations
  - [x] Editor: multi-cursor
  - [x] Editor: API
- - [ ] Syntax (tree-sitter) (in progress)
- - [ ] Core: keyboard-mapping system (in progress)
- - [ ] Plugin system
+ - [x] Syntax (tree-sitter) (in progress)
+ - [x] Core: keyboard-mapping system (in progress)
+ - [x] Plugin system
+ - [ ] Autocomplete & LSP
  - [ ] UI (side panels, grid view, tabs)
  - [ ] Fuzzy-finder
  - [ ] File searching/replacing
