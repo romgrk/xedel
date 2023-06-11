@@ -33,14 +33,8 @@ the closest thing we have to a programming *lingua franca* (and I hate python a 
 
 Finally, to save time, I've decided to use as a base the now deprecated Atom editor.
 
-### Current roadmap
+### Features
 
-To save time, I've decided to re-use as much of Atom's editing capabilities as possible, and
-to replace the rendering code with a custom Gtk widget. The [vim-mode-plus](https://github.com/t9md/atom-vim-mode-plus)
-plugin is used to provide the modal editing logic.
-
-
-### Functionalities
  - [x] Editor: rendering
  - [x] Editor: marks & decorations
  - [x] Editor: multi-cursor
