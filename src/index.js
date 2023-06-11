@@ -2,11 +2,9 @@ const fs = require('fs')
 const path = require('path')
 const Module = require('module')
 const localStorage = require('localStorage')
-const CSON = require('season')
 const gi = require('node-gtk')
 const Gtk = gi.require('Gtk', '4.0')
-const Gdk = gi.require('Gdk', '4.0')
-const GdkX11 = gi.require('GdkX11', '4.0')
+const Adw = gi.require('Adw', '1')
 
 const Environment = require('./editor/atom-environment')
 const ApplicationDelegate = require('./editor/application-delegate')
@@ -25,9 +23,6 @@ const readFile = fs.promises.readFile
 
 gi.startLoop()
 Gtk.init([])
-
-const settings = Gtk.Settings.getDefault()
-settings.gtkApplicationPreferDarkTheme = true
 
 const userCacheHome  = process.env.XDG_CACHE_HOME  || `${process.env.HOME}/.cache`
 const userConfigHome = process.env.XDG_CONFIG_HOME || `${process.env.HOME}/.config`
@@ -71,18 +66,11 @@ async function main() {
   loadPluginsFromPath(path.join(__dirname, './packages'))
 
   xedel.app = new Application(window => {
-    // TextEditor.setScheduler(global.atom.views);
-    // global.atom.preloadPackages();
 
-    // const { updateProcessEnv } = require('./update-process-env');
-    // const path = require('path');
-    // require('./window');
-    // const getWindowLoadSettings = require('./get-window-load-settings');
-    // const { ipcRenderer } = require('electron');
-    // const { resourcePath, devMode } = getWindowLoadSettings();
-    // require('./electron-shims');
+    const styleManager = xedel.app.getStyleManager()
+    styleManager.colorScheme = Adw.ColorScheme.PREFER_DARK
 
-    global.xedel.initialize({
+    xedel.initialize({
       window,
       // document,
       blobStore,
@@ -98,7 +86,7 @@ async function main() {
     xedel.startEditorWindow().then(() => {
       setTimeout(() => xedel.workspace.getElement().grabFocus(), 100)
 
-      //   ipcRenderer.on('environment', (event, env) => updateProcessEnv(env));
+      //ipcRenderer.on('environment', (event, env) => updateProcessEnv(env));
     })
   })
   xedel.app.run()
