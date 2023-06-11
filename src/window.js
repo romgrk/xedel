@@ -43,6 +43,9 @@ class Window extends Adw.ApplicationWindow {
     this.projectButton.setChild(content)
     this.headerBar.packStart(this.projectButton)
 
+    this.titleLabel = new Gtk.Label({ label: '' })
+    this.headerBar.setTitleWidget(this.titleLabel)
+
     this.childContent = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL })
     this.container.append(this.childContent)
 
