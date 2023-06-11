@@ -20,23 +20,23 @@
  */
 
 window {
-  border: 1px solid alpha(white, 0.05);
   border-radius: 12px;
 }
 
-headerbar,
+headerbar {
+  border-bottom: 1px solid alpha(white, 0.1);
+}
 headerbar:backdrop {
-  background: none;
-  background-color: transparent;
-  border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid alpha(white, 0.05);
 }
 
-
-tabboxchild {
-  margin-top: 5px;
-  margin-bottom: 5px;
+tabview {
+  background-color: @headerbar_bg_color;
 }
+tabview:backdrop {
+  background-color: @headerbar_backdrop_color;
+}
+
 
 tabbox {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -44,10 +44,7 @@ tabbox {
 tabbox > separator {
   opacity: 0;
 }
-tabview {
-  margin-top: 5px;
-  margin-bottom: 5px;
-}
+/* tabview {} */
 tab {
   border-radius: 5px;
   transition: background-color 150ms;
@@ -63,6 +60,7 @@ tab:selected {
 .selector {
   border: 1px solid alpha(white, 0.2);
   border-radius: 12px;
+  background-color: @view_bg_color;
 }
 .selector entry {
   padding-top:    8px;
@@ -78,12 +76,17 @@ tab:selected {
   border-bottom-right-radius: 0;
 }
 .selector scrolledwindow {
+  background-color: @view_bg_color;
   border-top-left-radius:     0;
   border-top-right-radius:    0;
   border-bottom-left-radius:  12px;
   border-bottom-right-radius: 12px;
 }
+.selector listbox {
+  background-color: @view_bg_color;
+}
 .selector row {
+  background-color: @view_bg_color;
   padding-top:    8px;
   padding-bottom: 5px;
   padding-left:  12px;

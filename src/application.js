@@ -6,6 +6,7 @@ const fs = require('fs')
 const path = require('path')
 const chokidar = require('chokidar')
 const gi = require('node-gtk')
+const Adw = gi.require('Adw', '1')
 const Gtk = gi.require('Gtk', '4.0')
 const Gdk = gi.require('Gdk', '4.0')
 const GLib = gi.require('GLib', '2.0')
@@ -18,7 +19,7 @@ const STYLE_FILE = path.join(__dirname, './style.css')
 let styleFileWatcher
 let _callback
 
-class Application extends Gtk.Application {
+class Application extends Adw.Application {
   constructor(callback) {
     super('com.github.romgrk.xedel', 0)
     // FIXME: node-gtk issue: setting a property will make `new Window()`
