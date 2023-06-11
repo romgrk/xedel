@@ -2,10 +2,8 @@
  * TextEditorDraw.js
  */
 
-const fs = require('fs')
 const path = require('path')
 const isEqual = require('lodash.isequal')
-const CSON = require('season')
 const LineTopIndex = require('line-top-index');
 const { CompositeDisposable, Disposable, Emitter } = require('event-kit');
 const gi = require('node-gtk')
