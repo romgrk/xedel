@@ -4331,7 +4331,7 @@ class CursorsComponent extends Gtk.DrawingArea {
 class HighlightsComponent extends Gtk.DrawingArea {
   constructor(props) {
     super()
-    this.props = {};
+    this.props = props;
     this.highlightComponentsByKey = new Map();
     this.onDraw = this.onDraw.bind(this)
     this.update(props);
@@ -4351,6 +4351,7 @@ class HighlightsComponent extends Gtk.DrawingArea {
     if (true) {
       const oldProps = this.props;
       this.props = newProps;
+      this.props.element = oldProps.element;
       const { height, width, horizontalPadding, lineHeight, highlightDecorations } = this.props;
 
       if (newProps.width !== oldProps.width || newProps.height !== oldProps.height)
@@ -4362,6 +4363,7 @@ class HighlightsComponent extends Gtk.DrawingArea {
           const highlightDecoration = highlightDecorations[i];
           const highlightProps = Object.assign(
             {
+              element: this.props.element,
               lineHeight,
               horizontalPadding,
               fullWidth: width
@@ -4493,6 +4495,7 @@ class HighlightComponent {
 
   onDraw(cx) {
     const {
+      element,
       className,
       screenRange,
       fullWidth,
@@ -4503,6 +4506,12 @@ class HighlightComponent {
       endPixelTop,
       endPixelLeft
     } = this.props;
+
+    cx.translate(
+      -element.getScrollLeft(),
+      -element.getScrollTop(),
+    )
+
     const style = getStyle(null, className);
     // const regionClassName = 'region ' + className;
 
