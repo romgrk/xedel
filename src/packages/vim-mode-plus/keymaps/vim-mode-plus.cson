@@ -291,8 +291,8 @@
   # 'g N': 'vim-mode-plus:move-to-previous-number'
 
 # macOS only
-'.platform-darwin atom-text-editor.vim-mode-plus:not(.insert-mode)':
-  'ctrl-s': 'vim-mode-plus:transform-string-by-select-list'
+# '.platform-darwin atom-text-editor.vim-mode-plus:not(.insert-mode)':
+#   'ctrl-s': 'vim-mode-plus:transform-string-by-select-list'
 
 'atom-text-editor.vim-mode-plus.has-occurrence:not(.insert-mode)':
   'tab': 'vim-mode-plus:move-to-next-occurrence'

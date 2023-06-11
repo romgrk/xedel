@@ -1,21 +1,10 @@
-/*
- * keymap.js
- */
-
-const TextEditorComponent = require('./text-editor-component')
 
 
-const callWithModel = fn => element => element.model[fn]()
+const callWithModel = fn => (_, element) => element.getModel()[fn]()
 
 const editorCommands = {
-  /* 'core:move-down':  callWithModel('moveDown'),
-   * 'core:move-up':    callWithModel('moveUp'),
-   * 'core:move-left':  callWithModel('moveLeft'),
-   * 'core:move-right': callWithModel('moveRight'),
-   * 'editor:move-to-top': callWithModel('moveToTop'),
-   * 'editor:move-to-bottom': callWithModel('moveToBottom'),
-   * 'editor:move-to-next-subword-boundary': callWithModel('moveToNextSubwordBoundary'),
-   * 'editor:move-to-previous-subword-boundary': callWithModel('moveToPreviousSubwordBoundary'), */
+  'core:save':  callWithModel('save'),
+
   // 'editor:add-cursor-below': (event, editor) => {
   //   const cursor = editor.model.getLastCursor()
   //   const position = cursor.getScreenPosition()
@@ -24,24 +13,12 @@ const editorCommands = {
 }
 
 const editorKeymap = {
-  // 'Window > Workspace TextEditor': {
-    // 'j': 'core:move-down',
-    // 'k': 'core:move-up',
-    // 'h': 'core:move-left',
-    // 'l': 'core:move-right',
-    // 'g g': 'editor:move-to-top',
-    // 'G': 'editor:move-to-bottom',
-
-    // 'w': 'editor:move-to-next-subword-boundary',
-    // 'b': 'editor:move-to-previous-subword-boundary',
-
-    // 'ctrl-alt-j': 'editor:add-cursor-below',
-  // }
+  'TextEditor': {
+    'ctrl-s': 'core:save',
+  },
 }
 
 module.exports.register = () => {
-  // xedel.commands.add('TextEditor', editorCommands)
-  // xedel.keymaps.add(__filename, editorKeymap)
+  xedel.commands.add('TextEditor', editorCommands)
+  xedel.keymaps.add(__filename, editorKeymap)
 }
-
-
