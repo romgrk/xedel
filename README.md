@@ -13,7 +13,7 @@ working but there is still a lot of work to do to get it to a competitive point.
 
 <p align="center">
   <img
-    src="./static/demo.gif"
+    src="./static/demo.png"
     style="width: 500px; height: auto"
   />
 </p>

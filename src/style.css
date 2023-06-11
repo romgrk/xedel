@@ -41,21 +41,6 @@ tabview:backdrop {
 tabbox {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
-tabbox > separator {
-  opacity: 0;
-}
-/* tabview {} */
-tab {
-  border-radius: 5px;
-  transition: background-color 150ms;
-}
-tab:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-tab:selected {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
 
 .selector {
   border: 1px solid alpha(white, 0.2);
