@@ -24,9 +24,14 @@ window {
   border-radius: 12px;
 }
 
-headerbar {
+headerbar,
+headerbar:backdrop {
+  background: none;
   background-color: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
+
 
 tabboxchild {
   margin-top: 5px;

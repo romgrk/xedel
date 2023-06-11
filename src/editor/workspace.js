@@ -678,8 +678,10 @@ module.exports = class Workspace extends Model {
   // Updates the application's title and proxy icon based on whichever file is
   // open.
   updateWindowTitle() {
-    let itemPath, itemTitle, projectPath, representedPath;
-    const appName = atom.getAppName();
+    let itemPath
+    let itemTitle
+    let projectPath
+    // const appName = atom.getAppName();
     const left = this.project.getPaths();
     const projectPaths = left != null ? left : [];
     const item = this.getActivePaneItem();
@@ -716,23 +718,12 @@ module.exports = class Workspace extends Model {
     }
 
     const titleParts = [];
-    if (item != null && projectPath != null) {
-      titleParts.push(itemTitle, projectPath);
-      representedPath = itemPath != null ? itemPath : projectPath;
-    } else if (projectPath != null) {
+    if (projectPath != null) {
       titleParts.push(projectPath);
-      representedPath = projectPath;
-    } else {
-      titleParts.push(itemTitle);
-      representedPath = '';
-    }
-
-    if (process.platform !== 'darwin') {
-      titleParts.push(appName);
     }
 
     xedel.window.setTitle(titleParts.join(' \u2014 '));
-    this.applicationDelegate.setRepresentedFilename(representedPath);
+    // this.applicationDelegate.setRepresentedFilename(representedPath);
     this.emitter.emit('did-change-window-title');
   }
 

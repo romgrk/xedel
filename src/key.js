@@ -202,6 +202,7 @@ class Key {
   }
 
   equals(other) {
+    if (this === other) return true
     if (this.ctrl !== other.ctrl) return false
     if (this.shift !== other.shift) return false
     if (this.alt !== other.alt) return false
