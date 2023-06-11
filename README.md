@@ -67,6 +67,9 @@ one would be written in a native language, but I really just did a 1-1 replaceme
 a tiling system that doesn't work really well. This isn't a permanent blocker though, it can be optimized or replaced by
 native code where/when appropriate.
 
+Re-using Atom code means we get javascript (meh) code and coffeescript (even more meh) code. Ideally we should migrate
+everything to typescript.
+
 ### Why did X fail.../Why not...
 
 #### onivim
